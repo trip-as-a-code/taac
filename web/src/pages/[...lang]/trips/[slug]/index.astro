@@ -313,7 +313,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
 
 <script>
   import { onPage } from '@/scripts/page'
-  import { setupFilters } from '@/scripts/filters'
+  import { revealTarget, setupFilters } from '@/scripts/filters'
   import { computeBudget, type BudgetData } from '@/scripts/budget'
   import { getLens, inLens, type Lens } from '@/scripts/lens'
   import { format, onMoney } from '@/scripts/money'
@@ -403,6 +403,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     status()
     // `webcal://` (set in follow) makes calendar apps subscribe, not import once.
     setupFilters((state) => follow(state.lens))
+    revealTarget()
     offMoney?.()
     offMoney = onMoney(() => follow(getLens()))
   })

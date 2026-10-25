@@ -98,13 +98,14 @@ const ratio = total ? done.length / total : 1
 
 <script>
   import { onPage } from '@/scripts/page'
-  import { setupFilters } from '@/scripts/filters'
+  import { revealTarget, setupFilters } from '@/scripts/filters'
 
   onPage('bookings', () => {
     setupFilters(() => {
       for (const section of document.querySelectorAll<HTMLElement>('.section'))
         section.hidden = !section.querySelector('[data-item]:not([hidden])')
     })
+    revealTarget()
   })
 </script>
 

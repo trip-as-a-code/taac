@@ -93,6 +93,16 @@ const offsetLabel =
     <summary>
       <h3 class="headline" lang={trip.locale}>
         {item.title}
+        <a
+          class="anchor"
+          href={`#item-${item.id}`}
+          data-anchor
+          aria-label={t('item.copyLink')}
+          title={t('item.copyLink')}
+        >
+          <Icon name="link" size={14} class="anchor-link" />
+          <Icon name="check" size={14} class="anchor-check" />
+        </a>
       </h3>
       {places.length > 0 && (
         <p class="subhead secondary place">

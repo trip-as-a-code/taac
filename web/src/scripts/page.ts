@@ -1,5 +1,6 @@
 // Per-navigation setup shared by every page (runs on `astro:page-load`).
 
+import { revealTarget } from '@/scripts/filters'
 import { onMoney, renderMoney } from '@/scripts/money'
 
 const LANG_COOKIE = 'taac_lang'
@@ -25,9 +26,40 @@ export function setupPage() {
   if (!once) {
     once = true
     onMoney(() => renderMoney())
+    setupAnchors()
     registerServiceWorker()
     watchForNewBuild()
   }
+}
+
+const copiedTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>()
+
+/** Copies the full URL of a `[data-anchor]` link and updates the hash without toggling `<details>`. */
+function setupAnchors() {
+  document.addEventListener('click', (event) => {
+    const link = (event.target as Element).closest<HTMLAnchorElement>('[data-anchor]')
+    if (!link) return
+    const href = link.getAttribute('href')
+    if (!href?.startsWith('#')) return
+    event.preventDefault()
+    event.stopPropagation()
+    history.replaceState(history.state, '', href)
+    const url = new URL(href, location.href).href
+    void navigator.clipboard?.writeText(url).catch(() => undefined)
+    link.dataset.copied = ''
+    clearTimeout(copiedTimers.get(link))
+    copiedTimers.set(
+      link,
+      setTimeout(() => delete link.dataset.copied, 1500),
+    )
+    const target = document.getElementById(decodeURIComponent(href.slice(1)))
+    if (target?.hasAttribute('data-item')) {
+      target.classList.remove('flash')
+      void target.offsetWidth
+      target.classList.add('flash')
+    }
+  })
+  window.addEventListener('hashchange', () => revealTarget())
 }
 
 function rememberLanguageOnSwitch() {
