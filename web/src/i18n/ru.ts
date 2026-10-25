@@ -241,7 +241,8 @@ export const ru: Messages = {
   'ideas.duration.halfDay': 'Полдня',
   'ideas.duration.day': 'Весь день',
   'ideas.estimate': '≈ {amount}',
-  'ideas.none': 'Идей пока нет. Добавьте их в раздел `ideas:` поездки.',
+  'ideas.none':
+    'Идей пока нет. Сюда попадает то, что можно сделать без даты, — раздел `ideas` в файлах поездки; каждая идея появится в маршруте в свободные дни там, где вы будете.',
   'ideas.count': { one: '{n} идея', few: '{n} идеи', many: '{n} идей', other: '{n} идеи' },
 
   'packing.title': 'Сборы',

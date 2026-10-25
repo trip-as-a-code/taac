@@ -26,7 +26,8 @@ const base = `/trips/${trip.slug}`
 const sections: { id: Section; icon: IconName; href: string }[] = [
   { id: 'overview', icon: 'overview', href: path(`${base}/`) },
   { id: 'itinerary', icon: 'itinerary', href: path(`${base}/itinerary/`) },
-  ...(trip.ideas.length ? [{ id: 'ideas' as const, icon: 'sparkle' as const, href: path(`${base}/ideas/`) }] : []),
+  // Always there, even before the first idea: it explains what ideas are.
+  { id: 'ideas', icon: 'sparkle', href: path(`${base}/ideas/`) },
   { id: 'map', icon: 'map', href: path(`${base}/map/`) },
   { id: 'bookings', icon: 'bookings', href: path(`${base}/bookings/`) },
   // Some things get bought before they can be packed: the budget comes last.
@@ -303,6 +304,18 @@ const current = t(`nav.${section}`)
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+  }
+
+  /* Seven tabs on the narrowest phones: the labels tighten to fit. */
+  @media (max-width: 360px) {
+    .tab-bar {
+      padding-inline: 2px;
+    }
+
+    .tab-bar a {
+      font-size: 9.5px;
+      letter-spacing: -0.15px;
     }
 
     :global(.toast) {

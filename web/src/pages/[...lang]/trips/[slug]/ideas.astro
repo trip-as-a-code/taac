@@ -26,7 +26,7 @@ const visits = (area: string) =>
 <TripLayout trip={trip} lang={lang} section="ideas">
   <p class="lede secondary">{t('ideas.lede')}</p>
   {trip.ideas.length === 0 ? (
-    <p class="card card-pad secondary">{t('ideas.none')}</p>
+    <p class="card card-pad secondary" set:html={t('ideas.none').replace(/`([^`]+)`/g, '<code>$1</code>')} />
   ) : (
     <>
       <div class="toolbar">
