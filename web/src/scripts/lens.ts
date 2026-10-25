@@ -1,12 +1,16 @@
 // The people lens: one selection of travellers that every trip page follows.
 // Lives in the URL (`?who=a,b&mode=together`, shareable) and is remembered per
-// trip on this device, so it carries across pages.
+// trip on this device, so it carries across pages. Plans nobody was assigned
+// to sit apart: hidden from every selection, shown alone with `?unassigned`.
+// Pages without plans (budget, packing) don't offer it.
 
 export type LensMode = 'any' | 'together'
 
 export interface Lens {
   people: string[]
   mode: LensMode
+  /** Only plans without a `who`; `people` is empty then. */
+  unassigned?: boolean
 }
 
 const EVENT = 'taac:lens'
@@ -22,21 +26,23 @@ export function getLens(): Lens {
   const root = document.querySelector<HTMLElement>('[data-lens]')
   if (readFrom !== root) {
     readFrom = root
-    if (root) initLens(root.dataset.lens!, (root.dataset.members ?? '').split(' '))
+    if (root)
+      initLens(root.dataset.lens!, (root.dataset.members ?? '').split(' '), root.hasAttribute('data-unassigned'))
     else current = { people: [], mode: 'any' }
   }
   return current
 }
 
 /** Reads the lens for this page: URL first, then what this device remembered. */
-function initLens(slug: string, known: string[]): Lens {
+function initLens(slug: string, known: string[], offerUnassigned: boolean): Lens {
   trip = slug
   const params = new URLSearchParams(location.search)
   let lens: Lens | undefined
-  if (params.has('who')) {
+  if (params.has('who') || params.has('unassigned')) {
     lens = {
       people: (params.get('who') ?? '').split(',').filter(Boolean),
       mode: params.get('mode') === 'together' ? 'together' : 'any',
+      unassigned: params.has('unassigned'),
     }
   } else {
     try {
@@ -45,9 +51,11 @@ function initLens(slug: string, known: string[]): Lens {
       lens = undefined
     }
   }
+  const unassigned = offerUnassigned && Boolean(lens?.unassigned)
   current = {
-    people: (lens?.people ?? []).filter((p) => known.includes(p)),
+    people: unassigned ? [] : (lens?.people ?? []).filter((p) => known.includes(p)),
     mode: lens?.mode === 'together' ? 'together' : 'any',
+    unassigned,
   }
   // A shared link sets the lens for this device too, so it follows navigation.
   remember()
@@ -82,11 +90,14 @@ function writeUrl() {
   else url.searchParams.delete('who')
   if (current.people.length > 1 && current.mode === 'together') url.searchParams.set('mode', 'together')
   else url.searchParams.delete('mode')
+  if (current.unassigned) url.searchParams.set('unassigned', '')
+  else url.searchParams.delete('unassigned')
   history.replaceState(history.state, '', url)
 }
 
-/** Whether something done by `members` is in view. */
-export function inLens(members: string[], lens: Lens = current): boolean {
+/** Whether something done by `members` is in view; `unassigned` plans only alone. */
+export function inLens(members: string[], lens: Lens = current, unassigned = false): boolean {
+  if (lens.unassigned || unassigned) return Boolean(lens.unassigned && unassigned)
   if (!lens.people.length) return true
   return lens.mode === 'together'
     ? lens.people.every((p) => members.includes(p))

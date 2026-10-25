@@ -77,7 +77,7 @@ export function faceted(state: FilterState): boolean {
 }
 
 export function matchesFacts(facts: Facts | undefined, people: string[], state: FilterState, today = tripToday()) {
-  if (!inLens(people, state.lens)) return false
+  if (!inLens(people, state.lens, facts?.unassigned)) return false
   if (!faceted(state)) return true
   if (!facts) return false
   for (const key of FACETS) {
@@ -255,13 +255,13 @@ export function applyFilters(state: FilterState) {
   // Where people are and what holds them only says something when no facet
   // narrows the plans.
   for (const el of document.querySelectorAll<HTMLElement>('[data-presence]')) {
-    el.hidden = narrowed || !inLens(peopleOf(el), state.lens)
+    el.hidden = narrowed || Boolean(state.lens.unassigned) || !inLens(peopleOf(el), state.lens)
   }
   // A clash matters if it affects anyone in view, whatever the mode.
   for (const el of document.querySelectorAll<HTMLElement>('[data-conflict]')) {
-    el.hidden = !inLens(peopleOf(el), { ...state.lens, mode: 'any' })
+    el.hidden = !state.lens.unassigned && !inLens(peopleOf(el), { ...state.lens, mode: 'any' })
   }
-  const filtered = Boolean(state.lens.people.length) || narrowed
+  const filtered = Boolean(state.lens.people.length || state.lens.unassigned) || narrowed
   for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]')) {
     const items = section.querySelector('[data-item]:not([hidden])')
     const here = section.querySelector('[data-presence]:not([hidden])')

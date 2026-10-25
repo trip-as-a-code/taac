@@ -7,10 +7,13 @@ import { initials, memberHue } from '@/lib/trip'
 interface Props {
   trip: TripExport
   i18n: I18n
+  /** Plan pages offer the plans nobody was assigned to. */
+  plans: boolean
 }
 
-const { trip, i18n } = Astro.props
+const { trip, i18n, plans } = Astro.props
 const { t } = i18n
+const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unassigned').length : 0
 ---
 
 {trip.members.length > 1 && (
@@ -20,6 +23,7 @@ const { t } = i18n
     aria-label={t('lens.label')}
     data-lens={trip.slug}
     data-members={trip.members.map((m) => m.id).join(' ')}
+    data-unassigned={unassigned ? '' : undefined}
   >
     <div class="people">
       <button type="button" class="chip everyone" data-lens-clear aria-pressed="true">
@@ -45,6 +49,13 @@ const { t } = i18n
           <span>{g.name}</span>
         </button>
       ))}
+      {unassigned > 0 && (
+        <button type="button" class="chip unassigned" data-lens-unassigned aria-pressed="false">
+          <span aria-hidden="true">⚠︎</span>
+          <span>{t('lens.unassigned')}</span>
+          <span class="count tabular">{unassigned}</span>
+        </button>
+      )}
     </div>
     <div class="segmented mode" role="group" data-lens-mode hidden>
       <button type="button" data-value="any" aria-pressed="true" title={t('lens.anyHint')}>
@@ -68,7 +79,8 @@ const { t } = i18n
     if (!root) return
     const render = (lens: Lens) => {
       const set = new Set(lens.people)
-      root.querySelector('[data-lens-clear]')?.setAttribute('aria-pressed', String(set.size === 0))
+      root.querySelector('[data-lens-clear]')?.setAttribute('aria-pressed', String(set.size === 0 && !lens.unassigned))
+      root.querySelector('[data-lens-unassigned]')?.setAttribute('aria-pressed', String(Boolean(lens.unassigned)))
       for (const b of root.querySelectorAll<HTMLElement>('[data-lens-person]'))
         b.setAttribute('aria-pressed', String(set.has(b.dataset.lensPerson!)))
       for (const b of root.querySelectorAll<HTMLElement>('[data-lens-group]')) {
@@ -84,13 +96,17 @@ const { t } = i18n
       const button = (event.target as Element).closest<HTMLElement>('button')
       if (!button) return
       const lens = getLens()
-      if (button.hasAttribute('data-lens-clear')) setLens({ people: [] })
+      if (button.hasAttribute('data-lens-clear')) setLens({ people: [], unassigned: false })
+      else if (button.hasAttribute('data-lens-unassigned')) setLens({ people: [], unassigned: !lens.unassigned })
       else if (button.dataset.lensPerson) {
         const id = button.dataset.lensPerson
-        setLens({ people: lens.people.includes(id) ? lens.people.filter((p) => p !== id) : [...lens.people, id] })
+        setLens({
+          people: lens.people.includes(id) ? lens.people.filter((p) => p !== id) : [...lens.people, id],
+          unassigned: false,
+        })
       } else if (button.dataset.lensGroup) {
         // A group is a shortcut: select exactly its members, together.
-        setLens({ people: button.dataset.lensGroup.split(' '), mode: 'together' })
+        setLens({ people: button.dataset.lensGroup.split(' '), mode: 'together', unassigned: false })
       } else if (button.dataset.value) setLens({ mode: button.dataset.value as Lens['mode'] })
     })
     off = onLens(render)
@@ -141,6 +157,21 @@ const { t } = i18n
   }
 
   .chip.everyone,
+  .chip.unassigned {
+    padding-left: 12px;
+    color: var(--orange);
+    background: color-mix(in srgb, var(--orange) 12%, transparent);
+  }
+
+  .chip.unassigned[aria-pressed='true'] {
+    color: var(--label-on-tint);
+    background: var(--orange);
+  }
+
+  .chip .count {
+    font-weight: 600;
+  }
+
   .chip.group {
     padding-left: 12px;
   }

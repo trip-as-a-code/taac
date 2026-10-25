@@ -74,7 +74,7 @@ const current = t(`nav.${section}`)
           ))}
         </div>
         <div class="tools">
-          <PeopleLens trip={trip} i18n={i18n} />
+          <PeopleLens trip={trip} i18n={i18n} plans={['itinerary', 'bookings', 'map'].includes(section)} />
           <CurrencyPicker trip={trip} i18n={i18n} />
         </div>
       </div>

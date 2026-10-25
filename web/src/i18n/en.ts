@@ -86,6 +86,7 @@ export const en = {
   'filter.day': 'Day',
   'filter.allDays': 'All days',
   'filter.empty': 'Nothing matches these filters.',
+  'lens.unassigned': 'Not assigned',
   'filter.filters': 'Filters',
   'filter.focus': 'Quick',
   'filter.attention': 'Needs attention',

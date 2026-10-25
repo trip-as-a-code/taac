@@ -11,6 +11,7 @@ const base: Facts = {
   places: [],
   tags: [],
   issues: [],
+  unassigned: false,
   text: 'tram 28 castelo',
 }
 const state = (values: FilterState['values'], q = ''): FilterState => ({
@@ -63,6 +64,14 @@ describe('filters', () => {
   it('searches every word, ignoring case and accents', () => {
     expect(match({ text: fold('Kyōto Station') }, {}, 'kyoto st')).toBe(true)
     expect(match({}, {}, 'tram bus')).toBe(false)
+  })
+
+  it('keeps unassigned plans apart', () => {
+    const everyone = state({})
+    const alone: FilterState = { ...everyone, lens: { people: [], mode: 'any', unassigned: true } }
+    expect(matchesFacts({ ...base, unassigned: true }, ['a'], everyone, today)).toBe(false)
+    expect(matchesFacts({ ...base, unassigned: true }, ['a'], alone, today)).toBe(true)
+    expect(matchesFacts(base, ['a'], alone, today)).toBe(false)
   })
 
   it('still follows the people lens', () => {
