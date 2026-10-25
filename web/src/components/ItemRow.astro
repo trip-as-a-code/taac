@@ -593,8 +593,9 @@ const offsetLabel =
   @media (max-width: 560px) {
     /* The coloured kind label says what it is; the text gets the width. */
     .item {
-      grid-template-columns: 46px minmax(0, 1fr);
-      gap: 0 12px;
+      /* Wide enough for "14:25+1 д" and "UTC+02:00". */
+      grid-template-columns: 52px minmax(0, 1fr);
+      gap: 0 10px;
       padding-inline: var(--space-4);
     }
 
@@ -604,7 +605,7 @@ const offsetLabel =
 
     /* The expanded box takes the time column's width too. */
     .details {
-      margin-left: calc(-46px - 12px);
+      margin-left: calc(-52px - 10px);
     }
 
     .meta {

@@ -101,9 +101,10 @@ export function matches(el: HTMLElement, state: FilterState, today = tripToday()
 function readUrl(): Pick<FilterState, 'values' | 'q'> {
   const params = new URLSearchParams(location.search)
   const values: FilterState['values'] = {}
+  // Repeated parameters (`place=a&place=b`): names may contain commas.
   for (const key of FACETS) {
-    const raw = params.get(key)
-    if (raw) values[key] = SINGLE.includes(key as never) ? [raw] : raw.split(',').filter(Boolean)
+    const all = params.getAll(key).filter(Boolean)
+    if (all.length) values[key] = SINGLE.includes(key as never) ? all.slice(0, 1) : all
   }
   return { values, q: fold(params.get('q') ?? '').trim() }
 }
@@ -111,9 +112,8 @@ function readUrl(): Pick<FilterState, 'values' | 'q'> {
 function writeUrl(state: FilterState, query: string) {
   const url = new URL(location.href)
   for (const key of FACETS) {
-    const values = state.values[key]
-    if (values?.length) url.searchParams.set(key, values.join(','))
-    else url.searchParams.delete(key)
+    url.searchParams.delete(key)
+    for (const value of state.values[key] ?? []) url.searchParams.append(key, value)
   }
   if (query.trim()) url.searchParams.set('q', query.trim())
   else url.searchParams.delete('q')

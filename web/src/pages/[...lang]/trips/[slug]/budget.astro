@@ -458,6 +458,14 @@ const dash = '—'
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .person header .headline {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   dl {
