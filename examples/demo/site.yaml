@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=../../schema/site.v1alpha3.json
-apiVersion: taac/v1alpha3
+# yaml-language-server: $schema=../../schema/site.v1alpha4.json
+apiVersion: taac/v1alpha4
 kind: Site
 metadata:
   title: Demo trips

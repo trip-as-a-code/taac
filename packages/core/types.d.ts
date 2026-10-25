@@ -23,7 +23,7 @@ export interface Rates {
 }
 
 export interface SiteExport {
-  apiVersion: 'taac/v1alpha3'
+  apiVersion: 'taac/v1alpha4'
   site: { title: Text; description?: Text; passwordSecret?: string }
   trips: TripExport[]
   diagnostics: Diagnostic[]

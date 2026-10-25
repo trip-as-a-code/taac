@@ -418,7 +418,21 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         }
         trip.members.extend(doc.members);
         trip.groups.extend(doc.groups);
-        for (key, place) in doc.places {
+        for (key, mut place) in doc.places {
+            if !place.name.is_empty() && place.name != key {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "place.name",
+                        format!(
+                            "`{key}` sets `name: {}`; under `places:` the key is the name",
+                            place.name
+                        ),
+                    )
+                    .in_file(file.clone())
+                    .in_trip(&slug),
+                );
+            }
+            place.name.clone_from(&key);
             if trip.places.contains_key(&key) {
                 diagnostics.push(
                     Diagnostic::error("place.duplicate", format!("place `{key}` declared twice"))
@@ -454,9 +468,195 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         }
     }
 
+    resolve_names(&mut trip);
     trip.itinerary.sort_by_key(Item::sort_key);
     trip.declared_bases.sort_by_key(|b| b.from);
     Some(trip)
+}
+
+/// A URL- and anchor-safe id from a name or title: lowercase letters and
+/// digits (any script) joined by dashes.
+pub fn slug(text: &str) -> String {
+    let mut out = String::new();
+    for c in text.chars().flat_map(char::to_lowercase) {
+        if c.is_alphanumeric() {
+            out.push(c);
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+        if out.chars().count() >= 60 {
+            break;
+        }
+    }
+    let out = out.trim_end_matches('-');
+    if out.is_empty() {
+        "x".into()
+    } else {
+        out.to_owned()
+    }
+}
+
+/// The first of `candidates` (then `-2`, `-3`, … of the first) not taken yet.
+fn unique(candidates: &[String], taken: &mut std::collections::HashSet<String>) -> String {
+    let id = candidates
+        .iter()
+        .find(|c| !taken.contains(*c))
+        .cloned()
+        .unwrap_or_else(|| {
+            let mut n = 2;
+            while taken.contains(&format!("{}-{n}", candidates[0])) {
+                n += 1;
+            }
+            format!("{}-{n}", candidates[0])
+        });
+    taken.insert(id.clone());
+    id
+}
+
+/// YAML names people, groups, places and blockers the way humans do; the
+/// rest of the crate works on ids. This derives every id and rewrites each
+/// reference to one. A name that matches nothing stays as written, for
+/// validation to report.
+fn resolve_names(trip: &mut Trip) {
+    use std::collections::{HashMap, HashSet};
+
+    for member in &mut trip.members {
+        member.id = slug(&member.name);
+    }
+    for group in &mut trip.groups {
+        group.id = slug(&group.name);
+    }
+    let mut people: HashMap<String, String> = HashMap::new();
+    for (name, id) in trip
+        .groups
+        .iter()
+        .map(|g| (&g.name, &g.id))
+        .chain(trip.members.iter().map(|m| (&m.name, &m.id)))
+    {
+        people.insert(name.to_lowercase(), id.clone());
+        people.insert(id.clone(), id.clone());
+    }
+    let person = |name: &String| -> String {
+        if name == EVERYONE || name == "each" {
+            return name.clone();
+        }
+        people
+            .get(&name.to_lowercase())
+            .cloned()
+            .unwrap_or_else(|| name.clone())
+    };
+    let who = |list: &mut Option<Vec<String>>| {
+        for name in list.iter_mut().flatten() {
+            *name = person(name);
+        }
+    };
+    let costs = |costs: &mut Vec<crate::model::Cost>| {
+        for cost in costs {
+            match &mut cost.paid_by {
+                crate::model::PaidBy::One(name) => *name = person(name),
+                crate::model::PaidBy::Many(names) => names.iter_mut().for_each(|n| *n = person(n)),
+            }
+            who(&mut cost.who);
+            if let crate::model::Split::Shares(map) | crate::model::Split::Exact(map) =
+                &mut cost.split
+            {
+                *map = map.drain(..).map(|(name, v)| (person(&name), v)).collect();
+            }
+        }
+    };
+
+    let places: HashMap<String, String> = trip
+        .places
+        .keys()
+        .map(|k| (k.to_lowercase(), k.clone()))
+        .collect();
+    let place = |name: &mut String| {
+        if let Some(key) = places.get(&name.to_lowercase()) {
+            name.clone_from(key);
+        }
+    };
+    let place_refs = |refs: &mut Vec<PlaceRef>| {
+        for r in refs {
+            if let PlaceRef::Key(name) = r {
+                place(name);
+            }
+        }
+    };
+
+    for group in &mut trip.groups {
+        for name in &mut group.members {
+            *name = person(name);
+        }
+    }
+
+    let mut taken = HashSet::new();
+    for blocker in &mut trip.blockers {
+        blocker.id = unique(&[slug(&blocker.title)], &mut taken);
+        who(&mut blocker.who);
+    }
+    let blockers: HashMap<String, String> = trip
+        .blockers
+        .iter()
+        .flat_map(|b| {
+            [
+                (b.title.to_lowercase(), b.id.clone()),
+                (b.id.clone(), b.id.clone()),
+            ]
+        })
+        .collect();
+
+    let mut taken = HashSet::new();
+    for base in &mut trip.declared_bases {
+        let title = slug(&base.title);
+        base.id = unique(
+            &[title.clone(), format!("{title}-{}", base.from)],
+            &mut taken,
+        );
+        place(&mut base.place);
+        who(&mut base.who);
+    }
+
+    // Plans and ideas share one namespace: both are anchors on the site.
+    let mut taken = HashSet::new();
+    for item in &mut trip.itinerary {
+        let title = slug(&item.title);
+        item.id = unique(
+            &[title.clone(), format!("{title}-{}", item.day())],
+            &mut taken,
+        );
+        place_refs(&mut item.places);
+        who(&mut item.who);
+        costs(&mut item.costs);
+        for name in &mut item.overrides {
+            if let Some(id) = blockers.get(&name.to_lowercase()) {
+                name.clone_from(id);
+            }
+        }
+    }
+    for idea in &mut trip.ideas {
+        idea.id = unique(&[slug(&idea.title)], &mut taken);
+        if let Some(area) = &mut idea.area {
+            place(area);
+        }
+        place_refs(&mut idea.places);
+        who(&mut idea.who);
+        costs(&mut idea.costs);
+    }
+
+    for category in &mut trip.packing {
+        who(&mut category.who);
+        for item in &mut category.items {
+            if let crate::model::PackingItem::Detailed {
+                who: list,
+                costs: list_costs,
+                ..
+            } = item
+            {
+                who(list);
+                costs(list_costs);
+            }
+        }
+    }
 }
 
 /// Trip paths a site file lists, relative to the site file's directory.
@@ -527,32 +727,30 @@ mod tests {
     use super::*;
 
     const TRIP: &str = r"
-apiVersion: taac/v1alpha3
+apiVersion: taac/v1alpha4
 kind: Trip
 metadata:
   title: Test
   timezone: Europe/Lisbon
 members:
-  - { id: ana, name: Ana }
+  - { name: Ana }
 places:
-  home: { name: Home, geo: [38.7, -9.1] }
+  Home: { geo: [38.7, -9.1] }
 itinerary:
-  - id: b
-    kind: activity
+  - kind: activity
     title: Second
     start: 2027-05-02T10:00:00+01:00
-  - id: a
-    kind: activity
+  - kind: activity
     title: First
     start: 2027-05-01T10:00:00+01:00
     places: [home, { name: Cafe, geo: [38.71, -9.14] }]
 ";
 
     const PART: &str = r"
-apiVersion: taac/v1alpha3
+apiVersion: taac/v1alpha4
 kind: TripPart
 places:
-  park: { name: Park, geo: [38.72, -9.15] }
+  Park: { geo: [38.72, -9.15] }
 ";
 
     fn files(entries: &[(&str, &str)]) -> Files {
@@ -573,10 +771,11 @@ places:
         let trip = &site.unwrap().trips[0];
         assert_eq!(trip.slug, "lisbon");
         assert_eq!(trip.places.len(), 2);
-        assert_eq!(trip.itinerary[0].id, "a");
+        assert_eq!(trip.itinerary[0].id, "first");
         let places = trip.item_places(&trip.itinerary[0]);
-        assert_eq!(places[0].0, "home");
-        assert_eq!(places[1].0, "a~1");
+        assert_eq!(places[0].0, "Home");
+        assert_eq!(places[0].1.name, "Home");
+        assert_eq!(places[1].0, "first~1");
     }
 
     #[test]
@@ -594,13 +793,20 @@ places:
     }
 
     #[test]
+    fn slugs_any_script() {
+        assert_eq!(slug("Zen & nature"), "zen-nature");
+        assert_eq!(slug("Прогулка у пруда!"), "прогулка-у-пруда");
+        assert_eq!(slug("…"), "x");
+    }
+
+    #[test]
     fn resolves_who_and_names_parties() {
         let trip_yaml = r"
-apiVersion: taac/v1alpha3
+apiVersion: taac/v1alpha4
 kind: Trip
 metadata: { title: T, timezone: UTC }
-members: [{ id: a, name: A }, { id: b, name: B }, { id: c, name: C }]
-groups: [{ id: duo, name: Duo, members: [a, b] }]
+members: [{ name: A }, { name: B }, { name: C }]
+groups: [{ name: Duo, members: [a, B] }]
 ";
         let fs = files(&[("trip.yaml", trip_yaml)]);
         let (site, _) = load_standalone_trip(&fs, "trip.yaml");
@@ -612,9 +818,67 @@ groups: [{ id: duo, name: Duo, members: [a, b] }]
                 .map(str::to_owned)
                 .collect::<Vec<_>>()
         };
+        assert_eq!(trip.groups[0].members, ["a", "b"]);
         assert_eq!(who(&["c", "duo"]), ["a", "b", "c"]);
         assert_eq!(trip.party(&["a", "b"]).id, "duo");
         assert_eq!(trip.party(&["a", "b", "c"]).id, "everyone");
         assert_eq!(trip.party(&["a", "c"]).id, "a+c");
+    }
+
+    #[test]
+    fn names_resolve_to_derived_ids() {
+        let trip_yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+members: [{ name: Ana Lu }, { name: Bo }]
+groups: [{ name: Early birds, members: [Ana Lu, bo] }]
+places:
+  Old Town: { geo: [1, 2], radius: 1000 }
+bases:
+  - { title: Stay, place: old town, from: 2027-01-01, to: 2027-01-02 }
+blockers:
+  - { title: Day job, who: [Bo], periods: [{ from: 2027-01-01, to: 2027-01-02 }] }
+itinerary:
+  - { kind: activity, title: Walk, date: 2027-01-01, who: [early birds], places: [OLD TOWN], overrides: [day job],
+      costs: [{ amount: 4, currency: EUR, paidBy: ana lu, split: { shares: { Ana Lu: 1, Bo: 3 } } }] }
+  - { kind: activity, title: Walk, date: 2027-01-02, who: [Bo] }
+  - { kind: activity, title: Walk, date: 2027-01-02, who: [Bo] }
+";
+        let fs = files(&[("trip.yaml", trip_yaml)]);
+        let (site, diagnostics) = load_standalone_trip(&fs, "trip.yaml");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let trip = &site.unwrap().trips[0];
+        let walk = &trip.itinerary[0];
+        assert_eq!(trip.members[0].id, "ana-lu");
+        assert_eq!(walk.who.as_deref(), Some(&["early-birds".to_owned()][..]));
+        assert_eq!(walk.places, [PlaceRef::Key("Old Town".into())]);
+        assert_eq!(walk.overrides, ["day-job"]);
+        assert_eq!(trip.declared_bases[0].place, "Old Town");
+        let ids: Vec<&str> = trip.itinerary.iter().map(|i| i.id.as_str()).collect();
+        assert_eq!(ids, ["walk", "walk-2027-01-02", "walk-2"]);
+        match &walk.costs[0].split {
+            crate::model::Split::Shares(map) => {
+                assert_eq!(map.keys().collect::<Vec<_>>(), ["ana-lu", "bo"]);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn place_keys_are_names() {
+        let trip_yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+places:
+  Home: { name: House, geo: [1, 2] }
+";
+        let fs = files(&[("trip.yaml", trip_yaml)]);
+        let (_, diagnostics) = load_standalone_trip(&fs, "trip.yaml");
+        assert!(
+            diagnostics.iter().any(|d| d.code == "place.name"),
+            "{diagnostics:?}"
+        );
     }
 }

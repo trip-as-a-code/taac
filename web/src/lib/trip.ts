@@ -173,3 +173,13 @@ export function homeOffset(trip: TripExport): string | undefined {
   for (const { local } of trip.items) if (local.offset) counts.set(local.offset, (counts.get(local.offset) ?? 0) + 1)
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
 }
+
+/** An HTML id for a name (place names have spaces); like the core's slug. */
+export function anchor(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-|-$/g, '') || 'x'
+  )
+}

@@ -37,7 +37,11 @@ fn demo_exports_without_diagnostics() {
         );
     }
     // The flight was charged in euros, so it settles in euros.
-    let flight = budget.lines.iter().find(|l| l.item == "outbound").unwrap();
+    let flight = budget
+        .lines
+        .iter()
+        .find(|l| l.item == "london-lisbon")
+        .unwrap();
     assert_eq!(
         (flight.currency.as_str(), flight.settled_currency.as_str()),
         ("GBP", "EUR")

@@ -3,11 +3,11 @@
 Declare trips in YAML, review them in pull requests, and publish them as a website, a calendar feed, a map and a
 shared ledger. The YAML is the single source of truth; everything else is generated from it.
 
-- **Schema** — `taac/v1alpha3` trip and site files with a published JSON Schema, so editors autocomplete and CI
+- **Schema** — `taac/v1alpha4` trip and site files with a published JSON Schema, so editors autocomplete and CI
   validates.
 - **CLI** — `taac validate | build | export | schema`, with readable errors that point at the offending line.
 - **Website** — a static Astro site for any number of trips: overview, day-by-day itinerary, map, bookings, budget and
-  packing list. English and Russian, light and dark, works offline.
+  packing list. English and Russian, dark or light, works offline.
 - **Edge** — a Cloudflare Worker in front of the site: optional site-wide and per-trip passwords, private calendar
   feeds, live exchange rates, strict security headers.
 
@@ -28,8 +28,8 @@ changes.
 ## A trip
 
 ```yaml
-# yaml-language-server: $schema=../schema/trip.v1alpha3.json
-apiVersion: taac/v1alpha3
+# yaml-language-server: $schema=../schema/trip.v1alpha4.json
+apiVersion: taac/v1alpha4
 kind: Trip
 metadata:
   title: Lisbon Long Weekend
@@ -37,66 +37,65 @@ metadata:
   timezone: Europe/Lisbon
   cover: { emoji: 🚋, hue: 28 }
 currency:
-  base: EUR
-  rates: { GBP: 1.17 } # 1 GBP = 1.17 EUR
+  base: EUR # totals default to it; viewers can switch, converted at live ECB rates
 members:
-  - { id: alex, name: Alex }
-  - { id: sam, name: Sam }
+  - { name: Alex }
+  - { name: Sam, currency: GBP } # the money Sam pays with
 groups:
-  - { id: early, name: Early birds, emoji: 🌅, members: [alex] } # a saved set of people
+  - { name: Early birds, emoji: 🌅, members: [Alex] } # a saved set of people
 bases: # where everyone is each night, planned or not
-  - { id: lisbon, title: Lisbon, place: lisbon, from: 2027-05-14, to: 2027-05-16 }
-places:
-  lisbon: { name: Lisbon, geo: [38.7223, -9.1393], radius: 12000 } # an area
-  lgw: { name: London Gatwick, geo: [51.1537, -0.1821], category: airport }
-  lis: { name: Lisbon Airport, geo: [38.7742, -9.1342], category: airport }
-  castle: { name: Castelo de São Jorge, geo: [38.7139, -9.1335], category: historic }
+  - { title: Lisbon, place: Lisbon, from: 2027-05-14, to: 2027-05-16 }
+places: # by name; everything else refers to them by it
+  Lisbon: { geo: [38.7223, -9.1393], radius: 12000 } # an area
+  London Gatwick: { geo: [51.1537, -0.1821], category: airport }
+  Lisbon Airport: { geo: [38.7742, -9.1342], category: airport }
+  Castelo de São Jorge: { geo: [38.7139, -9.1335], category: historic }
 itinerary:
-  - id: outbound
-    kind: flight # flight, train, bus, ferry, transfer, lodging, activity, meal, note
+  - kind: flight # flight, train, bus, ferry, transfer, lodging, activity, meal, note
     title: London → Lisbon
+    who: [everyone] # names of members and/or groups, or everyone
     start: 2027-05-14T07:05:00+01:00 # always with the local offset
     end: 2027-05-14T09:50:00+01:00
-    places: [lgw, lis] # keys from `places`, or inline places
+    places: [London Gatwick, Lisbon Airport] # names from `places`, or inline places
     transport: { carrier: TAP Air Portugal, number: TP1337 }
     booking:
       status: booked # required, booked, notRequired, cancelled
       reference: { secret: LISBON_PNR } # resolved from .env / secrets.yaml / env, never published
     costs:
-      - { amount: 138, currency: GBP, paidBy: alex } # split: equal (default), personal, { shares: … }, { exact: … }
-  - id: castle
-    kind: activity
+      - { amount: 138, currency: GBP, paidBy: Sam } # split: equal (default), personal, { shares: … }, { exact: … }
+  - kind: activity
     title: Tram 28 and the castle
     start: 2027-05-14T12:00:00+01:00
     end: 2027-05-14T16:00:00+01:00
-    who: [early] # members and/or groups, e.g. [early, sam]; omit for everyone
-    places: [castle]
+    who: [Early birds, Sam]
+    places: [Castelo de São Jorge]
     booking: { status: required, deadline: 2027-05-01 }
     notes: Markdown is **fine** here.
-  - id: sunset
-    kind: activity
+  - kind: activity
     title: Sunset at a miradouro
+    who: [everyone]
     date: 2027-05-14 # no fixed time
     part: evening # morning, afternoon, evening
 blockers: # time someone is unavailable; plans inside it are flagged
-  - id: work
-    title: Work
-    who: [alex]
+  - title: Work
+    who: [Alex]
     periods: [{ from: 2027-05-14, to: 2027-05-17 }]
     days: [mon, tue, wed, thu, fri] # omit for every day
     time: { start: '09:00', end: '17:00', timezone: Europe/London } # omit for whole days
-    # strict: true turns warnings into errors; a plan opts out with `overrides: [work]`
+    # strict: true turns warnings into errors; a plan opts out with `overrides: [Work]`
 ideas: # not scheduled: picked on the spot, listed on the days you're in the area
-  - id: fado
-    title: Fado night in Alfama
-    area: lisbon
+  - title: Fado night in Alfama
+    area: Lisbon
     priority: must # or maybe (default)
     duration: hour # hour, halfDay, day
-    costs: [{ amount: 60, currency: EUR, paidBy: sam, estimate: true }]
+    costs: [{ amount: 60, currency: EUR, paidBy: Sam, estimate: true }]
 packing:
   - category: Essentials
-    items: [Passport, { name: Camera, for: [sam] }]
+    items: [Passport, { name: Camera, who: [Sam] }]
 ```
+
+Nothing needs an id. People, groups, places and blockers are referred to by name (case doesn't matter); plans, ideas and
+bases are identified by their titles.
 
 Without `bases`, they are derived from lodging. A trip can also be a directory: one `kind: Trip` file plus any number
 of `kind: TripPart` files (bases, places, itinerary chunks, ideas, packing) merged into it — fewer merge conflicts
@@ -109,8 +108,8 @@ currencies with rates, splits that add up, and inline `${…}` that would leak.
 ## A site
 
 ```yaml
-# yaml-language-server: $schema=../schema/site.v1alpha3.json
-apiVersion: taac/v1alpha3
+# yaml-language-server: $schema=../schema/site.v1alpha4.json
+apiVersion: taac/v1alpha4
 kind: Site
 metadata:
   title: Our trips # or per language: { en: Our trips, ru: Наши поездки }
