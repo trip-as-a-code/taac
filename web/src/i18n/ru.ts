@@ -176,6 +176,7 @@ export const ru: Messages = {
   'item.website': 'Сайт',
   'item.bookingLink': 'Забронировать',
   'item.copyLink': 'Скопировать ссылку',
+  'item.copyFailed': 'Не удалось скопировать — ссылка в адресной строке',
   'item.localTime': 'Местное время ({offset})',
   'part.morning': 'Утро',
   'part.afternoon': 'День',

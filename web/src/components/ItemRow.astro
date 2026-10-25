@@ -93,16 +93,6 @@ const offsetLabel =
     <summary>
       <h3 class="headline" lang={trip.locale}>
         {item.title}
-        <a
-          class="anchor"
-          href={`#item-${item.id}`}
-          data-anchor
-          aria-label={t('item.copyLink')}
-          title={t('item.copyLink')}
-        >
-          <Icon name="link" size={14} class="anchor-link" />
-          <Icon name="check" size={14} class="anchor-check" />
-        </a>
       </h3>
       {places.length > 0 && (
         <p class="subhead secondary place">
@@ -279,10 +269,24 @@ const offsetLabel =
       </div>
     )}
   </details>
+  {/* Outside the summary: a link inside the toggle would be a control
+     within a control. Positioned beside the title. */}
+  <a
+    class="anchor card-anchor"
+    href={`#item-${item.id}`}
+    data-anchor
+    aria-label={t('item.copyLink')}
+    title={t('item.copyLink')}
+    data-failed={t('item.copyFailed')}
+  >
+    <Icon name="link" size={14} class="anchor-link" />
+    <Icon name="check" size={14} class="anchor-check" />
+  </a>
 </article>
 
 <style>
   .item {
+    position: relative;
     display: grid;
     grid-template-columns: 64px 36px minmax(0, 1fr);
     gap: 0 var(--space-3);
@@ -370,9 +374,29 @@ const offsetLabel =
 
   /* The disclosure chevron sits in the corner, so it never wraps onto a
      line of its own after a long title. */
+  /* The title makes room for the copy-link button and, when the card
+     opens, the chevron; the rows below keep the full width. */
+  summary h3 {
+    padding-right: 28px;
+  }
+
   [data-expandable] > summary {
     position: relative;
-    padding-right: 22px;
+  }
+
+  [data-expandable] > summary h3 {
+    padding-right: 50px;
+  }
+
+  .card-anchor {
+    position: absolute;
+    top: 14px;
+    right: var(--space-4);
+    margin: 0;
+  }
+
+  [data-expandable] ~ .card-anchor {
+    right: calc(var(--space-4) + 22px);
   }
 
   [data-expandable] > summary h3::after {

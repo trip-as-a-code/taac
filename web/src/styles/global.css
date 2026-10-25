@@ -406,6 +406,7 @@ p {
 
 /* Permalink anchor on cards and day headings. */
 .anchor {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -447,12 +448,24 @@ p {
   color: var(--green);
 }
 
+.anchor[data-copy-failed] {
+  opacity: 1;
+  color: var(--red);
+}
+
 .anchor[data-copied] .anchor-link {
   display: none;
 }
 
 .anchor[data-copied] .anchor-check {
   display: block;
+}
+
+/* A finger-sized hit area around the small icon. */
+.anchor::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
 }
 
 /* A card reached from a link (budget → plan) flashes once. */
