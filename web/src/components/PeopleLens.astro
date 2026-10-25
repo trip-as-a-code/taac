@@ -177,11 +177,15 @@ const { t } = i18n
 
   /* Phones: one swipeable line with the currency switch (TripLayout scrolls it). */
   @media (max-width: 760px) {
+    /* Inside the row that scrolls, take the full width of the chips rather
+       than shrinking to the screen — or what follows lands on top of them. */
     .lens {
+      flex: none;
       flex-wrap: nowrap;
     }
 
     .people {
+      flex: none;
       overflow: visible;
     }
 
