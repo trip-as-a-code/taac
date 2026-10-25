@@ -234,7 +234,8 @@ export const en = {
   'ideas.duration.halfDay': 'Half a day',
   'ideas.duration.day': 'A full day',
   'ideas.estimate': '≈ {amount}',
-  'ideas.none': 'No ideas yet. Add some under `ideas:` in the trip.',
+  'ideas.none':
+    'No ideas yet. Things worth doing without a date go here, under `ideas` in the trip files; each shows up in the itinerary on the free days you spend in its area.',
   'ideas.count': { one: '{n} idea', other: '{n} ideas' },
 
   'packing.title': 'Packing',
