@@ -126,7 +126,7 @@ export const ru: Messages = {
   'filter.issue.place': 'Места и маршруты',
   'filter.issue.other': 'Другое',
   'issue.blocker.conflict': 'Пересекается с блокером',
-  'issue.item.unassigned': 'Кто участвует? Укажите `who`',
+  'issue.item.unassigned': 'Не назначено',
   'issue.item.absent': 'Кого-то из участников нет в поездке',
   'issue.item.overlap': 'Пересекается с другим планом',
   'issue.item.unlocated': 'Без места',

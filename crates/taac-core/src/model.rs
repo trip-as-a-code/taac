@@ -169,7 +169,7 @@ pub struct Base {
     /// Last night here (inclusive).
     #[schemars(with = "String", extend("format" = "date"))]
     pub to: NaiveDate,
-    /// Member and/or group ids; omitted means everyone.
+    /// Member and/or group ids, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     /// Markdown.
@@ -192,7 +192,7 @@ pub struct Idea {
     pub area: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
-    /// Member and/or group ids; omitted means everyone.
+    /// Member and/or group ids, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     #[serde(default)]
@@ -267,7 +267,7 @@ pub struct Blocker {
     #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
     pub id: String,
     pub title: String,
-    /// Member and/or group ids; omitted means everyone.
+    /// Member and/or group ids, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     /// Inclusive date ranges, in the blocker's time zone.
@@ -370,7 +370,7 @@ pub struct Item {
     /// Ordered stops: origin → destination for transport, venues otherwise.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
-    /// Member and/or group ids; omitted means everyone.
+    /// Member and/or group ids, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

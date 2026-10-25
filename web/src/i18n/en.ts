@@ -124,7 +124,7 @@ export const en = {
   'filter.issue.place': 'Places and routes',
   'filter.issue.other': 'Other',
   'issue.blocker.conflict': 'Clashes with a blocker',
-  'issue.item.unassigned': 'Who’s going? Set `who`',
+  'issue.item.unassigned': 'Not assigned',
   'issue.item.absent': 'Someone here isn’t on the trip',
   'issue.item.overlap': 'Overlaps another plan',
   'issue.item.unlocated': 'No place',

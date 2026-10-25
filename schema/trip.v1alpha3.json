@@ -303,7 +303,7 @@
           "format": "date"
         },
         "who": {
-          "description": "Member and/or group ids; omitted means everyone.",
+          "description": "Member and/or group ids, or `everyone`; omitted means everyone.",
           "type": [
             "array",
             "null"
@@ -435,7 +435,7 @@
           }
         },
         "who": {
-          "description": "Member and/or group ids; omitted means everyone.",
+          "description": "Member and/or group ids, or `everyone`; omitted means everyone.",
           "type": [
             "array",
             "null"
@@ -850,7 +850,7 @@
           }
         },
         "who": {
-          "description": "Member and/or group ids; omitted means everyone.",
+          "description": "Member and/or group ids, or `everyone`; omitted means everyone.",
           "type": [
             "array",
             "null"
@@ -943,7 +943,7 @@
           "type": "string"
         },
         "who": {
-          "description": "Member and/or group ids; omitted means everyone.",
+          "description": "Member and/or group ids, or `everyone`; omitted means everyone.",
           "type": [
             "array",
             "null"

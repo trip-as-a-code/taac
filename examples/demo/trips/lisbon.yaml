@@ -35,6 +35,7 @@ itinerary:
   - id: outbound
     kind: flight
     title: London → Lisbon
+    who: [everyone]
     start: 2027-05-14T07:05:00+01:00
     end: 2027-05-14T09:50:00+01:00
     places: [lgw, lis]
@@ -46,6 +47,7 @@ itinerary:
   - id: hotel
     kind: lodging
     title: Casa do Bairro
+    who: [everyone]
     start: 2027-05-14T15:00:00+01:00
     end: 2027-05-17T11:00:00+01:00
     places: [hotel]
@@ -63,6 +65,7 @@ itinerary:
   - id: tram-28
     kind: activity
     title: Tram 28 and the castle
+    who: [everyone]
     start: 2027-05-14T12:00:00+01:00
     end: 2027-05-14T16:00:00+01:00
     places: [castle]
@@ -90,6 +93,7 @@ itinerary:
   - id: belem
     kind: meal
     title: Pastéis de nata in Belém
+    who: [everyone]
     start: 2027-05-16T10:00:00+01:00
     end: 2027-05-16T11:00:00+01:00
     places: [belem, jeronimos]
@@ -98,6 +102,7 @@ itinerary:
   - id: inbound
     kind: flight
     title: Lisbon → London
+    who: [everyone]
     start: 2027-05-17T18:40:00+01:00
     end: 2027-05-17T21:15:00+01:00
     places: [lis, lgw]

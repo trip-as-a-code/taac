@@ -69,6 +69,9 @@ pub struct ResolvedBase {
     pub derived: bool,
 }
 
+/// In a `who` list: every member, said out loud.
+pub const EVERYONE: &str = "everyone";
+
 /// Areas without a radius still cover a city's worth of ground.
 const DEFAULT_AREA_RADIUS_M: f64 = 30_000.0;
 
@@ -92,10 +95,10 @@ impl Trip {
         self.who(item.who.as_deref())
     }
 
-    /// Resolves a `who` list (members and groups) to member ids, in the
-    /// trip's member order, without duplicates. `None` is everyone.
+    /// Resolves a `who` list (members, groups, `everyone`) to member ids, in
+    /// the trip's member order, without duplicates. `None` is everyone.
     pub fn who(&self, who: Option<&[String]>) -> Vec<&str> {
-        let Some(who) = who else {
+        let Some(who) = who.filter(|w| !w.iter().any(|x| x == EVERYONE)) else {
             return self.members.iter().map(|m| m.id.as_str()).collect();
         };
         let wanted = |id: &str| {
