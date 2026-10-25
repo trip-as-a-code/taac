@@ -139,7 +139,7 @@ const dash = '—'
                   <span class="swatch">
                     <Icon name={kindIcon[kind]} size={14} />
                   </span>
-                  <span class="subhead">{t(`kind.${kind}`)}</span>
+                  <span class="subhead kind-name">{t(`kind.${kind}`)}</span>
                   <span class="subhead tabular share">
                     <span data-kind-amount>{dash}</span>
                     <span class="tertiary" data-kind-pct />
@@ -447,13 +447,31 @@ const dash = '—'
     gap: 0 var(--space-8);
   }
 
+  .settlement [data-from],
+  .settlement [data-to],
+  .kind-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The amount drops under the names before they get cut. */
+  .settlement {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
   .settlement :global(.arrow) {
+    flex: none;
     color: var(--label-tertiary);
   }
 
   .settle-amount {
+    flex: none;
     margin-left: auto;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .kinds {
@@ -492,8 +510,10 @@ const dash = '—'
   }
 
   .share {
+    flex: none;
     margin-left: auto;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .section-header {

@@ -80,15 +80,15 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
           {idea.url && (
             <a class="button" href={idea.url} target="_blank" rel="noopener noreferrer">
               <Icon name="link" size={15} />
-              {t('item.website')}
+              <span>{t('item.website')}</span>
             </a>
           )}
           {places
             .filter((p) => p.url)
             .map((p) => (
-              <a class="button" href={p.url} target="_blank" rel="noopener noreferrer">
+              <a class="button" href={p.url} target="_blank" rel="noopener noreferrer" title={p.name}>
                 <Icon name="pin" size={15} />
-                {p.name}
+                <span>{p.name}</span>
               </a>
             ))}
         </div>
@@ -219,6 +219,7 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
 
   .details {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
     margin-top: var(--space-3);
     padding: var(--space-4);
@@ -236,10 +237,23 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
     display: none;
   }
 
+  /* Pills stay one line: a long place name ends in an ellipsis. */
   .links .button {
+    max-width: 100%;
     min-height: 32px;
     font-size: 14px;
     padding-inline: 12px;
+  }
+
+  .links .button :global(svg) {
+    flex: none;
+  }
+
+  .links .button span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   @media (max-width: 560px) {
