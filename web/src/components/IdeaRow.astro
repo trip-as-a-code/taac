@@ -76,13 +76,15 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
         ))}
         {everyone ? (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
-            <span class="party-pill">{party}</span>
+            <span class="party-pill">
+              <span class="ellipsis">{party}</span>
+            </span>
           </span>
         ) : (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
             <span class="party-pill">
               {emoji && <span aria-hidden="true">{emoji}</span>}
-              {party}
+              <span class="ellipsis">{party}</span>
             </span>
             <Avatars members={members} size={20} />
           </span>
@@ -210,6 +212,8 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+    max-width: 100%;
     padding: 1px 8px;
     border-radius: 999px;
     font-size: 12px;
@@ -227,6 +231,8 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
+    max-width: 100%;
     margin-left: auto;
     font-size: 14px;
   }

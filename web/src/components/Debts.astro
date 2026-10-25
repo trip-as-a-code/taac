@@ -33,9 +33,9 @@ const debts = [...owed.values()].filter((d) => d.amount > 0.005)
   <ul class="debts footnote" aria-label={i18n.t('item.owes')}>
     {debts.map((d) => (
       <li>
-        <span>{memberName(trip, d.from)}</span>
+        <span class="ellipsis">{memberName(trip, d.from)}</span>
         <Icon name="arrowRight" size={12} />
-        <span>{memberName(trip, d.to)}</span>
+        <span class="ellipsis">{memberName(trip, d.to)}</span>
         <Money amount={Math.round(d.amount * 100) / 100} currency={d.currency} lang={i18n.lang} class="amount" />
       </li>
     ))}
@@ -57,6 +57,13 @@ const debts = [...owed.values()].filter((d) => d.amount > 0.005)
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .debts :global(svg),
+  .debts :global(.amount) {
+    flex: none;
   }
 
   .debts :global(svg) {

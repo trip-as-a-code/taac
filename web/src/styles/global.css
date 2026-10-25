@@ -178,6 +178,8 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
+  min-width: 0;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
@@ -207,6 +209,18 @@ p {
 .badge[data-tone='blue'] {
   background: var(--tint-soft);
   color: var(--tint);
+}
+
+/* One line that gives way with "…" inside a flex row. */
+.ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge > :not(.ellipsis) {
+  flex: none;
 }
 
 /* Buttons */
