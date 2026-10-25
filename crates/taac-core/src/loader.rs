@@ -443,6 +443,34 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
             trip.places.insert(key, place);
         }
         trip.declared_bases.extend(doc.bases);
+        for item in &doc.itinerary {
+            if !item.bookings.is_empty() && !item.costs.is_empty() {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "item.costs",
+                        format!(
+                            "`{}` has `bookings`: each cost goes in its reservation, not on the plan",
+                            item.title
+                        ),
+                    )
+                    .in_file(file.clone())
+                    .in_trip(&slug),
+                );
+            }
+            if item.booking.is_some() && !item.bookings.is_empty() {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "item.bookings",
+                        format!(
+                            "`{}` has both `booking` and `bookings`; keep one",
+                            item.title
+                        ),
+                    )
+                    .in_file(file.clone())
+                    .in_trip(&slug),
+                );
+            }
+        }
         trip.itinerary.extend(doc.itinerary);
         trip.ideas.extend(doc.ideas);
         trip.blockers.extend(doc.blockers);
@@ -632,6 +660,13 @@ fn resolve_names(trip: &mut Trip) {
         place_refs(&mut item.places);
         who(&mut item.who);
         costs(&mut item.costs);
+        for reservation in &mut item.bookings {
+            who(&mut reservation.who);
+            costs(&mut reservation.costs);
+        }
+        if !item.bookings.is_empty() {
+            item.booking = crate::model::summarize(&item.bookings);
+        }
         for name in &mut item.overrides {
             if let Some(id) = blockers.get(&name.to_lowercase()) {
                 name.clone_from(id);
@@ -883,6 +918,29 @@ places:
         let (_, diagnostics) = load_standalone_trip(&fs, "trip.yaml");
         assert!(
             diagnostics.iter().any(|d| d.code == "place.name"),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn booking_or_bookings_not_both() {
+        let trip_yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+members: [{ name: A }]
+itinerary:
+  - { kind: activity, title: X, date: 2027-01-01, booking: { status: required }, bookings: [{ status: required }] }
+  - { kind: activity, title: Y, date: 2027-01-01, bookings: [{ status: required }], costs: [{ amount: 1, currency: EUR }] }
+";
+        let fs = files(&[("trip.yaml", trip_yaml)]);
+        let (_, diagnostics) = load_standalone_trip(&fs, "trip.yaml");
+        assert!(
+            diagnostics.iter().any(|d| d.code == "item.bookings"),
+            "{diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().any(|d| d.code == "item.costs"),
             "{diagnostics:?}"
         );
     }

@@ -439,6 +439,7 @@
           ]
         },
         "booking": {
+          "description": "One reservation for the whole plan. Once loaded, plans with\n`bookings` get a summary here.",
           "anyOf": [
             {
               "$ref": "#/$defs/Booking"
@@ -448,7 +449,15 @@
             }
           ]
         },
+        "bookings": {
+          "description": "Several reservations for one plan (the same flight booked separately\nby different people), each with its own people and costs. Instead of\n`booking`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Reservation"
+          }
+        },
         "costs": {
+          "description": "What it costs. With `bookings`, costs go in each reservation instead.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/Cost"
@@ -617,6 +626,67 @@
       "additionalProperties": false,
       "required": [
         "secret"
+      ]
+    },
+    "Reservation": {
+      "description": "One of several reservations behind a plan.",
+      "type": "object",
+      "properties": {
+        "who": {
+          "description": "Names of the members and/or groups it covers; omitted means the\nplan's people.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/BookingStatus"
+        },
+        "deadline": {
+          "description": "Book by this date.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference": {
+          "description": "Confirmation number / PNR. Never published.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costs": {
+          "description": "What this reservation cost; `who` defaults to the reservation's.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cost"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "status"
       ]
     },
     "Cost": {

@@ -86,8 +86,18 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
         if !places.is_empty() {
             let _ = writeln!(out, "  - 📍 {}", places.join(" → "));
         }
-        if let Some(reference) = item.booking.as_ref().and_then(|b| b.reference.as_ref()) {
-            let _ = writeln!(out, "  - 🎫 {}", secrets::render(reference, reveal));
+        for (who, reference) in item.references() {
+            let whose = who
+                .map(|w| {
+                    let names: Vec<&str> = trip
+                        .who(Some(w))
+                        .into_iter()
+                        .map(|id| trip.member(id).map_or(id, |m| m.name.as_str()))
+                        .collect();
+                    format!(" ({})", names.join(", "))
+                })
+                .unwrap_or_default();
+            let _ = writeln!(out, "  - 🎫{whose} {}", secrets::render(reference, reveal));
         }
         if let Some(notes) = &item.notes {
             let _ = writeln!(out, "  - {}", notes.replace('\n', "\n    "));

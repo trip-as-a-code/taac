@@ -65,6 +65,8 @@ itinerary:
       - { amount: 138, currency: GBP, paidBy: Sam } # split: equal (default), personal, { shares: … }, { exact: … }
       # without paidBy: not paid yet (add estimate: true for a guess); paidBy: each — everyone paid their own part;
       # paid costs count as paid back — settled: false when someone still owes the payer
+    # Booked separately by different people? Use `bookings:` instead of `booking:` — a list of
+    # reservations, each with its own who, status, reference, deadline and costs.
   - kind: activity
     title: Tram 28 and the castle
     start: 2027-05-14T12:00:00+01:00

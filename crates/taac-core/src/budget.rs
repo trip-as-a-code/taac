@@ -341,18 +341,27 @@ pub fn compute(trip: &Trip) -> Budget {
         if is_cancelled(item) {
             continue;
         }
-        let committed = is_committed(item);
-        let participants = trip.participants(item);
-        for cost in &item.costs {
-            let (line, allocation) = line(
-                trip,
-                &item.id,
-                item.kind.as_str(),
-                cost,
-                &participants,
-                committed,
-            );
-            budget.add(trip, line, &allocation);
+        // Each reservation counts for its own people, booked or not.
+        for part in item.parts() {
+            let status = part.booking.as_ref().map(|b| b.status);
+            if status == Some(BookingStatus::Cancelled) {
+                continue;
+            }
+            let committed = status == Some(BookingStatus::Booked);
+            let participants = part
+                .who
+                .map_or_else(|| trip.participants(item), |w| trip.who(Some(w)));
+            for cost in part.costs {
+                let (line, allocation) = line(
+                    trip,
+                    &item.id,
+                    item.kind.as_str(),
+                    cost,
+                    &participants,
+                    committed,
+                );
+                budget.add(trip, line, &allocation);
+            }
         }
     }
 
@@ -576,5 +585,40 @@ packing:
         let a = eur.members.iter().find(|m| m.member == "a").unwrap();
         assert_eq!((a.paid.planned, a.balance), (dec("120"), dec("20")));
         assert_eq!(eur.settlements.len(), 2);
+    }
+
+    #[test]
+    fn reservations_count_for_their_people() {
+        let yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+currency: { base: EUR }
+members: [{ name: A }, { name: B }, { name: C }]
+itinerary:
+  - kind: activity
+    title: x
+    who: [everyone]
+    date: 2027-01-01
+    bookings:
+      - { who: [a], status: booked, costs: [{ amount: 100, currency: EUR, paidBy: a }] }
+      - { who: [b, c], status: required, costs: [{ amount: 50, currency: EUR }] }
+";
+        let files: Files = [("trip.yaml".to_owned(), yaml.to_owned())].into();
+        let trip = load_standalone_trip(&files, "trip.yaml")
+            .0
+            .unwrap()
+            .trips
+            .remove(0);
+        assert_eq!(
+            trip.itinerary[0].booking.as_ref().unwrap().status,
+            BookingStatus::Required
+        );
+        let b = compute(&trip);
+        assert_eq!(b.lines[0].shares.keys().collect::<Vec<_>>(), ["a"]);
+        assert!(b.lines[0].committed);
+        assert_eq!(b.lines[1].shares.keys().collect::<Vec<_>>(), ["b", "c"]);
+        assert!(!b.lines[1].committed);
+        assert_eq!(b.by_currency["EUR"].total.committed, dec("100"));
     }
 }

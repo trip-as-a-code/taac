@@ -41,7 +41,7 @@ export function tripToday(timezone = document.querySelector<HTMLElement>('[data-
 }
 
 const test: Record<Facet, (f: Facts, values: string[], today: string) => boolean> = {
-  status: (f, v) => Boolean(f.status && v.includes(f.status)),
+  status: (f, v) => Boolean(f.status && v.includes(f.status)) || Boolean(f.statuses?.some((s) => v.includes(s))),
   kind: (f, v) => v.includes(f.kind),
   priority: (f, v) => Boolean(f.priority && v.includes(f.priority)),
   payer: (f, v) => f.payers.some((p) => v.includes(p)),
