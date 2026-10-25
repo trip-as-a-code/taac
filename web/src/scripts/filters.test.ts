@@ -7,6 +7,7 @@ const today = '2026-12-14'
 const base: Facts = {
   kind: 'activity',
   priced: false,
+  toPay: false,
   payers: [],
   places: [],
   tags: [],

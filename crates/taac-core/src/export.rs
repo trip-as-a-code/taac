@@ -226,20 +226,29 @@ pub struct BookingExport {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "flags in the JSON the site reads"
+)]
 pub struct CostExport {
     #[serde(with = "rust_decimal::serde::float")]
     pub amount: Decimal,
     pub currency: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub charged: Option<budget::MoneyExport>,
-    /// Member ids who paid, or empty when each paid their own share.
+    /// Member ids who paid; empty when each paid their own share, or when
+    /// nobody has paid yet (`unpaid`).
     pub paid_by: Vec<String>,
+    /// Not paid yet: an estimate or a price to pay later.
+    pub unpaid: bool,
+    /// Paid by `each`.
+    pub each: bool,
     /// Member ids the cost is for.
     pub who: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     pub estimate: bool,
-    /// Squared up in advance: nobody owes anyone for it.
+    /// Nobody owes anybody for it (unpaid, `each`, or paid back).
     pub settled: bool,
 }
 
@@ -657,10 +666,12 @@ fn cost_exports(trip: &Trip, costs: &[Cost], participants: &[&str]) -> Vec<CostE
                 currency: m.currency.clone(),
             }),
             paid_by: trip
-                .who(Some(&c.paid_by.ids()))
+                .who(Some(&c.payers()))
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),
+            unpaid: !c.is_paid(),
+            each: c.is_each(),
             who: c
                 .who
                 .as_deref()
@@ -670,7 +681,7 @@ fn cost_exports(trip: &Trip, costs: &[Cost], participants: &[&str]) -> Vec<CostE
                 .collect(),
             label: c.label.clone(),
             estimate: c.estimate,
-            settled: c.settled,
+            settled: !c.owed(),
         })
         .collect()
 }

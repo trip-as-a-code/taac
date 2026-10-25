@@ -654,9 +654,20 @@ impl Validator<'_> {
                     "costs need a trip-level `currency`".into(),
                 );
             }
-            let payers = cost.paid_by.ids();
-            if !cost.paid_by.is_each() {
+            let payers = cost.payers();
+            if cost.is_paid() && !cost.is_each() {
                 self.who(owner, Some(&payers));
+            }
+            if !cost.settled && !cost.owed() {
+                self.warn(
+                    "cost.settled",
+                    id,
+                    if cost.is_paid() {
+                        "`settled: false` with `paidBy: each`: everyone paid for themselves".into()
+                    } else {
+                        "`settled: false`, but nobody has paid yet (no `paidBy`)".into()
+                    },
+                );
             }
             self.who(owner, cost.who.as_deref());
             // A booking is a fact: record what it actually cost the payer.
@@ -665,7 +676,8 @@ impl Validator<'_> {
                 _ => None,
             }
             .unwrap_or_else(|| trip.base_currency().to_owned());
-            if booked && cost.charged.is_none() && cost.currency != payer_currency {
+            if booked && cost.is_paid() && cost.charged.is_none() && cost.currency != payer_currency
+            {
                 self.error(
                     "cost.charged",
                     id,

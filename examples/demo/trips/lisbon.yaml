@@ -41,8 +41,15 @@ itinerary:
     transport: { carrier: TAP Air Portugal, number: TP1337 }
     booking: { status: booked, provider: TAP, reference: { secret: DEMO_PNR } }
     costs:
-      # Priced in pounds, charged to Alex's card in euros.
-      - { amount: 138, currency: GBP, paidBy: Alex, label: 3 tickets, charged: { amount: 161.46, currency: EUR } }
+      # Priced in pounds, charged to Alex's card in euros; the others still owe Alex.
+      - {
+          amount: 138,
+          currency: GBP,
+          paidBy: Alex,
+          label: 3 tickets,
+          charged: { amount: 161.46, currency: EUR },
+          settled: false,
+        }
   - kind: lodging
     title: Casa do Bairro
     who: [everyone]
@@ -68,7 +75,7 @@ itinerary:
     places: [Castelo de São Jorge]
     booking: { status: required, deadline: 2027-05-01, url: https://castelodesaojorge.pt }
     costs:
-      - { amount: 45, currency: EUR, paidBy: Robin }
+      - { amount: 45, currency: EUR, estimate: true } # not paid yet: no payer, no debt
     notes: Buy castle tickets online to **skip the queue**. Tram 28 boards at Martim Moniz.
   - kind: activity
     title: Sunset at the miradouro
@@ -84,7 +91,7 @@ itinerary:
     places: [Pena Palace]
     booking: { status: required, deadline: 2027-04-20 }
     costs:
-      - { amount: 64, currency: EUR, paidBy: Alex, settled: true } # Sam paid Alex back on the spot
+      - { amount: 64, currency: EUR, paidBy: Alex } # paid costs count as paid back unless `settled: false`
   - kind: meal
     title: Pastéis de nata in Belém
     who: [everyone]
@@ -92,7 +99,7 @@ itinerary:
     end: 2027-05-16T11:00:00+01:00
     places: [Pastéis de Belém, Jerónimos Monastery]
     costs:
-      - { amount: 18.6, currency: EUR, paidBy: Robin, split: { shares: { Alex: 1, Sam: 1, Robin: 2 } } }
+      - { amount: 18.6, currency: EUR, paidBy: Robin, split: { shares: { Alex: 1, Sam: 1, Robin: 2 } }, settled: false }
   - kind: flight
     title: Lisbon → London
     who: [everyone]
@@ -112,7 +119,7 @@ ideas:
     priority: must
     duration: hour
     costs:
-      - { amount: 60, currency: EUR, paidBy: Sam, estimate: true }
+      - { amount: 60, currency: EUR, estimate: true }
 packing:
   - category: Essentials
     items:
@@ -121,7 +128,7 @@ packing:
       - { name: Camera, who: [Sam] }
       - name: Travel adapter
         who: [Alex]
-        costs: [{ amount: 15, currency: EUR, paidBy: Alex }]
+        costs: [{ amount: 15, currency: EUR }] # still to buy
       - name: Waterproof phone pouch
         bought: true
         costs: [{ amount: 24, currency: EUR, paidBy: Sam, label: 3-pack }]

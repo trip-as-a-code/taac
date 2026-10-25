@@ -556,8 +556,11 @@ pub struct Cost {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charged: Option<Money>,
     /// Who paid: a member, a list of members and/or groups sharing the
-    /// payment equally, or `each` — everyone paid their own share.
-    pub paid_by: PaidBy,
+    /// payment equally, or `each` — everyone paid their own share. Omitted
+    /// means nobody has paid yet: it counts as planned spend and nobody
+    /// owes anybody for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paid_by: Option<PaidBy>,
     /// Who the cost is for; defaults to the item's participants.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
@@ -569,11 +572,45 @@ pub struct Cost {
     /// A guess rather than a quote.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub estimate: bool,
-    /// Already squared up between the people involved (each paid their part
-    /// in advance, or settled it outside the trip): nobody owes anyone for
-    /// it. `paidBy: each` says the same when everyone paid for themselves.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    /// Whether the others have paid the payer back. Travellers usually
+    /// square up on the spot, so a paid cost is settled unless this says
+    /// `false`: only then does someone owe someone for it.
+    #[serde(default = "yes", skip_serializing_if = "is_yes")]
     pub settled: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's skip_serializing_if signature"
+)]
+fn is_yes(value: &bool) -> bool {
+    *value
+}
+
+impl Cost {
+    /// Somebody paid already (or everybody, for themselves).
+    pub fn is_paid(&self) -> bool {
+        self.paid_by.is_some()
+    }
+
+    /// Everyone paid their own share.
+    pub fn is_each(&self) -> bool {
+        self.paid_by.as_ref().is_some_and(PaidBy::is_each)
+    }
+
+    /// Names (ids once loaded) of whoever paid; empty for `each` or unpaid.
+    pub fn payers(&self) -> Vec<String> {
+        self.paid_by.as_ref().map(PaidBy::ids).unwrap_or_default()
+    }
+
+    /// Someone still owes someone for it.
+    pub fn owed(&self) -> bool {
+        self.is_paid() && !self.is_each() && !self.settled
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]

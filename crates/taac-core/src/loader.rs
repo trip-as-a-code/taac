@@ -553,8 +553,13 @@ fn resolve_names(trip: &mut Trip) {
     let costs = |costs: &mut Vec<crate::model::Cost>| {
         for cost in costs {
             match &mut cost.paid_by {
-                crate::model::PaidBy::One(name) => *name = person(name),
-                crate::model::PaidBy::Many(names) => names.iter_mut().for_each(|n| *n = person(n)),
+                Some(crate::model::PaidBy::One(name)) => *name = person(name),
+                Some(crate::model::PaidBy::Many(names)) => {
+                    for name in names {
+                        *name = person(name);
+                    }
+                }
+                None => {}
             }
             who(&mut cost.who);
             if let crate::model::Split::Shares(map) | crate::model::Split::Exact(map) =

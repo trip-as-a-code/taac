@@ -25,6 +25,10 @@ pub struct Budget {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "flags in the JSON the site reads"
+)]
 pub struct CostLine {
     /// Item, idea or packing item id.
     pub item: String,
@@ -47,7 +51,9 @@ pub struct CostLine {
     pub settled_currency: String,
     pub committed: bool,
     pub estimate: bool,
-    /// Squared up already: `paid` mirrors `shares`, so it owes nothing.
+    /// Nobody has paid yet: `paid` is empty, nothing is owed.
+    pub unpaid: bool,
+    /// Nobody owes anybody for it: unpaid, paid by `each`, or paid back.
     pub settled: bool,
     /// Fraction of the cost each member bears (sums to 1).
     pub shares: IndexMap<String, f64>,
@@ -97,7 +103,8 @@ pub struct MemberBalance {
     pub member: String,
     pub paid: Amounts,
     pub share: Amounts,
-    /// `paid - share`: positive is owed money, negative owes.
+    /// What was paid minus their share, over costs not yet paid back:
+    /// positive is owed money, negative owes.
     #[serde(with = "rust_decimal::serde::float")]
     pub balance: Decimal,
 }
@@ -199,7 +206,7 @@ fn allocate(trip: &Trip, cost: &Cost, participants: &[&str]) -> Allocation {
         .as_deref()
         .map_or_else(|| participants.to_vec(), |who| trip.who(Some(who)));
     let payers: Vec<String> = trip
-        .who(Some(&cost.paid_by.ids()))
+        .who(Some(&cost.payers()))
         .into_iter()
         .map(str::to_owned)
         .collect();
@@ -210,15 +217,16 @@ fn allocate(trip: &Trip, cost: &Cost, participants: &[&str]) -> Allocation {
         Split::Exact(map) => Split::Shares(map.clone()),
         other => other.clone(),
     };
-    let personal_owner = if cost.paid_by.is_each() {
+    let personal_owner = if cost.is_each() || payers.is_empty() {
         beneficiaries.first().copied().unwrap_or_default()
     } else {
         first_payer
     };
     let shares = shares(settled_amount, &split, personal_owner, &beneficiaries);
-    // Settled in advance: as if everyone paid exactly their part.
-    let paid = if cost.paid_by.is_each() || cost.settled {
+    let paid = if cost.is_each() {
         shares.clone()
+    } else if !cost.is_paid() {
+        IndexMap::new()
     } else {
         let weights: Vec<(String, Decimal)> =
             payers.iter().map(|p| (p.clone(), Decimal::ONE)).collect();
@@ -270,7 +278,8 @@ fn line(
         settled_currency: allocation.settled_currency.clone(),
         committed,
         estimate: cost.estimate,
-        settled: cost.settled,
+        unpaid: !cost.is_paid(),
+        settled: !cost.owed(),
         shares: fractions(&allocation.shares, allocation.settled_amount),
         paid: fractions(&allocation.paid, allocation.settled_amount),
     };
@@ -299,11 +308,21 @@ impl Budget {
             });
         currency.total.add(allocation.settled_amount, committed);
         for balance in &mut currency.members {
-            if let Some(paid) = allocation.paid.get(&balance.member) {
-                balance.paid.add(*paid, committed);
-            }
-            if let Some(share) = allocation.shares.get(&balance.member) {
-                balance.share.add(*share, committed);
+            let paid = allocation
+                .paid
+                .get(&balance.member)
+                .copied()
+                .unwrap_or_default();
+            let share = allocation
+                .shares
+                .get(&balance.member)
+                .copied()
+                .unwrap_or_default();
+            balance.paid.add(paid, committed);
+            balance.share.add(share, committed);
+            // Only what was paid and not yet paid back is owed.
+            if !line.settled {
+                balance.balance += paid - share;
             }
         }
         self.lines.push(line);
@@ -377,9 +396,6 @@ pub fn compute(trip: &Trip) -> Budget {
     }
 
     for currency in budget.by_currency.values_mut() {
-        for balance in &mut currency.members {
-            balance.balance = balance.paid.planned - balance.share.planned;
-        }
         currency.settlements = settle(&currency.members);
     }
     budget
@@ -489,7 +505,7 @@ itinerary:
     #[test]
     fn charged_amount_settles_in_its_own_currency() {
         let b = compute(&trip(
-            "      - { amount: 30000, currency: JPY, paidBy: b, charged: { amount: 201, currency: USD } }",
+            "      - { amount: 30000, currency: JPY, paidBy: b, charged: { amount: 201, currency: USD }, settled: false }",
         ));
         assert_eq!(b.lines[0].settled_currency, "USD");
         let usd = &b.by_currency["USD"];
@@ -508,7 +524,7 @@ itinerary:
     #[test]
     fn several_payers_and_a_narrower_who() {
         let b = compute(&trip(
-            "      - { amount: 100, currency: EUR, paidBy: [a, b], who: [c] }",
+            "      - { amount: 100, currency: EUR, paidBy: [a, b], who: [c], settled: false }",
         ));
         let eur = &b.by_currency["EUR"];
         let balance = |m: &str| eur.members.iter().find(|x| x.member == m).unwrap().balance;
@@ -545,12 +561,20 @@ packing:
     }
 
     #[test]
-    fn settled_costs_owe_nothing() {
+    fn only_unsettled_payments_are_owed() {
         let b = compute(&trip(
-            "      - { amount: 90, currency: EUR, paidBy: a, settled: true }",
+            "      - { amount: 90, currency: EUR, paidBy: a }
+      - { amount: 30, currency: EUR, paidBy: a, settled: false }
+      - { amount: 60, currency: EUR, estimate: true }",
         ));
-        assert!(b.by_currency["EUR"].settlements.is_empty());
-        assert!(b.lines[0].settled);
-        assert_eq!(b.lines[0].paid, b.lines[0].shares);
+        let (paid_back, owed, unpaid) = (&b.lines[0], &b.lines[1], &b.lines[2]);
+        assert!(paid_back.settled && !paid_back.unpaid);
+        assert!(!owed.settled);
+        assert!(unpaid.unpaid && unpaid.settled && unpaid.paid.is_empty());
+        let eur = &b.by_currency["EUR"];
+        assert_eq!(eur.total.planned, dec("180"));
+        let a = eur.members.iter().find(|m| m.member == "a").unwrap();
+        assert_eq!((a.paid.planned, a.balance), (dec("120"), dec("20")));
+        assert_eq!(eur.settlements.len(), 2);
     }
 }
