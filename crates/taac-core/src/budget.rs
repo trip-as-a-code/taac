@@ -47,6 +47,8 @@ pub struct CostLine {
     pub settled_currency: String,
     pub committed: bool,
     pub estimate: bool,
+    /// Squared up already: `paid` mirrors `shares`, so it owes nothing.
+    pub settled: bool,
     /// Fraction of the cost each member bears (sums to 1).
     pub shares: IndexMap<String, f64>,
     /// Fraction of the cost each member paid (sums to 1).
@@ -214,7 +216,8 @@ fn allocate(trip: &Trip, cost: &Cost, participants: &[&str]) -> Allocation {
         first_payer
     };
     let shares = shares(settled_amount, &split, personal_owner, &beneficiaries);
-    let paid = if cost.paid_by.is_each() {
+    // Settled in advance: as if everyone paid exactly their part.
+    let paid = if cost.paid_by.is_each() || cost.settled {
         shares.clone()
     } else {
         let weights: Vec<(String, Decimal)> =
@@ -267,6 +270,7 @@ fn line(
         settled_currency: allocation.settled_currency.clone(),
         committed,
         estimate: cost.estimate,
+        settled: cost.settled,
         shares: fractions(&allocation.shares, allocation.settled_amount),
         paid: fractions(&allocation.paid, allocation.settled_amount),
     };
@@ -538,5 +542,15 @@ packing:
         assert!(adapter.committed);
         assert_eq!(adapter.shares.keys().collect::<Vec<_>>(), ["a", "c"]);
         assert_eq!(b.by_currency["EUR"].total.committed, dec("42"));
+    }
+
+    #[test]
+    fn settled_costs_owe_nothing() {
+        let b = compute(&trip(
+            "      - { amount: 90, currency: EUR, paidBy: a, settled: true }",
+        ));
+        assert!(b.by_currency["EUR"].settlements.is_empty());
+        assert!(b.lines[0].settled);
+        assert_eq!(b.lines[0].paid, b.lines[0].shares);
     }
 }

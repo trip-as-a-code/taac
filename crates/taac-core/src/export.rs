@@ -239,6 +239,8 @@ pub struct CostExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     pub estimate: bool,
+    /// Squared up in advance: nobody owes anyone for it.
+    pub settled: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -668,6 +670,7 @@ fn cost_exports(trip: &Trip, costs: &[Cost], participants: &[&str]) -> Vec<CostE
                 .collect(),
             label: c.label.clone(),
             estimate: c.estimate,
+            settled: c.settled,
         })
         .collect()
 }

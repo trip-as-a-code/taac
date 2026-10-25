@@ -63,6 +63,7 @@ itinerary:
       reference: { secret: LISBON_PNR } # resolved from .env / secrets.yaml / env, never published
     costs:
       - { amount: 138, currency: GBP, paidBy: Sam } # split: equal (default), personal, { shares: … }, { exact: … }
+      # paidBy: each — everyone paid their own part; settled: true — squared up already, nobody owes anyone
   - kind: activity
     title: Tram 28 and the castle
     start: 2027-05-14T12:00:00+01:00

@@ -670,6 +670,10 @@
         "estimate": {
           "description": "A guess rather than a quote.",
           "type": "boolean"
+        },
+        "settled": {
+          "description": "Already squared up between the people involved (each paid their part\nin advance, or settled it outside the trip): nobody owes anyone for\nit. `paidBy: each` says the same when everyone paid for themselves.",
+          "type": "boolean"
         }
       },
       "additionalProperties": false,

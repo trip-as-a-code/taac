@@ -1,4 +1,5 @@
 ---
+import Debts from '@/components/Debts.astro'
 import Money from '@/components/Money.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
@@ -83,6 +84,7 @@ const whose = (members: string[]) => {
                           </span>
                         </span>
                       )}
+                      <Debts trip={trip} id={item.id} i18n={i18n} />
                     </span>
                   </label>
                 </li>

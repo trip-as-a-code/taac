@@ -569,6 +569,11 @@ pub struct Cost {
     /// A guess rather than a quote.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub estimate: bool,
+    /// Already squared up between the people involved (each paid their part
+    /// in advance, or settled it outside the trip): nobody owes anyone for
+    /// it. `paidBy: each` says the same when everyone paid for themselves.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub settled: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
