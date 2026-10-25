@@ -127,7 +127,8 @@ const offsetLabel =
               return (
                 <span class="reservation">
                   <span class="badge" data-tone={statusTone[b.status]} title={names(b.members)}>
-                    {whose} · {t(`status.${b.status}`)}
+                    <span class="ellipsis">{whose}</span>
+                    <span>· {t(`status.${b.status}`)}</span>
                   </span>
                   {b.costs.map((c) => (
                     <Money
@@ -178,14 +179,16 @@ const offsetLabel =
         {everyone ? (
           !unassigned && (
             <span class="who" title={members.map((m) => m.name).join(', ')}>
-              <span class="party-pill">{party}</span>
+              <span class="party-pill">
+                <span class="ellipsis">{party}</span>
+              </span>
             </span>
           )
         ) : (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
             <span class="party-pill">
               {emoji && <span aria-hidden="true">{emoji}</span>}
-              {party}
+              <span class="ellipsis">{party}</span>
             </span>
             <Avatars members={members} size={20} />
           </span>
@@ -411,6 +414,7 @@ const offsetLabel =
   .meta {
     display: flex;
     flex-wrap: wrap;
+    min-width: 0;
     align-items: center;
     gap: 4px 10px;
     margin-top: 3px;
@@ -439,6 +443,8 @@ const offsetLabel =
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+    max-width: 100%;
     padding: 1px 8px;
     border-radius: 999px;
     font-size: 12px;
@@ -456,6 +462,8 @@ const offsetLabel =
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
+    max-width: 100%;
     margin-left: auto;
     font-size: 14px;
   }
@@ -511,6 +519,8 @@ const offsetLabel =
 
   .reservation {
     display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 8px;
@@ -585,7 +595,7 @@ const offsetLabel =
     .item {
       grid-template-columns: 46px minmax(0, 1fr);
       gap: 0 12px;
-      padding-inline: var(--space-4) var(--space-3);
+      padding-inline: var(--space-4);
     }
 
     .glyph {
