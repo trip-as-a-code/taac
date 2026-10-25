@@ -95,8 +95,14 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
             .map(|id| trip.member(id).map_or(id, |m| m.name.as_str()))
             .collect();
         description.push(participants.join(", "));
-        if let Some(reference) = item.booking.as_ref().and_then(|b| b.reference.as_ref()) {
-            description.push(format!("Ref: {}", secrets::render(reference, reveal)));
+        for (who, reference) in item.references() {
+            let whose = who
+                .map(|w| format!(" ({})", names(trip, w)))
+                .unwrap_or_default();
+            description.push(format!(
+                "Ref{whose}: {}",
+                secrets::render(reference, reveal)
+            ));
         }
         for contact in &item.contacts {
             let mut c = contact.name.clone();
@@ -174,6 +180,15 @@ fn fold_into(out: &mut String, line: &str) {
         width += len;
     }
     out.push_str("\r\n");
+}
+
+/// Member names behind a `who` list.
+fn names(trip: &Trip, who: &[String]) -> String {
+    trip.who(Some(who))
+        .into_iter()
+        .map(|id| trip.member(id).map_or(id, |m| m.name.as_str()))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[cfg(test)]

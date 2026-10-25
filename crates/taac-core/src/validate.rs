@@ -7,7 +7,7 @@ use rust_decimal::Decimal;
 
 use crate::diagnostics::Diagnostic;
 use crate::loader::{EVERYONE, Site, Trip};
-use crate::model::{BookingStatus, ItemKind, PlaceRef, Split};
+use crate::model::{BookingStatus, Item, ItemKind, PlaceRef, Split};
 
 pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
     let mut out = Vec::new();
@@ -245,12 +245,35 @@ impl Validator<'_> {
                     "`${...}` in notes is published as-is; move confidential values to `booking.reference` or `contacts`".into(),
                 );
             }
-            self.costs(
-                &item.id,
-                &item.costs,
-                &trip.participants(item),
-                crate::budget::is_committed(item),
-            );
+            let everyone = trip.participants(item);
+            for part in item.parts() {
+                if let Some(who) = part.who {
+                    self.who(&item.id, Some(who));
+                    let outside: Vec<&str> = trip
+                        .who(Some(who))
+                        .into_iter()
+                        .filter(|m| !everyone.contains(m))
+                        .collect();
+                    if !outside.is_empty() {
+                        self.warn(
+                            "booking.who",
+                            id,
+                            format!(
+                                "a reservation covers {}, who are not on the plan",
+                                outside.join(", ")
+                            ),
+                        );
+                    }
+                }
+                let people = part
+                    .who
+                    .map_or_else(|| everyone.clone(), |w| trip.who(Some(w)));
+                let booked = part
+                    .booking
+                    .as_ref()
+                    .is_some_and(|b| b.status == BookingStatus::Booked);
+                self.costs(&item.id, part.costs, &people, booked);
+            }
         }
     }
 
@@ -460,12 +483,14 @@ impl Validator<'_> {
                 }
             }
         }
-        let referenced: HashSet<&str> = trip
+        // References of reservations that carry a cost: a plan booked under
+        // the same reference is paid for there.
+        let referenced: HashSet<String> = trip
             .itinerary
             .iter()
-            .filter(|i| !i.costs.is_empty())
-            .filter_map(|i| i.booking.as_ref()?.reference.as_ref())
-            .map(|r| r.secret.as_str())
+            .flat_map(Item::parts)
+            .filter(|p| !p.costs.is_empty())
+            .filter_map(|p| Some(p.booking?.reference?.secret))
             .collect();
 
         for item in &trip.itinerary {
@@ -531,38 +556,50 @@ impl Validator<'_> {
                     "a stay without a place: it is off the map and bases cannot follow it".into(),
                 );
             }
-            let Some(booking) = item
-                .booking
-                .as_ref()
-                .filter(|b| b.status == BookingStatus::Booked)
-            else {
-                continue;
-            };
-            let confirmed = item.kind.is_transport() || item.kind == ItemKind::Lodging;
-            if confirmed && booking.reference.is_none() {
-                self.warn(
-                    "booking.reference",
-                    id,
-                    "booked without a confirmation number (`booking.reference`)".into(),
-                );
-            }
-            let shared = booking
-                .reference
-                .as_ref()
-                .is_some_and(|r| referenced.contains(r.secret.as_str()));
-            if item.costs.is_empty() && !shared && item.kind != ItemKind::Note {
-                self.warn(
-                    "booking.cost",
-                    id,
-                    "booked without a cost: add `costs`, or share a `booking.reference` with the item that has them".into(),
-                );
-            }
-            if item.costs.iter().any(|c| c.estimate) {
-                self.warn(
-                    "cost.estimate",
-                    id,
-                    "booked, but a cost is still marked `estimate`".into(),
-                );
+            let several = item.bookings.len() > 1;
+            for part in item.parts() {
+                let Some(booking) = part.booking.filter(|b| b.status == BookingStatus::Booked)
+                else {
+                    continue;
+                };
+                // With several reservations, say which one.
+                let whose = match part.who {
+                    Some(who) if several => {
+                        let names: Vec<&str> = trip
+                            .who(Some(who))
+                            .into_iter()
+                            .map(|m| trip.member(m).map_or(m, |m| m.name.as_str()))
+                            .collect();
+                        format!(" ({})", names.join(", "))
+                    }
+                    _ => String::new(),
+                };
+                let confirmed = item.kind.is_transport() || item.kind == ItemKind::Lodging;
+                if confirmed && booking.reference.is_none() {
+                    self.warn(
+                        "booking.reference",
+                        id,
+                        format!("booked{whose} without a confirmation number (`reference`)"),
+                    );
+                }
+                let shared = booking
+                    .reference
+                    .as_ref()
+                    .is_some_and(|r| referenced.contains(&r.secret));
+                if part.costs.is_empty() && !shared && item.kind != ItemKind::Note {
+                    self.warn(
+                        "booking.cost",
+                        id,
+                        format!("booked{whose} without a cost: add `costs`, or share a `reference` with a reservation that has them"),
+                    );
+                }
+                if part.costs.iter().any(|c| c.estimate) {
+                    self.warn(
+                        "cost.estimate",
+                        id,
+                        format!("booked{whose}, but a cost is still marked `estimate`"),
+                    );
+                }
             }
         }
     }
@@ -994,6 +1031,28 @@ ideas:
         assert_eq!(at("quiet"), ["item.unassigned"], "{d:?}");
         assert!(at("said").is_empty(), "{d:?}");
         assert_eq!(at("both"), ["who.redundant"], "{d:?}");
+    }
+
+    #[test]
+    fn one_plan_several_reservations() {
+        let d = check(
+            "  - kind: flight
+    title: shared
+    who: [everyone]
+    start: 2027-01-01T08:00:00+09:00
+    end: 2027-01-01T09:00:00+09:00
+    places: [tokyo, kyoto]
+    bookings:
+      - { who: [a], status: booked, reference: { secret: A_PNR }, costs: [{ amount: 9, currency: EUR, paidBy: a }] }
+      - { who: [b], status: booked, reference: { secret: B_PNR } }",
+        );
+        let shared: Vec<_> = d
+            .iter()
+            .filter(|x| x.item.as_deref() == Some("shared"))
+            .collect();
+        assert_eq!(shared.len(), 1, "{d:?}");
+        assert_eq!(shared[0].code, "booking.cost");
+        assert!(shared[0].message.contains("(B)"), "{}", shared[0].message);
     }
 
     #[test]

@@ -8,6 +8,8 @@ export interface Facts {
   kind: string
   /** Booking status; ideas without a booking have none. */
   status?: string
+  /** Every reservation's status, when a plan has several. */
+  statuses?: string[]
   priority?: 'must' | 'maybe'
   /** First and last local day; ideas have none. */
   day?: string
@@ -96,6 +98,7 @@ export function itemFacts(trip: TripExport, item: Item): Facts {
   return {
     kind: item.kind,
     status: item.booking.status,
+    statuses: item.bookings?.map((b) => b.status),
     day: item.local.date,
     end: item.local.endDate ?? item.local.date,
     deadline: item.booking.deadline,

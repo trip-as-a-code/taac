@@ -179,7 +179,12 @@ pub struct ItemExport {
     pub party: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transport: Option<Transport>,
+    /// The plan's overall booking state (a summary when it has several).
     pub booking: BookingExport,
+    /// Its reservations when there are several; empty otherwise.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub bookings: Vec<ReservationExport>,
+    /// Every cost of the plan, its reservations' included.
     pub costs: Vec<CostExport>,
     pub contacts: Vec<ContactExport>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -222,6 +227,16 @@ pub struct BookingExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     pub has_reference: bool,
+}
+
+/// One of several reservations behind a plan.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReservationExport {
+    /// Member ids it covers.
+    pub members: Vec<String>,
+    #[serde(flatten)]
+    pub booking: BookingExport,
 }
 
 #[derive(Debug, Serialize)]
@@ -403,7 +418,33 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     },
                     booking_export,
                 ),
-                costs: cost_exports(trip, &item.costs, &trip.participants(item)),
+                costs: item
+                    .parts()
+                    .iter()
+                    .flat_map(|part| {
+                        let who = part
+                            .who
+                            .map_or_else(|| trip.participants(item), |w| trip.who(Some(w)));
+                        cost_exports(trip, part.costs, &who)
+                    })
+                    .collect(),
+                bookings: if item.bookings.is_empty() {
+                    Vec::new()
+                } else {
+                    item.bookings
+                        .iter()
+                        .map(|r| ReservationExport {
+                            members: r
+                                .who
+                                .as_deref()
+                                .map_or_else(|| trip.participants(item), |w| trip.who(Some(w)))
+                                .into_iter()
+                                .map(str::to_owned)
+                                .collect(),
+                            booking: booking_export(&r.booking()),
+                        })
+                        .collect()
+                },
                 contacts: item
                     .contacts
                     .iter()

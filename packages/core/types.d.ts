@@ -158,7 +158,11 @@ export interface Item {
   /** Id into `TripExport.parties`. */
   party: string
   transport?: { carrier?: string; number?: string }
+  /** Overall booking state; a summary when there are several reservations. */
   booking: Booking
+  /** Reservations when there are several, each with its people. */
+  bookings?: (Booking & { members: string[] })[]
+  /** Every cost, its reservations' included. */
   costs: Cost[]
   contacts: { name: string; role?: string; hasPhone: boolean; hasEmail: boolean }[]
   notes?: string

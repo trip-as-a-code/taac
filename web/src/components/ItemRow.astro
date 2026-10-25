@@ -108,11 +108,23 @@ const offsetLabel =
             {t('item.until', { date: date(item.local.endDate, { day: 'numeric', month: 'short' }) })}
           </span>
         )}
-        {tone && (
-          <span class="badge" data-tone={tone}>
-            {t(`status.${item.booking.status}`)}
-          </span>
-        )}
+        {item.bookings
+          ? item.bookings.map((b) => {
+              // Each reservation: whose it is, and where it stands.
+              const id = trip.parties.find((p) => p.members.join() === b.members.join())?.id ?? b.members.join('+')
+              const whose =
+                `${partyEmoji(trip, id) ?? ''} ${partyLabel(trip, id, t('lens.everyone'), t('party.and'))}`.trim()
+              return (
+                <span class="badge" data-tone={statusTone[b.status]} title={names(b.members)}>
+                  {whose} · {t(`status.${b.status}`)}
+                </span>
+              )
+            })
+          : tone && (
+              <span class="badge" data-tone={tone}>
+                {t(`status.${item.booking.status}`)}
+              </span>
+            )}
         {item.booking.status === 'required' && item.booking.deadline && (
           <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />
         )}

@@ -391,8 +391,16 @@ pub struct Item {
     pub who: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<Transport>,
+    /// One reservation for the whole plan. Once loaded, plans with
+    /// `bookings` get a summary here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub booking: Option<Booking>,
+    /// Several reservations for one plan (the same flight booked separately
+    /// by different people), each with its own people and costs. Instead of
+    /// `booking`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bookings: Vec<Reservation>,
+    /// Costs that belong to no reservation (or to the single `booking`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<Cost>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -410,7 +418,61 @@ pub struct Item {
     pub overrides: Vec<String>,
 }
 
+/// A share of a plan with its own booking state and costs: a reservation,
+/// or the plan itself when it has a single `booking` (or none).
+pub struct Part<'a> {
+    /// The reservation's people; `None` is the plan's.
+    pub who: Option<&'a [String]>,
+    pub booking: Option<Booking>,
+    pub costs: &'a [Cost],
+}
+
 impl Item {
+    /// Its reservations with their people and costs. Costs outside any
+    /// reservation form a last part without a booking.
+    pub fn parts(&self) -> Vec<Part<'_>> {
+        if self.bookings.is_empty() {
+            return vec![Part {
+                who: None,
+                booking: self.booking.clone(),
+                costs: &self.costs,
+            }];
+        }
+        let mut parts: Vec<Part<'_>> = self
+            .bookings
+            .iter()
+            .map(|r| Part {
+                who: r.who.as_deref(),
+                booking: Some(r.booking()),
+                costs: &r.costs,
+            })
+            .collect();
+        if !self.costs.is_empty() {
+            parts.push(Part {
+                who: None,
+                booking: None,
+                costs: &self.costs,
+            });
+        }
+        parts
+    }
+
+    /// Every confirmation number, with whom it covers when there are
+    /// several reservations.
+    pub fn references(&self) -> Vec<(Option<&[String]>, &Secret)> {
+        if self.bookings.is_empty() {
+            return self
+                .booking
+                .iter()
+                .filter_map(|b| b.reference.as_ref().map(|r| (None, r)))
+                .collect();
+        }
+        self.bookings
+            .iter()
+            .filter_map(|r| r.reference.as_ref().map(|s| (r.who.as_deref(), s)))
+            .collect()
+    }
+
     /// The wall-clock day it happens on (in its own offset).
     pub fn day(&self) -> NaiveDate {
         self.start
@@ -483,7 +545,7 @@ pub struct Transport {
     pub number: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Booking {
     pub status: BookingStatus,
@@ -498,6 +560,77 @@ pub struct Booking {
     /// Confirmation number / PNR. Never published.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<Secret>,
+}
+
+/// One of several reservations behind a plan.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Reservation {
+    /// Names of the members and/or groups it covers; omitted means the
+    /// plan's people.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
+    pub status: BookingStatus,
+    /// Book by this date.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date"))]
+    pub deadline: Option<NaiveDate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Confirmation number / PNR. Never published.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<Secret>,
+    /// What this reservation cost; `who` defaults to the reservation's.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<Cost>,
+}
+
+impl Reservation {
+    pub fn booking(&self) -> Booking {
+        Booking {
+            status: self.status,
+            deadline: self.deadline,
+            provider: self.provider.clone(),
+            url: self.url.clone(),
+            reference: self.reference.clone(),
+        }
+    }
+}
+
+/// The plan's overall state across reservations: needs booking while any
+/// does, booked once all that are not cancelled are, cancelled when all are.
+pub fn summarize(reservations: &[Reservation]) -> Option<Booking> {
+    let first = reservations.first()?;
+    let live: Vec<&Reservation> = reservations
+        .iter()
+        .filter(|r| r.status != BookingStatus::Cancelled)
+        .collect();
+    let status = if live.is_empty() {
+        BookingStatus::Cancelled
+    } else if live.iter().any(|r| r.status == BookingStatus::Required) {
+        BookingStatus::Required
+    } else if live.iter().any(|r| r.status == BookingStatus::Booked) {
+        BookingStatus::Booked
+    } else {
+        BookingStatus::NotRequired
+    };
+    Some(Booking {
+        status,
+        deadline: live
+            .iter()
+            .filter(|r| r.status == BookingStatus::Required)
+            .filter_map(|r| r.deadline)
+            .min(),
+        provider: first.provider.clone(),
+        url: live
+            .iter()
+            .find(|r| r.status == BookingStatus::Required)
+            .and_then(|r| r.url.clone())
+            .or_else(|| first.url.clone()),
+        reference: reservations.iter().find_map(|r| r.reference.clone()),
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, JsonSchema)]
