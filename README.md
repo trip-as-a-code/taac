@@ -99,7 +99,8 @@ packing:
 ```
 
 Nothing needs an id. People, groups, places and blockers are referred to by name (case doesn't matter); plans, ideas and
-bases are identified by their titles.
+bases are identified by their titles. Links to a plan (the copy-link button on each card) follow its title, so renaming a plan
+changes its link.
 
 Without `bases`, they are derived from lodging. A trip can also be a directory: one `kind: Trip` file plus any number
 of `kind: TripPart` files (bases, places, itinerary chunks, ideas, packing) merged into it — fewer merge conflicts

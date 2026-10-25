@@ -24,6 +24,7 @@ type Listener = (state: FilterState) => void
 
 let cleanup: (() => void) | undefined
 let listeners: AbortController | undefined
+let clear: (() => void) | undefined
 
 function addDays(day: string, n: number): string {
   const date = new Date(`${day}T00:00:00Z`)
@@ -180,6 +181,14 @@ export function setupFilters(onChange?: Listener): FilterState {
     render()
   }
 
+  clear = () => {
+    state.values = {}
+    state.q = ''
+    if (search) search.value = ''
+    writeUrl(state, '')
+    render()
+  }
+
   bar?.addEventListener(
     'click',
     (event) => {
@@ -280,19 +289,21 @@ export function revealTarget() {
   const id = decodeURIComponent(location.hash.slice(1))
   const el = id ? document.getElementById(id) : null
   if (!el) return
-  if (el.hasAttribute('data-day-section')) {
-    if (el.hidden) setLens({ people: [] })
-    requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }))
-    return
-  }
-  if (!el.hasAttribute('data-item')) return
-  if (el.hidden || el.closest('[hidden]')) {
-    const facts = el.dataset.facts ? (JSON.parse(el.dataset.facts) as Facts) : undefined
+  const card = el.hasAttribute('data-item')
+  if (!card && !el.hasAttribute('data-day-section')) return
+  const hidden = () => el.hidden || Boolean(el.closest('[hidden]'))
+  // First widen the people lens (to "not assigned" for a plan nobody has),
+  // then drop the filters if that was not enough.
+  if (hidden()) {
+    const facts = card && el.dataset.facts ? (JSON.parse(el.dataset.facts) as Facts) : undefined
     setLens({ people: [], unassigned: Boolean(facts?.unassigned) })
   }
-  el.querySelector('details')?.setAttribute('open', '')
-  el.classList.remove('flash')
-  void el.offsetWidth
-  el.classList.add('flash')
-  requestAnimationFrame(() => el.scrollIntoView({ block: 'center' }))
+  if (hidden()) clear?.()
+  if (card) {
+    el.querySelector('details')?.setAttribute('open', '')
+    el.classList.remove('flash')
+    void el.offsetWidth
+    el.classList.add('flash')
+  }
+  requestAnimationFrame(() => el.scrollIntoView({ block: card ? 'center' : 'start' }))
 }

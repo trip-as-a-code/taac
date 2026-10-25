@@ -44,14 +44,31 @@ function setupAnchors() {
     event.preventDefault()
     event.stopPropagation()
     history.replaceState(history.state, '', href)
-    const url = new URL(href, location.href).href
-    void navigator.clipboard?.writeText(url).catch(() => undefined)
-    link.dataset.copied = ''
-    clearTimeout(copiedTimers.get(link))
-    copiedTimers.set(
-      link,
-      setTimeout(() => delete link.dataset.copied, 1500),
-    )
+    // The plain address: the sharer's people and filter choices stay theirs.
+    const url = `${location.origin}${location.pathname}${href}`
+    const show = (state: 'copied' | 'failed') => {
+      delete link.dataset.copied
+      delete link.dataset.copyFailed
+      link.dataset[state === 'copied' ? 'copied' : 'copyFailed'] = ''
+      const label = link.getAttribute('aria-label') ?? ''
+      if (state === 'failed') link.title = link.dataset.failed ?? label
+      clearTimeout(copiedTimers.get(link))
+      copiedTimers.set(
+        link,
+        setTimeout(() => {
+          delete link.dataset.copied
+          delete link.dataset.copyFailed
+          link.title = label
+        }, 1500),
+      )
+    }
+    // Only say "copied" once it was; the address bar still has the link.
+    if (navigator.clipboard)
+      navigator.clipboard.writeText(url).then(
+        () => show('copied'),
+        () => show('failed'),
+      )
+    else show('failed')
     const target = document.getElementById(decodeURIComponent(href.slice(1)))
     if (target?.hasAttribute('data-item')) {
       target.classList.remove('flash')

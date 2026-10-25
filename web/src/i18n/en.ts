@@ -174,6 +174,7 @@ export const en = {
   'item.website': 'Website',
   'item.bookingLink': 'Book',
   'item.copyLink': 'Copy link',
+  'item.copyFailed': 'Could not copy — the link is in the address bar',
   'item.localTime': 'Local time ({offset})',
   'part.morning': 'Morning',
   'part.afternoon': 'Afternoon',

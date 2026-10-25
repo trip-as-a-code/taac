@@ -55,17 +55,20 @@ const offset = homeOffset(trip)
         <header class="day-header">
           <h2>
             <span class="weekday">{date(day.date, { weekday: 'long' })}</span>
-            <span class="tabular">{date(day.date, { day: 'numeric', month: 'long' })}</span>
-            <a
-              class="anchor"
-              href={`#${day.date}`}
-              data-anchor
-              aria-label={t('item.copyLink')}
-              title={t('item.copyLink')}
-            >
-              <Icon name="link" size={15} class="anchor-link" />
-              <Icon name="check" size={15} class="anchor-check" />
-            </a>
+            {/* The link stays on the date's line. */}
+            <span class="date-line">
+              <span class="tabular">{date(day.date, { day: 'numeric', month: 'long' })}</span>
+              <a
+                class="anchor"
+                href={`#${day.date}`}
+                data-anchor
+                aria-label={t('item.copyLink')}
+                title={t('item.copyLink')}
+              >
+                <Icon name="link" size={15} class="anchor-link" />
+                <Icon name="check" size={15} class="anchor-check" />
+              </a>
+            </span>
           </h2>
           <span class="badge">{t('trip.dayN', { n: index + 1 })}</span>
         </header>
@@ -301,8 +304,15 @@ const offset = homeOffset(trip)
     font-size: 22px;
   }
 
+  .date-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
   .day-header .anchor {
-    margin-left: -4px;
+    margin-left: 0;
   }
 
   .weekday {
