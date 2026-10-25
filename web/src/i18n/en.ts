@@ -32,6 +32,7 @@ export const en = {
   'trip.freeDay': 'Nothing planned yet.',
   'trip.openDay': 'Open day — decided on the spot.',
   'trip.ideasHere': '{n} ideas in {place}',
+  'trip.allIdeas': 'All {n} ideas in {place} →',
   'trip.route': 'Route',
   'trip.baseDay': 'day {n} of {total}',
   'trip.nightsShort': { one: '{n} night', other: '{n} nights' },
@@ -235,7 +236,7 @@ export const en = {
   'ideas.duration.day': 'A full day',
   'ideas.estimate': '≈ {amount}',
   'ideas.none':
-    'No ideas yet. Things worth doing without a date go here, under `ideas` in the trip files; each shows up in the itinerary on the free days you spend in its area.',
+    'No ideas yet. Things worth doing without a date go here, under `ideas` in the trip files. On a free day the itinerary suggests the ones near where you are.',
   'ideas.count': { one: '{n} idea', other: '{n} ideas' },
 
   'packing.title': 'Packing',

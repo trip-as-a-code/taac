@@ -34,6 +34,7 @@ export const ru: Messages = {
   'trip.freeDay': 'Пока ничего не запланировано.',
   'trip.openDay': 'Свободный день — решаем на месте.',
   'trip.ideasHere': 'Идей в {place}: {n}',
+  'trip.allIdeas': 'Все идеи в {place} ({n}) →',
   'trip.route': 'Маршрут',
   'trip.baseDay': 'день {n} из {total}',
   'trip.nightsShort': { one: '{n} ночь', few: '{n} ночи', many: '{n} ночей', other: '{n} ночи' },
@@ -242,7 +243,7 @@ export const ru: Messages = {
   'ideas.duration.day': 'Весь день',
   'ideas.estimate': '≈ {amount}',
   'ideas.none':
-    'Идей пока нет. Сюда попадает то, что можно сделать без даты, — раздел `ideas` в файлах поездки; каждая идея появится в маршруте в свободные дни там, где вы будете.',
+    'Идей пока нет. Сюда попадает то, что можно сделать без даты, — раздел `ideas` в файлах поездки. В свободные дни маршрут предложит идеи рядом с тем местом, где вы будете.',
   'ideas.count': { one: '{n} идея', few: '{n} идеи', many: '{n} идей', other: '{n} идеи' },
 
   'packing.title': 'Сборы',

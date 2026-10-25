@@ -5,7 +5,7 @@ import IdeaRow from '@/components/IdeaRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { ideaFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { anchor, ideasByArea, people } from '@/lib/trip'
+import { anchor, ideasByArea, inBase, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -18,7 +18,7 @@ const areas = [...ideasByArea(trip).entries()].sort(([a], [b]) => {
 })
 const visits = (area: string) =>
   trip.bases
-    .filter((b) => b.place === area)
+    .filter((b) => inBase(trip, b, area))
     .sort((a, b) => a.from.localeCompare(b.from))
     .map((b) => ({ base: b, label: dateRange(b.from, b.to) }))
 ---

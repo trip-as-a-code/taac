@@ -10,7 +10,7 @@ import {
   anchor,
   daysBetween,
   homeOffset,
-  ideasByArea,
+  ideasAt,
   itemById,
   partyEmoji,
   partyHue,
@@ -23,7 +23,8 @@ export const getStaticPaths = tripPaths
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t, date, path } = i18n
 const bases = baseById(trip)
-const areaIdeas = ideasByArea(trip)
+// Shown on free days: ideas near each base, must-dos first.
+const SUGGESTED = 3
 const items = itemById(trip)
 const offset = homeOffset(trip)
 ---
@@ -151,19 +152,52 @@ const offset = homeOffset(trip)
         {day.bases.length > 0 && !trip.basesDerived
           ? day.bases.map((p) => {
               const base = bases.get(p.id)!
-              const ideas = areaIdeas.get(base.place) ?? []
+              const ideas = ideasAt(trip, base)
+              // Free for this base when nobody staying there has a plan today.
+              const free = !day.items.some((id) => items.get(id)!.members.some((m) => p.members.includes(m)))
+              const place = trip.places[base.place]?.name ?? base.title
+              const allHref = path(
+                `/trips/${trip.slug}/ideas/${ideas.some((i) => i.area === base.place) ? `#area-${anchor(base.place)}` : ''}`,
+              )
               return (
                 <div
                   class="open footnote"
                   data-presence
                   data-people={people(p.members)}
-                  data-open-day={day.items.length === 0 ? '' : undefined}
+                  data-open-day={free ? '' : undefined}
                 >
-                  {day.items.length === 0 && <span class="secondary">{t('trip.openDay')}</span>}
-                  {ideas.length > 0 && (
-                    <a href={path(`/trips/${trip.slug}/ideas/#area-${anchor(base.place)}`)}>
-                      <Icon name="sparkle" size={14} />
-                      {t('trip.ideasHere', { n: ideas.length, place: trip.places[base.place]?.name ?? base.title })}
+                  {/* With the group split between bases, say whose free day it is. */}
+                  {free && (
+                    <span class="secondary">
+                      {day.bases.length > 1 && (
+                        <strong class="whose">
+                          {partyEmoji(trip, p.party) ?? ''} {place}:{' '}
+                        </strong>
+                      )}
+                      {t('trip.openDay')}
+                    </span>
+                  )}
+                  {free && ideas.length > 0 && (
+                    <ul class="suggestions">
+                      {ideas.slice(0, SUGGESTED).map((idea) => (
+                        <li>
+                          <a href={path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`)}>
+                            <Icon name="sparkle" size={14} />
+                            <span class="ellipsis" lang={trip.locale}>
+                              {idea.priority === 'must' && '★ '}
+                              {idea.title}
+                            </span>
+                            {idea.duration && <span class="secondary">{t(`ideas.duration.${idea.duration}`)}</span>}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {ideas.length > (free ? SUGGESTED : 0) && (
+                    <a class="all-ideas" href={allHref}>
+                      {free
+                        ? t('trip.allIdeas', { n: ideas.length, place })
+                        : t('trip.ideasHere', { n: ideas.length, place })}
                     </a>
                   )}
                 </div>
@@ -386,7 +420,29 @@ const offset = homeOffset(trip)
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    min-width: 0;
     font-weight: 500;
+  }
+
+  /* Ideas for a free day: one per line, then a link to all of them. */
+  .suggestions {
+    list-style: none;
+    display: grid;
+    gap: 2px;
+    flex: 1 1 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .suggestions a {
+    display: flex;
+    max-width: 100%;
+    min-height: 32px;
+  }
+
+  .suggestions :global(svg),
+  .suggestions .secondary {
+    flex: none;
   }
 
   .blocker {
@@ -490,5 +546,10 @@ const offset = homeOffset(trip)
     .row-wrap + .row-wrap::before {
       left: 0;
     }
+  }
+
+  .whose {
+    font-weight: 600;
+    color: var(--label);
   }
 </style>
