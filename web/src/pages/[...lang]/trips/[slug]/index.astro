@@ -108,7 +108,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
   </section>
 
   {issues.length > 0 && (
-    <section class="section issues">
+    <section class="section issues" id="issues">
       <div class="section-header">
         <h2>{t('issues.title')}</h2>
         <span class="badge" data-tone="orange">
@@ -617,6 +617,10 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-3);
     }
+  }
+
+  .issues {
+    scroll-margin-top: calc(var(--nav-height) + var(--space-4));
   }
 
   .issues .show {

@@ -2,14 +2,14 @@
 import FilterBar from '@/components/FilterBar.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
-import { itemFacts } from '@/lib/facts'
+import { issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { bookable, homeOffset } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
-const { t } = i18n
+const { t, plural, path } = i18n
 const offset = homeOffset(trip)
 const byDeadline = (a: (typeof trip.items)[number], b: (typeof trip.items)[number]) =>
   (a.booking.deadline ?? '9999').localeCompare(b.booking.deadline ?? '9999') || a.local.date.localeCompare(b.local.date)
@@ -18,6 +18,8 @@ const done = trip.items.filter((i) => i.booking.status === 'booked')
 const cancelled = trip.items.filter((i) => i.booking.status === 'cancelled')
 const total = bookable(trip).length
 const ratio = total ? done.length / total : 1
+// Bookings the validator flagged: filter to them here, or read why in the list.
+const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.id).length > 0).length
 ---
 
 <TripLayout trip={trip} lang={lang} section="bookings">
@@ -33,6 +35,13 @@ const ratio = total ? done.length / total : 1
         <div class="bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done.length}>
           <span style={`width:${ratio * 100}%`} />
         </div>
+        {flagged > 0 && (
+          <p class="attention footnote">
+            <span class="flag">⚠︎ {plural('bookings.attention', flagged)}</span>
+            <a href={path(`/trips/${trip.slug}/bookings/?issue=any`)}>{t('bookings.showFlagged')}</a>
+            <a href={path(`/trips/${trip.slug}/#issues`)}>{t('issues.title')} →</a>
+          </p>
+        )}
       </section>
 
       <div class="toolbar">
@@ -155,5 +164,22 @@ const ratio = total ? done.length / total : 1
   .empty {
     padding: var(--space-12) 0;
     text-align: center;
+  }
+
+  .attention {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px var(--space-4);
+    margin: 0;
+  }
+
+  .attention .flag {
+    font-weight: 600;
+    color: var(--orange);
+  }
+
+  .attention a {
+    font-weight: 600;
   }
 </style>
