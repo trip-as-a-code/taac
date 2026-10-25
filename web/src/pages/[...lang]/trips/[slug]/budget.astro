@@ -169,7 +169,9 @@ const dash = '—'
               <a
                 class="row expense"
                 href={path(
-                  packing ? `/trips/${trip.slug}/packing/` : `/trips/${trip.slug}/itinerary/#item-${line.item}`,
+                  packing
+                    ? `/trips/${trip.slug}/packing/#packing-${line.item}`
+                    : `/trips/${trip.slug}/itinerary/#item-${line.item}`,
                 )}
                 data-item
                 data-line={index}
@@ -231,6 +233,13 @@ const dash = '—'
       lines: budget.lines,
       ideas: budget.ideas,
       members: trip.members.map((m) => m.id),
+      links: budget.lines.map((l) =>
+        path(
+          l.kind === 'packing'
+            ? `/trips/${trip.slug}/packing/#packing-${l.item}`
+            : `/trips/${trip.slug}/itinerary/#item-${l.item}`,
+        ),
+      ),
       titles: budget.lines.map((l) => {
         const title = items.get(l.item)?.title ?? l.title ?? l.item
         return l.label ? `${title} · ${l.label}` : title
@@ -247,7 +256,7 @@ const dash = '—'
   import { getLens } from '@/scripts/lens'
   import { displayCurrency, format, onMoney, ratesDate } from '@/scripts/money'
 
-  type Data = BudgetData & { members: string[]; names: Record<string, string>; titles: string[] }
+  type Data = BudgetData & { members: string[]; names: Record<string, string>; titles: string[]; links: string[] }
 
   function render() {
     const raw = document.getElementById('budget-data')?.textContent
@@ -320,13 +329,16 @@ const dash = '—'
         const because = row.querySelector('[data-because]')!
         for (const l of s.lines) {
           const li = document.createElement('li')
+          const link = document.createElement('a')
+          link.href = data.links[l.index] ?? '#'
           const title = document.createElement('span')
           title.textContent = title.title = data.titles[l.index] ?? ''
           const amount = document.createElement('span')
           amount.className = 'tabular'
           amount.textContent = `${l.amount < 0 ? '− ' : ''}${approx}${show(Math.abs(l.amount))}`
           li.toggleAttribute('data-offset', l.amount < 0)
-          li.append(title, amount)
+          link.append(title, amount)
+          li.append(link)
           because.append(li)
         }
         list.append(row)
@@ -518,10 +530,21 @@ const dash = '—'
 
   /* Rows are built in the browser, without the scope attribute. */
   .because :global(li) {
+    min-width: 0;
+  }
+
+  .because :global(a) {
     display: flex;
     min-width: 0;
+    padding: 4px 0;
+    color: inherit;
+    text-decoration: none;
     gap: var(--space-3);
     justify-content: space-between;
+  }
+
+  .because :global(a:hover span:first-child) {
+    color: var(--tint);
   }
 
   .because :global(li span:first-child) {

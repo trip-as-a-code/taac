@@ -5,7 +5,7 @@
 
 import type { Facts } from '@/lib/facts'
 import { fold, issueGroup } from '@/lib/facts'
-import { getLens, inLens, onLens, peopleOf, type Lens } from '@/scripts/lens'
+import { getLens, inLens, onLens, peopleOf, setLens, type Lens } from '@/scripts/lens'
 
 /** Several values match any of them; single ones replace each other. */
 const MULTI = ['issue', 'status', 'kind', 'priority', 'payer', 'place', 'tag'] as const
@@ -270,4 +270,23 @@ export function applyFilters(state: FilterState) {
   if (total) showCount(visible, total)
   document.querySelector<HTMLElement>('[data-filter-empty]')?.toggleAttribute('hidden', visible > 0)
   document.dispatchEvent(new CustomEvent('taac:filtered'))
+}
+
+/**
+ * A link to one card (`#item-…`, `#packing-…`, from the budget) shows it even
+ * when the people lens hid it, opens it and brings it into view.
+ */
+export function revealTarget() {
+  const id = decodeURIComponent(location.hash.slice(1))
+  const el = id ? document.getElementById(id) : null
+  if (!el?.hasAttribute('data-item')) return
+  if (el.hidden || el.closest('[hidden]')) {
+    const facts = el.dataset.facts ? (JSON.parse(el.dataset.facts) as Facts) : undefined
+    setLens({ people: [], unassigned: Boolean(facts?.unassigned) })
+  }
+  el.querySelector('details')?.setAttribute('open', '')
+  el.classList.remove('flash')
+  void el.offsetWidth
+  el.classList.add('flash')
+  requestAnimationFrame(() => el.scrollIntoView({ block: 'center' }))
 }

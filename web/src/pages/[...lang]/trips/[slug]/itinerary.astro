@@ -182,7 +182,7 @@ const offset = homeOffset(trip)
 </TripLayout>
 
 <script>
-  import { setupFilters } from '@/scripts/filters'
+  import { revealTarget, setupFilters } from '@/scripts/filters'
   import { setupLanes, type PartyInfo } from '@/scripts/lanes'
   import { onPage, todayUTC } from '@/scripts/page'
 
@@ -197,6 +197,7 @@ const offset = homeOffset(trip)
       for (const chip of document.querySelectorAll<HTMLElement>('[data-day-link]'))
         chip.hidden = Boolean(document.getElementById(chip.dataset.dayLink!)?.hidden)
     })
+    revealTarget()
     // Dim past days and bring today into view while the trip is underway.
     const today = new Date(todayUTC()).toISOString().slice(0, 10)
     for (const chip of document.querySelectorAll<HTMLElement>('[data-day-link]'))

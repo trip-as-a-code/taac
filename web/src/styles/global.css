@@ -389,3 +389,18 @@ p {
 ::view-transition-new(root) {
   animation-duration: 180ms;
 }
+
+/* A card reached from a link (budget → plan) flashes once. */
+[data-item] {
+  scroll-margin-block: calc(var(--nav-height) + 80px) 80px;
+}
+
+.flash {
+  animation: flash 1.6s var(--ease-out);
+}
+
+@keyframes flash {
+  from {
+    background-color: var(--tint-soft);
+  }
+}
