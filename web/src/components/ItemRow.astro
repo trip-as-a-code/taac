@@ -4,7 +4,18 @@ import type { Item, TripExport } from '@taac/core'
 import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import type { I18n } from '@/i18n'
-import { daysBetween, filterTokens, kindIcon, kindTint, markdown, memberName, statusTone } from '@/lib/trip'
+import {
+  daysBetween,
+  kindIcon,
+  kindTint,
+  markdown,
+  memberName,
+  statusTone,
+  partyEmoji,
+  partyHue,
+  partyLabel,
+  people,
+} from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -21,7 +32,8 @@ const { t, money, date } = i18n
 const places = item.places.map((id) => trip.places[id]).filter(Boolean)
 const everyone = item.members.length === trip.members.length
 const members = trip.members.filter((m) => item.members.includes(m.id))
-const group = item.group ? trip.groups.find((g) => g.id === item.group) : undefined
+const party = partyLabel(trip, item.party, i18n.t('lens.everyone'), i18n.t('party.and'))
+const emoji = partyEmoji(trip, item.party)
 const endDays = item.local.endDate ? daysBetween(item.local.date, item.local.endDate) : 0
 const base = trip.currency?.base ?? 'EUR'
 const total = item.costs.reduce((sum, c) => sum + (c.baseAmount ?? 0), 0)
@@ -35,13 +47,14 @@ const offsetLabel =
 ---
 
 <article
-  class="item"
   id={`item-${item.id}`}
   data-item
-  data-filter={filterTokens(trip, item)}
+  data-people={people(item.members)}
+  data-party={item.party}
   data-status={item.booking.status}
   data-day={item.local.date}
-  style={`--kind:${kindTint[item.kind]}`}
+  style={`--kind:${kindTint[item.kind]};--party-hue:${partyHue(item.party)}`}
+  class:list={['item', { shared: everyone }]}
 >
   <div class="when tabular">
     {withDate && <span class="date">{date(item.local.date, { day: 'numeric', month: 'short' })}</span>}
@@ -93,7 +106,10 @@ const offsetLabel =
         {total > 0 && <span class="footnote secondary tabular cost">{money(total, base)}</span>}
         {!everyone && (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
-            {group?.emoji && <span aria-hidden="true">{group.emoji}</span>}
+            <span class="party-pill">
+              {emoji && <span aria-hidden="true">{emoji}</span>}
+              {party}
+            </span>
             <Avatars members={members} size={20} />
           </span>
         )}
@@ -191,6 +207,7 @@ const offsetLabel =
   }
 
   .end {
+    white-space: nowrap;
     font-size: 13px;
     color: var(--label-tertiary);
   }
@@ -295,6 +312,30 @@ const offsetLabel =
 
   .deadline[data-days^='-'] {
     color: var(--red);
+  }
+
+  /* Plans for a subset of the trip carry their party: a rail and a pill. */
+  .item:not(.shared) {
+    box-shadow: inset 3px 0 0 hsl(var(--party-hue) 65% 55%);
+  }
+
+  .party-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: hsl(var(--party-hue) 55% 38%);
+    background: hsl(var(--party-hue) 70% 50% / 0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .party-pill {
+      color: hsl(var(--party-hue) 80% 72%);
+    }
   }
 
   .who {

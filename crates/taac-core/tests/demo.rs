@@ -57,6 +57,6 @@ fn reveal_only_with_a_store() {
     let trip = &site.unwrap().trips[0];
     let mut store = SecretStore::default();
     store.insert("DEMO_PNR", "ABC123");
-    assert!(!taac_core::generators::ics::generate(trip, None).contains("ABC123"));
-    assert!(taac_core::generators::ics::generate(trip, Some(&store)).contains("ABC123"));
+    assert!(!taac_core::generators::ics::generate(trip, None, None).contains("ABC123"));
+    assert!(taac_core::generators::ics::generate(trip, Some(&store), None).contains("ABC123"));
 }

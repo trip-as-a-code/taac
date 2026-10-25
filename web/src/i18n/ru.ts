@@ -52,6 +52,18 @@ export const ru: Messages = {
   'trip.totalBudget': 'Бюджет',
   'trip.booked': 'Забронировано',
 
+  'lens.label': 'Люди',
+  'lens.everyone': 'Все',
+  'lens.any': 'Кто-то из них',
+  'lens.together': 'Вместе',
+  'lens.anyHint': 'Всё, что делает любой из выбранных',
+  'lens.togetherHint': 'Только то, что они делают вместе',
+  'lens.groups': 'Группы',
+  'lens.summary': { one: '{n} человек', few: '{n} человека', many: '{n} человек', other: '{n} человека' },
+  'party.and': ' и ',
+  'trip.subscribeFor': 'Подписаться — планы {name}',
+  'trip.downloadIcsFor': 'Календарь {name} (.ics)',
+
   'filter.who': 'Кто',
   'filter.status': 'Статус',
   'filter.all': 'Все',

@@ -1,19 +1,14 @@
 ---
-import FilterBar from '@/components/FilterBar.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { memberName } from '@/lib/trip'
+import { memberName, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t } = i18n
 const total = trip.packing.reduce((n, c) => n + c.items.length, 0)
-const tokens = (forMembers: string[]) => {
-  const members = forMembers.length ? forMembers : trip.members.map((m) => m.id)
-  const groups = trip.groups.filter((g) => g.members.some((m) => members.includes(m))).map((g) => `g:${g.id}`)
-  return [...members.map((m) => `m:${m}`), ...groups].join(' ')
-}
+const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers : trip.members.map((m) => m.id))
 ---
 
 <TripLayout trip={trip} lang={lang} section="packing">
@@ -34,9 +29,6 @@ const tokens = (forMembers: string[]) => {
           {t('packing.reset')}
         </button>
       </section>
-      <div class="toolbar">
-        <FilterBar trip={trip} i18n={i18n} status={false} />
-      </div>
       <div class="categories">
         {trip.packing.map((category) => (
           <section class="category" data-day-section>
@@ -45,7 +37,7 @@ const tokens = (forMembers: string[]) => {
             </h2>
             <ul class="card list">
               {category.items.map((item) => (
-                <li data-item data-filter={tokens(item.for)} data-status="">
+                <li data-item data-people={tokens(item.for)} data-status="">
                   <label class="row check">
                     <input type="checkbox" data-packing-item={item.id} />
                     <span class="box" aria-hidden="true" />

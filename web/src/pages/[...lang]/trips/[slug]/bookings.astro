@@ -1,5 +1,4 @@
 ---
-import FilterBar from '@/components/FilterBar.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
@@ -33,10 +32,6 @@ const ratio = total ? done.length / total : 1
           <span style={`width:${ratio * 100}%`} />
         </div>
       </section>
-
-      <div class="toolbar">
-        <FilterBar trip={trip} i18n={i18n} status={false} />
-      </div>
 
       {open.length > 0 && (
         <section class="section">
@@ -93,10 +88,10 @@ const ratio = total ? done.length / total : 1
   import { setupFilters } from '@/scripts/filters'
 
   document.addEventListener('astro:page-load', () => {
-    setupFilters()
-    for (const section of document.querySelectorAll<HTMLElement>('.section')) {
-      section.hidden = !section.querySelector('[data-item]:not([hidden])')
-    }
+    setupFilters(() => {
+      for (const section of document.querySelectorAll<HTMLElement>('.section'))
+        section.hidden = !section.querySelector('[data-item]:not([hidden])')
+    })
   })
 </script>
 

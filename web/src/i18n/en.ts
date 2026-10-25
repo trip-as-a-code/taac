@@ -50,6 +50,18 @@ export const en = {
   'trip.totalBudget': 'Budget',
   'trip.booked': 'Booked',
 
+  'lens.label': 'People',
+  'lens.everyone': 'Everyone',
+  'lens.any': 'Any of them',
+  'lens.together': 'Together',
+  'lens.anyHint': 'Everything any of them does',
+  'lens.togetherHint': 'Only what they all do together',
+  'lens.groups': 'Groups',
+  'lens.summary': { one: '{n} person', other: '{n} people' },
+  'party.and': ' & ',
+  'trip.subscribeFor': 'Subscribe — {name}’s plans',
+  'trip.downloadIcsFor': 'Calendar for {name} (.ics)',
+
   'filter.who': 'Who',
   'filter.status': 'Status',
   'filter.all': 'All',

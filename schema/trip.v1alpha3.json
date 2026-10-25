@@ -97,7 +97,7 @@
     "ApiVersion": {
       "type": "string",
       "enum": [
-        "taac/v1alpha2"
+        "taac/v1alpha3"
       ]
     },
     "TripKind": {
@@ -295,7 +295,8 @@
           "type": "string",
           "format": "date"
         },
-        "members": {
+        "who": {
+          "description": "Member and/or group ids; omitted means everyone.",
           "type": [
             "array",
             "null"
@@ -303,12 +304,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "group": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "notes": {
           "description": "Markdown.",
@@ -432,8 +427,8 @@
             "$ref": "#/$defs/PlaceRef"
           }
         },
-        "members": {
-          "description": "Participants; defaults to `group`'s members, else everyone.",
+        "who": {
+          "description": "Member and/or group ids; omitted means everyone.",
           "type": [
             "array",
             "null"
@@ -441,12 +436,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "group": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "transport": {
           "anyOf": [
@@ -789,7 +778,8 @@
             "$ref": "#/$defs/PlaceRef"
           }
         },
-        "members": {
+        "who": {
+          "description": "Member and/or group ids; omitted means everyone.",
           "type": [
             "array",
             "null"
@@ -797,12 +787,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "group": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "priority": {
           "$ref": "#/$defs/Priority",
@@ -907,7 +891,7 @@
               "type": "string"
             },
             "for": {
-              "description": "Who packs it; defaults to everyone.",
+              "description": "Member and/or group ids who pack it; defaults to everyone.",
               "type": "array",
               "items": {
                 "type": "string"

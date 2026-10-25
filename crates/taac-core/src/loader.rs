@@ -44,6 +44,15 @@ pub struct Trip {
     pub access: Option<Access>,
 }
 
+/// A set of people doing something together: everyone, a declared group, or
+/// an ad-hoc combination (id `a+b`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Party {
+    pub id: String,
+    pub group: Option<String>,
+    pub members: Vec<String>,
+}
+
 /// A base with its place and participants resolved. Trips without declared
 /// bases get one per lodging (`derived`).
 #[derive(Debug, Clone)]
@@ -55,7 +64,6 @@ pub struct ResolvedBase {
     pub from: NaiveDate,
     pub to: NaiveDate,
     pub members: Vec<String>,
-    pub group: Option<String>,
     pub notes: Option<String>,
     pub derived: bool,
 }
@@ -78,23 +86,57 @@ impl Trip {
         self.groups.iter().find(|g| g.id == id)
     }
 
-    /// Effective participants: explicit `members`, else the group's, else everyone.
-    pub fn participants<'a>(&'a self, item: &'a Item) -> Vec<&'a str> {
-        self.who(item.members.as_deref(), item.group.as_deref())
+    /// Effective participants of an item; see [`Trip::who`].
+    pub fn participants(&self, item: &Item) -> Vec<&str> {
+        self.who(item.who.as_deref())
     }
 
-    pub fn who<'a>(
-        &'a self,
-        members: Option<&'a [String]>,
-        group: Option<&'a str>,
-    ) -> Vec<&'a str> {
-        if let Some(members) = members {
-            return members.iter().map(String::as_str).collect();
+    /// Resolves a `who` list (members and groups) to member ids, in the
+    /// trip's member order, without duplicates. `None` is everyone.
+    pub fn who(&self, who: Option<&[String]>) -> Vec<&str> {
+        let Some(who) = who else {
+            return self.members.iter().map(|m| m.id.as_str()).collect();
+        };
+        let wanted = |id: &str| {
+            who.iter().any(|w| {
+                w == id
+                    || self
+                        .group(w)
+                        .is_some_and(|g| g.members.iter().any(|m| m == id))
+            })
+        };
+        self.members
+            .iter()
+            .map(|m| m.id.as_str())
+            .filter(|id| wanted(id))
+            .collect()
+    }
+
+    /// The named or implied party behind a set of members.
+    pub fn party(&self, members: &[&str]) -> Party {
+        let owned = || members.iter().map(|m| (*m).to_owned()).collect();
+        if members.len() == self.members.len() {
+            return Party {
+                id: "everyone".into(),
+                group: None,
+                members: owned(),
+            };
         }
-        if let Some(group) = group.and_then(|g| self.group(g)) {
-            return group.members.iter().map(String::as_str).collect();
+        let same = |list: &[String]| {
+            list.len() == members.len() && list.iter().all(|m| members.contains(&m.as_str()))
+        };
+        if let Some(group) = self.groups.iter().find(|g| same(&g.members)) {
+            return Party {
+                id: group.id.clone(),
+                group: Some(group.id.clone()),
+                members: owned(),
+            };
         }
-        self.members.iter().map(|m| m.id.as_str()).collect()
+        Party {
+            id: members.join("+"),
+            group: None,
+            members: owned(),
+        }
     }
 
     /// Places of an item with stable ids; inline places get `<item>~<n>`.
@@ -137,11 +179,10 @@ impl Trip {
                         from: b.from,
                         to: b.to,
                         members: self
-                            .who(b.members.as_deref(), b.group.as_deref())
+                            .who(b.who.as_deref())
                             .into_iter()
                             .map(str::to_owned)
                             .collect(),
-                        group: b.group.clone(),
                         notes: b.notes.clone(),
                         derived: false,
                     })
@@ -167,7 +208,6 @@ impl Trip {
                         .into_iter()
                         .map(str::to_owned)
                         .collect(),
-                    group: item.group.clone(),
                     notes: None,
                     derived: true,
                 })
@@ -481,7 +521,7 @@ mod tests {
     use super::*;
 
     const TRIP: &str = r"
-apiVersion: taac/v1alpha2
+apiVersion: taac/v1alpha3
 kind: Trip
 metadata:
   title: Test
@@ -503,7 +543,7 @@ itinerary:
 ";
 
     const PART: &str = r"
-apiVersion: taac/v1alpha2
+apiVersion: taac/v1alpha3
 kind: TripPart
 places:
   park: { name: Park, geo: [38.72, -9.15] }
@@ -545,5 +585,30 @@ places:
     fn joins_paths() {
         assert_eq!(join("a/b", "../c/./d.yaml"), "a/c/d.yaml");
         assert_eq!(join("", "trips/x"), "trips/x");
+    }
+
+    #[test]
+    fn resolves_who_and_names_parties() {
+        let trip_yaml = r"
+apiVersion: taac/v1alpha3
+kind: Trip
+metadata: { title: T, timezone: UTC }
+members: [{ id: a, name: A }, { id: b, name: B }, { id: c, name: C }]
+groups: [{ id: duo, name: Duo, members: [a, b] }]
+";
+        let fs = files(&[("trip.yaml", trip_yaml)]);
+        let (site, _) = load_standalone_trip(&fs, "trip.yaml");
+        let trip = &site.unwrap().trips[0];
+        let who = |w: &[&str]| {
+            let owned: Vec<String> = w.iter().map(|s| (*s).to_owned()).collect();
+            trip.who(Some(&owned))
+                .into_iter()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(who(&["c", "duo"]), ["a", "b", "c"]);
+        assert_eq!(trip.party(&["a", "b"]).id, "duo");
+        assert_eq!(trip.party(&["a", "b", "c"]).id, "everyone");
+        assert_eq!(trip.party(&["a", "c"]).id, "a+c");
     }
 }

@@ -99,7 +99,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 let artifacts = [
                     (
                         "trip.ics",
-                        generators::ics::generate(trip, secrets.as_ref()),
+                        generators::ics::generate(trip, secrets.as_ref(), None),
                     ),
                     ("map.geojson", generators::geojson::generate(trip)),
                     ("budget.beancount", generators::beancount::generate(trip)),
@@ -134,8 +134,8 @@ fn run(cli: Cli) -> Result<ExitCode> {
         Command::Schema { out } => {
             fs::create_dir_all(&out)?;
             for (name, schema) in [
-                ("trip.v1alpha2.json", taac_core::schema::trip()),
-                ("site.v1alpha2.json", taac_core::schema::site()),
+                ("trip.v1alpha3.json", taac_core::schema::trip()),
+                ("site.v1alpha3.json", taac_core::schema::site()),
             ] {
                 let mut json = serde_json::to_string_pretty(&schema)?;
                 json.push('\n');

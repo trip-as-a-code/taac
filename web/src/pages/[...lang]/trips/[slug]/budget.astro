@@ -1,11 +1,10 @@
 ---
 import type { ItemKind } from '@taac/core'
 
-import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { initials, itemById, kindIcon, kindTint, memberHue, memberName } from '@/lib/trip'
+import { initials, itemById, kindIcon, kindTint, memberHue, memberName, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -19,11 +18,6 @@ const kinds = Object.entries(budget.byKind).sort((a, b) => b[1].planned - a[1].p
   typeof budget.total,
 ][]
 const rates = Object.entries(trip.currency?.rates ?? {})
-const lineTokens = (shares: Record<string, number>) => {
-  const members = Object.keys(shares)
-  const groups = trip.groups.filter((g) => g.members.some((m) => members.includes(m))).map((g) => `g:${g.id}`)
-  return [...members.map((m) => `m:${m}`), ...groups].join(' ')
-}
 const lines = [...budget.lines].sort((a, b) =>
   (items.get(a.item)?.start ?? '').localeCompare(items.get(b.item)?.start ?? ''),
 )
@@ -37,18 +31,24 @@ const lines = [...budget.lines].sort((a, b) =>
       <section class="totals">
         <div class="total card card-pad">
           <span class="footnote secondary label">{t('budget.planned')}</span>
-          <span class="amount tabular">{money(budget.total.planned, base)}</span>
+          <span class="amount tabular" data-total="planned">
+            {money(budget.total.planned, base)}
+          </span>
           <span class="footnote tertiary">{t('budget.plannedHint')}</span>
         </div>
         <div class="total card card-pad">
           <span class="footnote secondary label">{t('budget.committed')}</span>
-          <span class="amount tabular committed">{money(budget.total.committed, base)}</span>
+          <span class="amount tabular committed" data-total="committed">
+            {money(budget.total.committed, base)}
+          </span>
           <span class="footnote tertiary">{t('budget.committedHint')}</span>
         </div>
         {budget.possible > 0 && (
           <div class="total card card-pad">
             <span class="footnote secondary label">{t('budget.possible')}</span>
-            <span class="amount tabular possible">{money(budget.possible, base)}</span>
+            <span class="amount tabular possible" data-total="possible">
+              {money(budget.possible, base)}
+            </span>
             <span class="footnote tertiary">{t('budget.possibleHint')}</span>
           </div>
         )}
@@ -56,7 +56,7 @@ const lines = [...budget.lines].sort((a, b) =>
           <span class="footnote secondary label">{t('budget.byCurrency')}</span>
           <ul class="list">
             {Object.entries(budget.byCurrency).map(([code, amounts]) => (
-              <li class="currency tabular">
+              <li class="currency tabular" data-currency={code}>
                 <span>{money(amounts.planned, code)}</span>
               </li>
             ))}
@@ -78,7 +78,7 @@ const lines = [...budget.lines].sort((a, b) =>
             const member = trip.members.find((x) => x.id === m.member)
             const tone = Math.abs(m.balance) < 0.01 ? 'even' : m.balance > 0 ? 'owed' : 'owes'
             return (
-              <article class="person card card-pad" data-tone={tone}>
+              <article class="person card card-pad" data-tone={tone} data-person={m.member}>
                 <header>
                   {member && (
                     <span class="avatar" style={`--hue:${memberHue(member.id)}`}>
@@ -120,7 +120,7 @@ const lines = [...budget.lines].sort((a, b) =>
           ) : (
             <ul class="card list">
               {budget.settlements.map((s) => (
-                <li class="row settlement">
+                <li class="row settlement" data-settle={`${s.from} ${s.to}`}>
                   <span class="headline">{memberName(trip, s.from)}</span>
                   <Icon name="arrowRight" size={16} class="arrow" />
                   <span class="headline">{memberName(trip, s.to)}</span>
@@ -139,6 +139,7 @@ const lines = [...budget.lines].sort((a, b) =>
             <div class="stack" aria-hidden="true">
               {kinds.map(([kind, amounts]) => (
                 <span
+                  data-kind-bar={kind}
                   style={`--kind:${kindTint[kind]};flex:${amounts.planned}`}
                   title={`${t(`kind.${kind}`)} · ${money(amounts.planned, base)}`}
                 />
@@ -146,14 +147,14 @@ const lines = [...budget.lines].sort((a, b) =>
             </div>
             <ul class="legend list">
               {kinds.map(([kind, amounts]) => (
-                <li style={`--kind:${kindTint[kind]}`}>
+                <li style={`--kind:${kindTint[kind]}`} data-kind={kind}>
                   <span class="swatch">
                     <Icon name={kindIcon[kind]} size={14} />
                   </span>
                   <span class="subhead">{t(`kind.${kind}`)}</span>
                   <span class="subhead tabular share">
-                    {money(amounts.planned, base, { maximumFractionDigits: 0 })}
-                    <span class="tertiary">
+                    <span data-kind-amount>{money(amounts.planned, base, { maximumFractionDigits: 0 })}</span>
+                    <span class="tertiary" data-kind-pct>
                       {' '}
                       · {number(amounts.planned / budget.total.planned, { style: 'percent' })}
                     </span>
@@ -168,7 +169,6 @@ const lines = [...budget.lines].sort((a, b) =>
       <section class="section">
         <div class="section-header">
           <h2>{t('budget.expenses')}</h2>
-          <FilterBar trip={trip} i18n={i18n} status={false} />
         </div>
         <div class="card list expenses">
           {lines.map((line) => {
@@ -178,7 +178,7 @@ const lines = [...budget.lines].sort((a, b) =>
                 class="row expense"
                 href={path(`/trips/${trip.slug}/itinerary/#item-${line.item}`)}
                 data-item
-                data-filter={lineTokens(line.shares)}
+                data-people={people(Object.keys(line.shares))}
                 data-status={line.committed ? 'booked' : 'required'}
                 style={item ? `--kind:${kindTint[item.kind]}` : undefined}
               >
@@ -213,9 +213,28 @@ const lines = [...budget.lines].sort((a, b) =>
       </section>
     </>
   )}
+  <script
+    type="application/json"
+    id="budget-data"
+    set:html={JSON.stringify({
+      base,
+      lines: budget.lines.map((l) => ({
+        shares: l.shares,
+        baseAmount: l.baseAmount,
+        amount: l.amount,
+        currency: l.currency,
+        committed: l.committed,
+        kind: items.get(l.item)?.kind ?? 'note',
+      })),
+      ideas: trip.ideas.flatMap((idea) =>
+        idea.costs.map((c) => ({ members: idea.members, amount: c.baseAmount ?? 0 })),
+      ),
+    }).replace(/</g, '\\u003c')}
+  />
 </TripLayout>
 
 <script>
+  import { setupBudget } from '@/scripts/budget'
   import { setupFilters } from '@/scripts/filters'
 
   /** Live ECB rate next to the trip's own, through the worker's cached proxy. */
@@ -246,7 +265,7 @@ const lines = [...budget.lines].sort((a, b) =>
   }
 
   document.addEventListener('astro:page-load', () => {
-    setupFilters()
+    setupFilters((state) => setupBudget(state.lens))
     void liveRates()
   })
 </script>

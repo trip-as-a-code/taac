@@ -1,0 +1,177 @@
+---
+import type { TripExport } from '@taac/core'
+
+import type { I18n } from '@/i18n'
+import { initials, memberHue } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+}
+
+const { trip, i18n } = Astro.props
+const { t } = i18n
+---
+
+{trip.members.length > 1 && (
+  <div
+    class="lens"
+    role="group"
+    aria-label={t('lens.label')}
+    data-lens={trip.slug}
+    data-members={trip.members.map((m) => m.id).join(' ')}
+  >
+    <div class="people">
+      <button type="button" class="chip everyone" data-lens-clear aria-pressed="true">
+        {t('lens.everyone')}
+      </button>
+      {trip.members.map((m) => (
+        <button type="button" class="chip" data-lens-person={m.id} aria-pressed="false">
+          <span class="avatar" style={`--hue:${memberHue(m.id)}`} aria-hidden="true">
+            {initials(m)}
+          </span>
+          <span>{m.name}</span>
+        </button>
+      ))}
+      {trip.groups.map((g) => (
+        <button
+          type="button"
+          class="chip group"
+          data-lens-group={g.members.join(' ')}
+          aria-pressed="false"
+          title={g.description ?? g.name}
+        >
+          {g.emoji && <span aria-hidden="true">{g.emoji}</span>}
+          <span>{g.name}</span>
+        </button>
+      ))}
+    </div>
+    <div class="segmented mode" role="group" data-lens-mode hidden>
+      <button type="button" data-value="any" aria-pressed="true" title={t('lens.anyHint')}>
+        {t('lens.any')}
+      </button>
+      <button type="button" data-value="together" aria-pressed="false" title={t('lens.togetherHint')}>
+        {t('lens.together')}
+      </button>
+    </div>
+  </div>
+)}
+
+<script>
+  import { getLens, onLens, setLens, type Lens } from '@/scripts/lens'
+
+  let off: (() => void) | undefined
+
+  function setup() {
+    off?.()
+    const root = document.querySelector<HTMLElement>('[data-lens]')
+    if (!root) return
+    const render = (lens: Lens) => {
+      const set = new Set(lens.people)
+      root.querySelector('[data-lens-clear]')?.setAttribute('aria-pressed', String(set.size === 0))
+      for (const b of root.querySelectorAll<HTMLElement>('[data-lens-person]'))
+        b.setAttribute('aria-pressed', String(set.has(b.dataset.lensPerson!)))
+      for (const b of root.querySelectorAll<HTMLElement>('[data-lens-group]')) {
+        const members = b.dataset.lensGroup!.split(' ')
+        b.setAttribute('aria-pressed', String(members.length === set.size && members.every((m) => set.has(m))))
+      }
+      const mode = root.querySelector<HTMLElement>('[data-lens-mode]')!
+      mode.hidden = set.size < 2
+      for (const b of mode.querySelectorAll<HTMLElement>('button'))
+        b.setAttribute('aria-pressed', String(b.dataset.value === lens.mode))
+    }
+    root.addEventListener('click', (event) => {
+      const button = (event.target as Element).closest<HTMLElement>('button')
+      if (!button) return
+      const lens = getLens()
+      if (button.hasAttribute('data-lens-clear')) setLens({ people: [] })
+      else if (button.dataset.lensPerson) {
+        const id = button.dataset.lensPerson
+        setLens({ people: lens.people.includes(id) ? lens.people.filter((p) => p !== id) : [...lens.people, id] })
+      } else if (button.dataset.lensGroup) {
+        // A group is a shortcut: select exactly its members, together.
+        setLens({ people: button.dataset.lensGroup.split(' '), mode: 'together' })
+      } else if (button.dataset.value) setLens({ mode: button.dataset.value as Lens['mode'] })
+    })
+    off = onLens(render)
+    render(getLens())
+  }
+
+  document.addEventListener('astro:page-load', setup)
+</script>
+
+<style>
+  .lens {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .people {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .people::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 12px 0 4px;
+    border: 0;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label);
+    background: var(--fill);
+    cursor: pointer;
+    transition:
+      background var(--duration) var(--ease),
+      color var(--duration) var(--ease);
+  }
+
+  .chip.everyone,
+  .chip.group {
+    padding-left: 12px;
+  }
+
+  .chip .avatar {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+    box-shadow: none;
+  }
+
+  .chip:hover {
+    background: var(--fill-strong);
+  }
+
+  .chip[aria-pressed='true'] {
+    color: var(--label-on-tint);
+    background: var(--tint);
+  }
+
+  .chip.group {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--separator-strong);
+  }
+
+  .chip.group[aria-pressed='true'] {
+    box-shadow: none;
+    background: var(--tint);
+  }
+
+  .mode button {
+    font-size: 12px;
+  }
+</style>

@@ -8,7 +8,9 @@ use crate::loader::Trip;
 use crate::model::{BookingStatus, ItemKind};
 use crate::secrets::{self, SecretStore};
 
-pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
+/// The trip's calendar; with `member`, only what that member takes part in.
+pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>) -> String {
+    let includes = |members: &[&str]| member.is_none_or(|m| members.contains(&m));
     let mut out = String::new();
     let mut line = |s: String| fold_into(&mut out, &s);
     line("BEGIN:VCALENDAR".into());
@@ -19,7 +21,9 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
     line(format!("X-WR-CALNAME:{}", escape(&trip.metadata.title)));
     line(format!("X-WR-TIMEZONE:{}", trip.metadata.timezone));
 
-    for base in trip.bases().iter().filter(|b| !b.derived) {
+    for base in trip.bases().iter().filter(|b| {
+        !b.derived && includes(&b.members.iter().map(String::as_str).collect::<Vec<_>>())
+    }) {
         let who: Vec<&str> = base
             .members
             .iter()
@@ -44,7 +48,7 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
     }
 
     for item in &trip.itinerary {
-        if item.kind == ItemKind::Note {
+        if item.kind == ItemKind::Note || !includes(&trip.participants(item)) {
             continue;
         }
         let places = trip.item_places(item);

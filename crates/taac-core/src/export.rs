@@ -59,6 +59,9 @@ pub struct TripExport {
     pub currency: Option<CurrencyExport>,
     pub members: Vec<Member>,
     pub groups: Vec<Group>,
+    /// Every combination of people that does something together, everyone
+    /// and the declared groups first.
+    pub parties: Vec<PartyExport>,
     pub places: IndexMap<String, Place>,
     pub bases: Vec<BaseExport>,
     /// Bases were derived from lodging rather than declared.
@@ -90,8 +93,8 @@ pub struct BaseExport {
     pub to: NaiveDate,
     pub nights: i64,
     pub members: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    /// Id into [`TripExport::parties`].
+    pub party: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
@@ -106,8 +109,8 @@ pub struct IdeaExport {
     pub area: Option<String>,
     pub places: Vec<String>,
     pub members: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    /// Id into [`TripExport::parties`].
+    pub party: String,
     pub priority: Priority,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<IdeaDuration>,
@@ -136,8 +139,8 @@ pub struct ItemExport {
     pub local: LocalTimes,
     pub places: Vec<String>,
     pub members: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    /// Id into [`TripExport::parties`].
+    pub party: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transport: Option<Transport>,
     pub booking: BookingExport,
@@ -224,6 +227,17 @@ pub struct DayExport {
 pub struct Presence {
     pub id: String,
     pub members: Vec<String>,
+    pub party: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartyExport {
+    /// `everyone`, a group id, or members joined with `+`.
+    pub id: String,
+    pub members: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -250,8 +264,11 @@ pub struct OverlayExport {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Artifacts {
     pub ics: String,
+    /// One calendar per member, with only their plans.
+    pub ics_by_member: IndexMap<String, String>,
     pub geojson: String,
     pub beancount: String,
     pub markdown: String,
@@ -316,7 +333,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     .into_iter()
                     .map(str::to_owned)
                     .collect(),
-                group: item.group.clone(),
+                party: trip.party(&trip.participants(item)).id,
                 transport: item.transport.clone(),
                 booking: item.booking.as_ref().map_or(
                     BookingExport {
@@ -361,11 +378,11 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 area: idea.area.clone(),
                 places: idea_places.into_iter().map(|(id, _)| id).collect(),
                 members: trip
-                    .who(idea.members.as_deref(), idea.group.as_deref())
+                    .who(idea.who.as_deref())
                     .into_iter()
                     .map(str::to_owned)
                     .collect(),
-                group: idea.group.clone(),
+                party: trip.party(&trip.who(idea.who.as_deref())).id,
                 priority: idea.priority,
                 duration: idea.duration,
                 booking: idea.booking.as_ref().map(booking_export),
@@ -410,6 +427,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         }),
         members: trip.members.clone(),
         groups: trip.groups.clone(),
+        parties: parties(trip, &bases),
         places,
         bases: bases
             .iter()
@@ -421,7 +439,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 to: b.to,
                 nights: (b.to - b.from).num_days() + 1,
                 members: b.members.clone(),
-                group: b.group.clone(),
+                party: party_of(trip, &b.members),
                 notes: b.notes.clone(),
             })
             .collect(),
@@ -441,7 +459,14 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     .map(|item| PackingItemExport {
                         id: stable_id(&format!("{}\u{0}{}", category.category, item.name())),
                         name: item.name().to_owned(),
-                        for_members: item.for_members().to_vec(),
+                        for_members: if item.for_members().is_empty() {
+                            Vec::new()
+                        } else {
+                            trip.who(Some(item.for_members()))
+                                .into_iter()
+                                .map(str::to_owned)
+                                .collect()
+                        },
                     })
                     .collect(),
             })
@@ -455,13 +480,58 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
             })
             .collect(),
         artifacts: Artifacts {
-            ics: generators::ics::generate(trip, None),
+            ics: generators::ics::generate(trip, None, None),
+            ics_by_member: trip
+                .members
+                .iter()
+                .map(|m| {
+                    (
+                        m.id.clone(),
+                        generators::ics::generate(trip, None, Some(&m.id)),
+                    )
+                })
+                .collect(),
             geojson: generators::geojson::generate(trip),
             beancount: generators::beancount::generate(trip),
             markdown: generators::markdown::generate(trip, None),
         },
         diagnostics,
     }
+}
+
+fn party_of(trip: &Trip, members: &[String]) -> String {
+    let refs: Vec<&str> = members.iter().map(String::as_str).collect();
+    trip.party(&refs).id
+}
+
+/// Everyone, then declared groups, then ad-hoc combinations in order of appearance.
+fn parties(trip: &Trip, bases: &[crate::loader::ResolvedBase]) -> Vec<PartyExport> {
+    let everyone: Vec<&str> = trip.members.iter().map(|m| m.id.as_str()).collect();
+    let mut sets: Vec<Vec<&str>> = vec![everyone];
+    sets.extend(
+        trip.groups
+            .iter()
+            .map(|g| trip.who(Some(std::slice::from_ref(&g.id)))),
+    );
+    sets.extend(trip.itinerary.iter().map(|i| trip.participants(i)));
+    sets.extend(trip.ideas.iter().map(|i| trip.who(i.who.as_deref())));
+    sets.extend(
+        bases
+            .iter()
+            .map(|b| b.members.iter().map(String::as_str).collect()),
+    );
+    let mut out: Vec<PartyExport> = Vec::new();
+    for set in sets {
+        let party = trip.party(&set);
+        if !out.iter().any(|p| p.id == party.id) {
+            out.push(PartyExport {
+                id: party.id,
+                members: party.members,
+                group: party.group,
+            });
+        }
+    }
+    out
 }
 
 fn booking_export(b: &Booking) -> BookingExport {
@@ -543,6 +613,7 @@ fn days(
                         .collect();
                     (!members.is_empty()).then(|| Presence {
                         id: i.id.clone(),
+                        party: party_of(trip, &members),
                         members,
                     })
                 })
@@ -553,6 +624,7 @@ fn days(
                 .map(|b| Presence {
                     id: b.id.clone(),
                     members: b.members.clone(),
+                    party: party_of(trip, &b.members),
                 })
                 .collect(),
         });

@@ -1,4 +1,4 @@
-//! The `taac/v1alpha2` document model. Every type here is both the serde
+//! The `taac/v1alpha3` document model. Every type here is both the serde
 //! representation of the YAML and the source of the published JSON Schema.
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
@@ -7,12 +7,12 @@ use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const API_VERSION: &str = "taac/v1alpha2";
+pub const API_VERSION: &str = "taac/v1alpha3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 pub enum ApiVersion {
-    #[serde(rename = "taac/v1alpha2")]
-    V1Alpha2,
+    #[serde(rename = "taac/v1alpha3")]
+    V1Alpha3,
 }
 
 /// One YAML file of a trip. A trip is a single `kind: Trip` file, or a
@@ -173,10 +173,9 @@ pub struct Base {
     /// Last night here (inclusive).
     #[schemars(with = "String", extend("format" = "date"))]
     pub to: NaiveDate,
+    /// Member and/or group ids; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub members: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub who: Option<Vec<String>>,
     /// Markdown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -197,10 +196,9 @@ pub struct Idea {
     pub area: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
+    /// Member and/or group ids; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub members: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub who: Option<Vec<String>>,
     #[serde(default)]
     pub priority: Priority,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -299,11 +297,9 @@ pub struct Item {
     /// Ordered stops: origin → destination for transport, venues otherwise.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
-    /// Participants; defaults to `group`'s members, else everyone.
+    /// Member and/or group ids; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub members: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub who: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<Transport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -544,7 +540,7 @@ pub enum PackingItem {
     Name(String),
     Detailed {
         name: String,
-        /// Who packs it; defaults to everyone.
+        /// Member and/or group ids who pack it; defaults to everyone.
         #[serde(default, rename = "for", skip_serializing_if = "Vec::is_empty")]
         for_members: Vec<String>,
     },

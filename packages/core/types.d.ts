@@ -16,7 +16,7 @@ export interface Diagnostic {
 export type Text = string | Record<string, string>
 
 export interface SiteExport {
-  apiVersion: 'taac/v1alpha2'
+  apiVersion: 'taac/v1alpha3'
   site: { title: Text; description?: Text; passwordSecret?: string }
   trips: TripExport[]
   diagnostics: Diagnostic[]
@@ -61,7 +61,8 @@ export interface Base {
   to: ISODate
   nights: number
   members: string[]
-  group?: string
+  /** Id into `TripExport.parties`. */
+  party: string
   notes?: string
 }
 
@@ -89,7 +90,8 @@ export interface Idea {
   area?: string
   places: string[]
   members: string[]
-  group?: string
+  /** Id into `TripExport.parties`. */
+  party: string
   priority: 'must' | 'maybe'
   duration?: 'hour' | 'halfDay' | 'day'
   booking?: Booking
@@ -102,6 +104,14 @@ export interface Idea {
 export interface Presence {
   id: string
   members: string[]
+  party: string
+}
+
+/** People doing something together: `everyone`, a group id, or `a+b`. */
+export interface Party {
+  id: string
+  members: string[]
+  group?: string
 }
 
 export interface Item {
@@ -121,7 +131,8 @@ export interface Item {
   }
   places: string[]
   members: string[]
-  group?: string
+  /** Id into `TripExport.parties`. */
+  party: string
   transport?: { carrier?: string; number?: string }
   booking: Booking
   costs: Cost[]
@@ -172,6 +183,7 @@ export interface TripExport {
   currency?: { base: string; rates: Record<string, number> }
   members: Member[]
   groups: Group[]
+  parties: Party[]
   places: Record<string, Place>
   bases: Base[]
   basesDerived: boolean
@@ -181,6 +193,6 @@ export interface TripExport {
   budget: Budget
   packing: { category: string; items: { id: string; name: string; for: string[] }[] }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
-  artifacts: { ics: string; geojson: string; beancount: string; markdown: string }
+  artifacts: { ics: string; icsByMember: Record<string, string>; geojson: string; beancount: string; markdown: string }
   diagnostics: Diagnostic[]
 }

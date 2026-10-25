@@ -58,25 +58,33 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
   <section class="stats">
     <a class="stat card" href={path(`${base}/itinerary/`)}>
       <Icon name="calendar" size={20} />
-      <span class="value tabular">{number(trip.days.length)}</span>
+      <span class="value tabular" data-stat="days">
+        {number(trip.days.length)}
+      </span>
       <span class="label footnote secondary">{plural('trip.days', trip.days.length).replace(/^[\d\s ]+/, '')}</span>
     </a>
     <a class="stat card" href={path(`${base}/map/`)}>
       <Icon name="pin" size={20} />
-      <span class="value tabular">{number(placeCount)}</span>
+      <span class="value tabular" data-stat="places">
+        {number(placeCount)}
+      </span>
       <span class="label footnote secondary">{plural('trip.places', placeCount).replace(/^[\d\s ]+/, '')}</span>
     </a>
     <a class="stat card" href={path(`${base}/bookings/`)}>
       <ProgressRing value={booked} total={needsBooking.length} />
       <span class="value tabular">
-        {booked}
-        <span class="of">/{needsBooking.length}</span>
+        <span data-stat="booked">{booked}</span>
+        <span class="of" data-stat="bookable">
+          /{needsBooking.length}
+        </span>
       </span>
       <span class="label footnote secondary">{t('trip.booked')}</span>
     </a>
     <a class="stat card" href={path(`${base}/budget/`)}>
       <Icon name="wallet" size={20} />
-      <span class="value tabular">{money(trip.budget.total.planned, currency, { maximumFractionDigits: 0 })}</span>
+      <span class="value tabular" data-stat="budget">
+        {money(trip.budget.total.planned, currency, { maximumFractionDigits: 0 })}
+      </span>
       <span class="label footnote secondary">{t('trip.totalBudget')}</span>
     </a>
   </section>
@@ -175,7 +183,9 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
           <Icon name="calendar" size={18} />
         </span>
         <span class="export-text">
-          <span class="headline">{t('trip.subscribe')}</span>
+          <span class="headline" data-label-all={t('trip.subscribe')} data-label-one={t('trip.subscribeFor')}>
+            {t('trip.subscribe')}
+          </span>
           <span class="footnote secondary">{t('trip.subscribeHint')}</span>
         </span>
         <Icon name="chevronRight" size={16} class="chevron" />
@@ -191,7 +201,12 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
             <Icon name={d.icon} size={18} />
           </span>
           <span class="export-text">
-            <span>{d.label}</span>
+            <span
+              data-label-all={d.icon === 'calendar' ? d.label : undefined}
+              data-label-one={d.icon === 'calendar' ? t('trip.downloadIcsFor') : undefined}
+            >
+              {d.label}
+            </span>
           </span>
           <Icon name="download" size={16} class="chevron" />
         </a>
@@ -199,10 +214,95 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     </div>
     <p class="footnote tertiary hint">{t('trip.exportHint')}</p>
   </section>
+  <script
+    type="application/json"
+    id="overview-data"
+    set:html={JSON.stringify({
+      currency,
+      names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),
+      items: trip.items.map((i) => ({ people: i.members, places: i.places, status: i.booking.status })),
+      days: trip.days.map((d) => ({
+        people: [
+          ...new Set([
+            ...d.bases.flatMap((b) => b.members),
+            ...d.items.flatMap((id) => trip.items.find((i) => i.id === id)?.members ?? []),
+          ]),
+        ],
+      })),
+      lines: trip.budget.lines.map((l) => ({ shares: l.shares, baseAmount: l.baseAmount })),
+    }).replace(/</g, '\\u003c')}
+  />
 </TripLayout>
 
 <script>
+  import { setupFilters } from '@/scripts/filters'
+  import { inLens, lensShare, type Lens } from '@/scripts/lens'
   import { renderRelativeDates, todayUTC } from '@/scripts/page'
+
+  interface OverviewData {
+    currency: string
+    names: Record<string, string>
+    items: { people: string[]; places: string[]; status: string }[]
+    days: { people: string[] }[]
+    lines: { shares: Record<string, number>; baseAmount: number }[]
+  }
+
+  /** The stat tiles, route rows and calendar links for whoever the lens selects. */
+  function follow(lens: Lens) {
+    const raw = document.getElementById('overview-data')?.textContent
+    if (!raw) return
+    const data = JSON.parse(raw) as OverviewData
+    const lang = document.documentElement.lang
+    const items = data.items.filter((i) => inLens(i.people, lens))
+    const set = (stat: string, text: string) => {
+      const el = document.querySelector(`[data-stat="${stat}"]`)
+      if (el) el.textContent = text
+    }
+    const count = new Intl.NumberFormat(lang)
+    set('days', count.format(data.days.filter((d) => inLens(d.people, lens)).length))
+    set('places', count.format(new Set(items.flatMap((i) => i.places)).size))
+    const bookable = items.filter((i) => i.status === 'booked' || i.status === 'required')
+    const booked = bookable.filter((i) => i.status === 'booked').length
+    set('booked', String(booked))
+    set('bookable', `/${bookable.length}`)
+    const ring = document.querySelectorAll<SVGCircleElement>('.ring circle')[1]
+    if (ring) {
+      const c = 2 * Math.PI * 9
+      ring.setAttribute('stroke-dasharray', `${c * (bookable.length ? booked / bookable.length : 1)} ${c}`)
+    }
+    const total = data.lines
+      .filter((l) => inLens(Object.keys(l.shares), lens))
+      .reduce((sum, l) => sum + (lens.people.length ? lensShare(l.shares, lens) : l.baseAmount), 0)
+    set(
+      'budget',
+      new Intl.NumberFormat(lang, { style: 'currency', currency: data.currency, maximumFractionDigits: 0 }).format(
+        total,
+      ),
+    )
+
+    // Route rows read as "where is this person"; any overlap keeps a row.
+    for (const el of document.querySelectorAll<HTMLElement>('[data-route-people]')) {
+      const row = el.dataset.routePeople!.split(' ')
+      el.hidden = lens.people.length > 0 && !lens.people.some((p) => row.includes(p))
+    }
+
+    // One person selected: their own calendar.
+    const one = lens.people.length === 1 ? lens.people[0] : undefined
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-calendar-feed]')) {
+      const file = one ? `calendar-${one}.ics` : 'calendar.ics'
+      const url = new URL(link.href, location.href)
+      url.protocol = location.protocol
+      url.pathname = url.pathname.replace(/calendar(-[^/]*)?\.ics$/, file)
+      if (link.dataset.calendarKey) url.searchParams.set('key', link.dataset.calendarKey)
+      link.href = link.hasAttribute('data-subscribe') ? url.href.replace(/^https?:/, 'webcal:') : url.href
+      if (link.hasAttribute('download')) link.download = file
+      const label = link.querySelector<HTMLElement>('[data-label-all]')
+      if (label)
+        label.textContent = one
+          ? label.dataset.labelOne!.replace('{name}', data.names[one] ?? one)
+          : label.dataset.labelAll!
+    }
+  }
 
   function status() {
     const el = document.querySelector<HTMLElement>('[data-trip-status]')
@@ -224,17 +324,10 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     renderRelativeDates(el.parentElement!)
   }
 
-  /** `webcal://` makes calendar apps subscribe instead of importing once. */
-  function subscribeLinks() {
-    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-subscribe]')) {
-      const url = new URL(link.href, location.href)
-      link.href = link.dataset.webcal ?? `webcal://${url.host}${url.pathname}${url.search}`
-    }
-  }
-
   document.addEventListener('astro:page-load', () => {
     status()
-    subscribeLinks()
+    // `webcal://` (set in follow) makes calendar apps subscribe, not import once.
+    setupFilters((state) => follow(state.lens))
   })
 </script>
 
