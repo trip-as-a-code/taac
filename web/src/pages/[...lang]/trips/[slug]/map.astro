@@ -131,6 +131,18 @@ const data = { places, routes, items: itemInfo, overlays, areas }
 <script>
   import { setupMap } from '@/scripts/map'
 
+  let resize: ResizeObserver | undefined
+
+  /** The map fills what the tabs row leaves; that row wraps differently per width. */
+  function fitShell() {
+    resize?.disconnect()
+    const shell = document.querySelector<HTMLElement>('.map-shell')
+    const tabs = document.querySelector<HTMLElement>('.tabs')
+    if (!shell || !tabs) return
+    resize = new ResizeObserver(() => shell.style.setProperty('--tabs-height', `${tabs.offsetHeight}px`))
+    resize.observe(tabs)
+  }
+
   /** Phones: the panel is a bottom sheet; the grabber (or the title) expands it. */
   function setupSheet() {
     const panel = document.querySelector<HTMLElement>('[data-panel]')
@@ -160,6 +172,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
   }
 
   document.addEventListener('astro:page-load', () => {
+    fitShell()
     setupSheet()
     void setupMap()
   })
@@ -168,7 +181,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
 <style>
   .map-shell {
     position: relative;
-    height: calc(100dvh - var(--nav-height) - env(safe-area-inset-top) - 49px);
+    height: calc(100dvh - var(--nav-height) - env(safe-area-inset-top) - var(--tabs-height, 49px));
     min-height: 420px;
   }
 
@@ -362,7 +375,10 @@ const data = { places, routes, items: itemInfo, overlays, areas }
      bottom sheet that peeks and expands. */
   @media (max-width: 760px) {
     .map-shell {
-      height: calc(100dvh - var(--nav-height) - env(safe-area-inset-top) - 60px - env(safe-area-inset-bottom) - 58px);
+      height: calc(
+        100dvh - var(--nav-height) - env(safe-area-inset-top) - var(--tabs-height, 58px) - 60px -
+          env(safe-area-inset-bottom)
+      );
       min-height: 360px;
       overflow: hidden;
     }
@@ -386,7 +402,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
       display: grid;
       place-items: center;
       flex: none;
-      height: 22px;
+      height: 32px;
       border: 0;
       background: transparent;
       cursor: grab;
