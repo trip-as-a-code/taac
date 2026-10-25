@@ -3,7 +3,7 @@ import type { TripExport } from '@taac/core'
 
 import Icon, { type IconName } from '@/components/Icon.astro'
 import type { I18n } from '@/i18n'
-import type { Facts } from '@/lib/facts'
+import { issueGroup, type Facts } from '@/lib/facts'
 import { kindIcon, type CostKind } from '@/lib/trip'
 import type { Facet } from '@/scripts/filters'
 
@@ -38,8 +38,16 @@ const options: Record<Exclude<Facet, 'place'>, Option[]> = {
     {
       value: 'attention',
       label: t('filter.attention'),
-      some: (f) => f.conflict === 'open' || (f.status === 'required' && Boolean(f.deadline)),
+      some: (f) => f.issues.length > 0 || f.conflict === 'open' || (f.status === 'required' && Boolean(f.deadline)),
     },
+  ],
+  issue: [
+    { value: 'any', label: t('filter.issue.any'), some: (f) => f.issues.length > 0 },
+    ...(['people', 'clash', 'booking', 'place', 'other'] as const).map((group) => ({
+      value: group,
+      label: t(`filter.issue.${group}`),
+      some: (f: Facts) => f.issues.some((code) => issueGroup(code) === group),
+    })),
   ],
   when: (['today', 'soon', 'upcoming', 'past'] as const).map((value) => ({
     value,

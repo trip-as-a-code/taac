@@ -39,7 +39,7 @@ const ratio = total ? done.length / total : 1
         i18n={i18n}
         trip={trip}
         facts={[...open, ...done, ...cancelled].map((item) => itemFacts(trip, item))}
-        facets={['focus', 'due', 'status', 'when', 'conflict', 'kind', 'cost', 'payer', 'place', 'tag']}
+        facets={['focus', 'issue', 'due', 'status', 'when', 'conflict', 'kind', 'cost', 'payer', 'place', 'tag']}
         placeholder={t('filter.searchPlans')}
       />
 

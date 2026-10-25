@@ -105,7 +105,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
           i18n={i18n}
           trip={trip}
           facts={[...trip.items.map((i) => itemFacts(trip, i)), ...trip.ideas.map((i) => ideaFacts(trip, i))]}
-          facets={['focus', 'when', 'kind', 'status', 'conflict', 'cost', 'priority', 'place', 'tag']}
+          facets={['focus', 'issue', 'when', 'kind', 'status', 'conflict', 'cost', 'priority', 'place', 'tag']}
           placeholder={t('filter.searchPlaces')}
         />
       </div>

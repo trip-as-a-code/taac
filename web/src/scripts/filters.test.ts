@@ -4,7 +4,15 @@ import { fold, type Facts } from '../lib/facts'
 import { matchesFacts, type FilterState } from './filters'
 
 const today = '2026-12-14'
-const base: Facts = { kind: 'activity', priced: false, payers: [], places: [], tags: [], text: 'tram 28 castelo' }
+const base: Facts = {
+  kind: 'activity',
+  priced: false,
+  payers: [],
+  places: [],
+  tags: [],
+  issues: [],
+  text: 'tram 28 castelo',
+}
 const state = (values: FilterState['values'], q = ''): FilterState => ({
   lens: { people: [], mode: 'any' },
   values,
@@ -43,6 +51,13 @@ describe('filters', () => {
     expect(match({ conflict: 'open' }, { focus: ['attention'] })).toBe(true)
     expect(match({ conflict: 'overridden' }, { focus: ['attention'] })).toBe(false)
     expect(match({ status: 'required', deadline: '2026-12-19' }, { focus: ['attention'] })).toBe(true)
+  })
+
+  it('finds issues by kind', () => {
+    expect(match({ issues: ['item.unassigned'] }, { issue: ['any'] })).toBe(true)
+    expect(match({ issues: ['item.unassigned'] }, { issue: ['people'] })).toBe(true)
+    expect(match({ issues: ['booking.cost'] }, { issue: ['people', 'clash'] })).toBe(false)
+    expect(match({}, { issue: ['any'] })).toBe(false)
   })
 
   it('searches every word, ignoring case and accents', () => {

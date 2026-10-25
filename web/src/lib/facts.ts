@@ -2,7 +2,7 @@
 // and shipped as `data-facts` (or in the map's data). scripts/filters.ts
 // matches them against the viewer's filters.
 
-import type { Idea, Item, TripExport } from '@taac/core'
+import type { Diagnostic, Idea, Item, TripExport } from '@taac/core'
 
 export interface Facts {
   kind: string
@@ -19,6 +19,8 @@ export interface Facts {
   payers: string[]
   places: string[]
   tags: string[]
+  /** Diagnostic codes the validator raised for it. */
+  issues: string[]
   /** Folded search text: title, places, notes, provider, carrier, tags. */
   text: string
 }
@@ -26,6 +28,55 @@ export interface Facts {
 /** Lowercase, without diacritics, so `kyoto` finds `Kyōto`. */
 export function fold(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+}
+
+/** Issues with their own short label; the rest read "worth a look". */
+export const ISSUE_CODES = [
+  'blocker.conflict',
+  'item.unassigned',
+  'item.absent',
+  'item.overlap',
+  'item.unlocated',
+  'item.route',
+  'booking.cost',
+  'booking.reference',
+  'booking.deadline',
+  'cost.estimate',
+] as const
+export type IssueCode = (typeof ISSUE_CODES)[number]
+
+export function isLabelled(code: string): code is IssueCode {
+  return (ISSUE_CODES as readonly string[]).includes(code)
+}
+
+/** Kinds of issue, for the filter: what to go and fix. */
+export type IssueGroup = 'people' | 'clash' | 'booking' | 'place' | 'other'
+
+export function issueGroup(code: string): IssueGroup {
+  if (code.startsWith('who.') || code === 'item.unassigned' || code === 'item.absent') return 'people'
+  if (code === 'blocker.conflict' || code === 'item.overlap') return 'clash'
+  if (code.startsWith('booking.') || code.startsWith('cost.')) return 'booking'
+  if (
+    code.startsWith('place.') ||
+    ['item.place', 'item.route', 'item.unlocated', 'idea.place', 'idea.area'].includes(code)
+  )
+    return 'place'
+  return 'other'
+}
+
+const byItem = new WeakMap<TripExport, Map<string, Diagnostic[]>>()
+
+/** What the validator said about one plan or idea. */
+export function issuesOf(trip: TripExport, id: string): Diagnostic[] {
+  if (!byItem.has(trip))
+    byItem.set(
+      trip,
+      Map.groupBy(
+        trip.diagnostics.filter((d) => d.item),
+        (d) => d.item!,
+      ),
+    )
+  return byItem.get(trip)!.get(id) ?? []
 }
 
 function payers(costs: Item['costs']): string[] {
@@ -49,6 +100,7 @@ export function itemFacts(trip: TripExport, item: Item): Facts {
     payers: payers(item.costs),
     places: item.places,
     tags: item.tags,
+    issues: issuesOf(trip, item.id).map((d) => d.code),
     text: text(
       trip,
       [item.title, item.notes, item.booking.provider, item.transport?.carrier, item.transport?.number, ...item.tags],
@@ -68,6 +120,7 @@ export function ideaFacts(trip: TripExport, idea: Idea): Facts {
     payers: payers(idea.costs),
     places,
     tags: idea.tags,
+    issues: issuesOf(trip, idea.id).map((d) => d.code),
     text: text(trip, [idea.title, idea.notes, ...idea.tags], places),
   }
 }
