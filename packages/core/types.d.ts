@@ -158,6 +158,29 @@ export interface Item {
   notes?: string
   url?: string
   tags: string[]
+  /** Blocker ids this plan may run through. */
+  overrides: string[]
+  conflicts: { blocker: string; members: string[]; overridden: boolean }[]
+}
+
+export interface Blocker {
+  id: string
+  title: string
+  members: string[]
+  party: string
+  strict: boolean
+  notes?: string
+  time?: { start: string; end: string; timezone?: string }
+}
+
+export interface DayBlocker {
+  id: string
+  members: string[]
+  party: string
+  wholeDay: boolean
+  /** `HH:MM` in the trip's zone; `24:00` when it runs to midnight. */
+  start: string
+  end: string
 }
 
 export interface Amounts {
@@ -218,7 +241,8 @@ export interface TripExport {
   basesDerived: boolean
   items: Item[]
   ideas: Idea[]
-  days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[] }[]
+  blockers: Blocker[]
+  days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[]; blockers: DayBlocker[] }[]
   budget: Budget
   packing: { category: string; items: { id: string; name: string; members: string[] }[] }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]

@@ -74,6 +74,12 @@ export const ru: Messages = {
   'item.paidByEach': 'Каждый платит за себя',
   'item.for': 'За: {names}',
 
+  'blocker.during': 'Во время: {title}',
+  'blocker.allowed': 'Можно во время: {title}',
+  'blocker.allDay': 'весь день',
+  'blocker.window': '{start}–{end}',
+  'blocker.source': '{start}–{end} по времени {zone}',
+
   'filter.who': 'Кто',
   'filter.status': 'Статус',
   'filter.all': 'Все',

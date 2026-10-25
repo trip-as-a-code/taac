@@ -61,6 +61,10 @@ export function applyFilters(state: FilterState) {
   for (const el of document.querySelectorAll<HTMLElement>('[data-presence]')) {
     el.hidden = !inLens(peopleOf(el), state.lens)
   }
+  // A clash matters if it affects anyone in view, whatever the mode.
+  for (const el of document.querySelectorAll<HTMLElement>('[data-conflict]')) {
+    el.hidden = !inLens(peopleOf(el), { ...state.lens, mode: 'any' })
+  }
   const filtered = Boolean(state.lens.people.length || state.status)
   for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]')) {
     const items = section.querySelector('[data-item]:not([hidden])')

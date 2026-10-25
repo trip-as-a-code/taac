@@ -68,6 +68,7 @@ pub struct TripExport {
     pub bases_derived: bool,
     pub items: Vec<ItemExport>,
     pub ideas: Vec<IdeaExport>,
+    pub blockers: Vec<BlockerExport>,
     pub days: Vec<DayExport>,
     pub budget: Budget,
     pub packing: Vec<PackingCategoryExport>,
@@ -96,6 +97,42 @@ pub struct BaseExport {
     pub party: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockerExport {
+    pub id: String,
+    pub title: String,
+    pub members: Vec<String>,
+    pub party: String,
+    pub strict: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    /// The window as written (`09:00–17:00`) and its zone, if not whole days.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time: Option<crate::model::TimeWindow>,
+}
+
+/// A blocker on a given day, in the trip's local time.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayBlocker {
+    pub id: String,
+    pub members: Vec<String>,
+    pub party: String,
+    pub whole_day: bool,
+    /// `HH:MM` in the trip's zone; `24:00` when it runs to midnight.
+    pub start: String,
+    pub end: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConflictExport {
+    pub blocker: String,
+    pub members: Vec<String>,
+    pub overridden: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -150,6 +187,9 @@ pub struct ItemExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     pub tags: Vec<String>,
+    pub overrides: Vec<String>,
+    /// Blockers this plan runs into, for whom, and whether it may.
+    pub conflicts: Vec<ConflictExport>,
 }
 
 #[derive(Debug, Serialize)]
@@ -221,6 +261,8 @@ pub struct DayExport {
     pub stays: Vec<Presence>,
     /// Which base each person is in tonight.
     pub bases: Vec<Presence>,
+    /// When people are unavailable this day.
+    pub blockers: Vec<DayBlocker>,
 }
 
 /// A base or lodging item and the members it applies to on a given day.
@@ -305,6 +347,7 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
 }
 
 pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
+    let conflicts = crate::blockers::conflicts(trip);
     let mut places = trip.places.clone();
     let items: Vec<ItemExport> = trip
         .itinerary
@@ -361,6 +404,16 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 notes: item.notes.clone(),
                 url: item.url.clone(),
                 tags: item.tags.clone(),
+                overrides: item.overrides.clone(),
+                conflicts: conflicts
+                    .iter()
+                    .filter(|c| c.item.id == item.id)
+                    .map(|c| ConflictExport {
+                        blocker: c.blocker.id.clone(),
+                        members: c.members.clone(),
+                        overridden: c.overridden,
+                    })
+                    .collect(),
             }
         })
         .collect();
@@ -440,6 +493,26 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         bases_derived: trip.declared_bases.is_empty(),
         items,
         ideas,
+        blockers: trip
+            .blockers
+            .iter()
+            .map(|b| {
+                let members: Vec<String> = trip
+                    .who(b.who.as_deref())
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect();
+                BlockerExport {
+                    id: b.id.clone(),
+                    title: b.title.clone(),
+                    party: party_of(trip, &members),
+                    members,
+                    strict: b.strict,
+                    notes: b.notes.clone(),
+                    time: b.time.clone(),
+                }
+            })
+            .collect(),
         days,
         budget: budget::compute(trip),
         packing: trip
@@ -488,6 +561,39 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         },
         diagnostics,
     }
+}
+
+/// Blocker occurrences that start on `date` in the trip's zone.
+fn day_blockers(trip: &Trip, date: NaiveDate) -> Vec<DayBlocker> {
+    let Ok(tz) = trip.metadata.timezone.parse::<chrono_tz::Tz>() else {
+        return Vec::new();
+    };
+    trip.blockers
+        .iter()
+        .flat_map(|b| crate::blockers::occurrences(trip, b))
+        .filter(|o| o.start.with_timezone(&tz).date_naive() == date)
+        .map(|o| {
+            let members: Vec<String> = trip
+                .who(o.blocker.who.as_deref())
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            let start = o.start.with_timezone(&tz);
+            let end = o.end.with_timezone(&tz);
+            DayBlocker {
+                id: o.blocker.id.clone(),
+                party: party_of(trip, &members),
+                members,
+                whole_day: o.whole_day,
+                start: start.format("%H:%M").to_string(),
+                end: if end.date_naive() > date && end.format("%H:%M").to_string() == "00:00" {
+                    "24:00".to_owned()
+                } else {
+                    end.format("%H:%M").to_string()
+                },
+            }
+        })
+        .collect()
 }
 
 fn party_of(trip: &Trip, members: &[String]) -> String {
@@ -619,6 +725,7 @@ fn days(
                     })
                 })
                 .collect(),
+            blockers: day_blockers(trip, date),
             bases: bases
                 .iter()
                 .filter(|b| b.from <= date && date <= b.to)

@@ -71,6 +71,13 @@
         "$ref": "#/$defs/Idea"
       }
     },
+    "blockers": {
+      "description": "Time someone is unavailable (work, a call): whole days or a window.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Blocker"
+      }
+    },
     "packing": {
       "type": "array",
       "items": {
@@ -483,6 +490,13 @@
           ]
         },
         "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "overrides": {
+          "description": "Blocker ids this plan may run through, e.g. a train with good\nWi-Fi during work hours.",
           "type": "array",
           "items": {
             "type": "string"
@@ -915,6 +929,128 @@
         "hour",
         "halfDay",
         "day"
+      ]
+    },
+    "Blocker": {
+      "description": "Unavailable time, repeating over one or more date periods.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "who": {
+          "description": "Member and/or group ids; omitted means everyone.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "periods": {
+          "description": "Inclusive date ranges, in the blocker's time zone.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Period"
+          }
+        },
+        "days": {
+          "description": "Weekdays it applies on; omitted means every day.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Weekday"
+          }
+        },
+        "time": {
+          "description": "A daily window; omitted blocks whole days.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "strict": {
+          "description": "Conflicts are errors rather than warnings.",
+          "type": "boolean"
+        },
+        "notes": {
+          "description": "Markdown.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "periods"
+      ]
+    },
+    "Period": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date"
+        },
+        "to": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ]
+    },
+    "Weekday": {
+      "type": "string",
+      "enum": [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun"
+      ]
+    },
+    "TimeWindow": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "description": "`HH:MM`.",
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "end": {
+          "description": "`HH:MM`; at or before `start` means the next day (`24:00` allowed).",
+          "type": "string",
+          "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$"
+        },
+        "timezone": {
+          "description": "IANA zone the times are in; defaults to the trip's.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
       ]
     },
     "PackingCategory": {

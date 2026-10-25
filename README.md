@@ -78,6 +78,14 @@ itinerary:
     title: Sunset at a miradouro
     date: 2027-05-14 # no fixed time
     part: evening # morning, afternoon, evening
+blockers: # time someone is unavailable; plans inside it are flagged
+  - id: work
+    title: Work
+    who: [alex]
+    periods: [{ from: 2027-05-14, to: 2027-05-17 }]
+    days: [mon, tue, wed, thu, fri] # omit for every day
+    time: { start: '09:00', end: '17:00', timezone: Europe/London } # omit for whole days
+    # strict: true turns warnings into errors; a plan opts out with `overrides: [work]`
 ideas: # not scheduled: picked on the spot, listed on the days you're in the area
   - id: fado
     title: Fado night in Alfama

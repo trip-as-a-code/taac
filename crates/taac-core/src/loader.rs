@@ -11,8 +11,8 @@ use crate::diagnostics::Diagnostic;
 use chrono::NaiveDate;
 
 use crate::model::{
-    Access, Base, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory, Place,
-    PlaceRef, SiteFile, SiteKind, SiteMetadata, TripFile, TripKind, TripMetadata,
+    Access, Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
+    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, TripFile, TripKind, TripMetadata,
 };
 
 pub type Files = BTreeMap<String, String>;
@@ -39,6 +39,7 @@ pub struct Trip {
     pub declared_bases: Vec<Base>,
     pub itinerary: Vec<Item>,
     pub ideas: Vec<Idea>,
+    pub blockers: Vec<Blocker>,
     pub packing: Vec<PackingCategory>,
     pub overlays: Vec<LoadedOverlay>,
     pub access: Option<Access>,
@@ -395,6 +396,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         declared_bases: Vec::new(),
         itinerary: Vec::new(),
         ideas: Vec::new(),
+        blockers: Vec::new(),
         packing: Vec::new(),
         overlays: Vec::new(),
         access: None,
@@ -426,6 +428,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         trip.declared_bases.extend(doc.bases);
         trip.itinerary.extend(doc.itinerary);
         trip.ideas.extend(doc.ideas);
+        trip.blockers.extend(doc.blockers);
         trip.packing.extend(doc.packing);
         for overlay in doc.map.unwrap_or_default().overlays {
             let overlay_path = join(&dir, &overlay.file);

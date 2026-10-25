@@ -72,6 +72,12 @@ export const en = {
   'item.paidByEach': 'Each paid their own share',
   'item.for': 'For {names}',
 
+  'blocker.during': 'During {title}',
+  'blocker.allowed': 'OK during {title}',
+  'blocker.allDay': 'all day',
+  'blocker.window': '{start}–{end}',
+  'blocker.source': '{start}–{end} {zone} time',
+
   'filter.who': 'Who',
   'filter.status': 'Status',
   'filter.all': 'All',
