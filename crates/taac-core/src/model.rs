@@ -1,4 +1,4 @@
-//! The `taac/v1alpha2` document model. Every type here is both the serde
+//! The `taac/v1alpha3` document model. Every type here is both the serde
 //! representation of the YAML and the source of the published JSON Schema.
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
@@ -7,12 +7,12 @@ use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const API_VERSION: &str = "taac/v1alpha2";
+pub const API_VERSION: &str = "taac/v1alpha3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 pub enum ApiVersion {
-    #[serde(rename = "taac/v1alpha2")]
-    V1Alpha2,
+    #[serde(rename = "taac/v1alpha3")]
+    V1Alpha3,
 }
 
 /// One YAML file of a trip. A trip is a single `kind: Trip` file, or a
@@ -93,22 +93,10 @@ pub struct Cover {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CurrencyConfig {
-    /// ISO 4217 code every amount is converted to for totals and settlements.
+    /// ISO 4217 code totals and settlements default to. Viewers can switch
+    /// the website to another currency; conversion uses live ECB rates.
     #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
     pub base: String,
-    /// Value of one unit of each foreign currency in `base`, e.g. `JPY: 0.0061`.
-    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[schemars(with = "IndexMap<String, f64>")]
-    pub rates: IndexMap<String, Decimal>,
-}
-
-impl CurrencyConfig {
-    pub fn to_base(&self, amount: Decimal, currency: &str) -> Option<Decimal> {
-        if currency == self.base {
-            return Some(amount);
-        }
-        self.rates.get(currency).map(|rate| amount * rate)
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -121,6 +109,11 @@ pub struct Member {
     pub emoji: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
+    /// ISO 4217 code of the money this person pays with; defaults to the
+    /// trip's base currency.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
+    pub currency: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -173,10 +166,9 @@ pub struct Base {
     /// Last night here (inclusive).
     #[schemars(with = "String", extend("format" = "date"))]
     pub to: NaiveDate,
+    /// Member and/or group ids; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub members: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub who: Option<Vec<String>>,
     /// Markdown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -197,10 +189,9 @@ pub struct Idea {
     pub area: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
+    /// Member and/or group ids; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub members: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub who: Option<Vec<String>>,
     #[serde(default)]
     pub priority: Priority,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -299,11 +290,9 @@ pub struct Item {
     /// Ordered stops: origin → destination for transport, venues otherwise.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
-    /// Participants; defaults to `group`'s members, else everyone.
+    /// Member and/or group ids; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub members: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub who: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<Transport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -456,11 +445,23 @@ pub struct Contact {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Cost {
+    /// The price, in the currency it is quoted in.
     #[schemars(with = "f64")]
     pub amount: Decimal,
     #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
     pub currency: String,
-    pub paid_by: String,
+    /// What actually left the payer's account once booked, in their own
+    /// currency. Required for booked costs in a foreign currency; until then
+    /// the website estimates with the current rate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charged: Option<Money>,
+    /// Who paid: a member, a list of members and/or groups sharing the
+    /// payment equally, or `each` — everyone paid their own share.
+    pub paid_by: PaidBy,
+    /// Who the cost is for; defaults to the item's participants.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
+    /// How it divides among `who`.
     #[serde(default)]
     pub split: Split,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -468,6 +469,39 @@ pub struct Cost {
     /// A guess rather than a quote.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub estimate: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Money {
+    #[schemars(with = "f64")]
+    pub amount: Decimal,
+    #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[serde(untagged)]
+pub enum PaidBy {
+    /// One member (or group) id, or `each`.
+    One(String),
+    /// Members and/or groups who split the payment equally.
+    Many(Vec<String>),
+}
+
+impl PaidBy {
+    /// Every beneficiary paid their own share.
+    pub fn is_each(&self) -> bool {
+        matches!(self, Self::One(id) if id == "each")
+    }
+
+    pub fn ids(&self) -> Vec<String> {
+        match self {
+            Self::One(id) if id == "each" => Vec::new(),
+            Self::One(id) => vec![id.clone()],
+            Self::Many(ids) => ids.clone(),
+        }
+    }
 }
 
 /// How a cost is shared among the item's participants.
@@ -535,6 +569,10 @@ impl From<Split> for SplitRepr {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PackingCategory {
     pub category: String,
+    /// Default for the category's items: member and/or group ids; omitted
+    /// means everyone packs it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
     pub items: Vec<PackingItem>,
 }
 
@@ -544,9 +582,9 @@ pub enum PackingItem {
     Name(String),
     Detailed {
         name: String,
-        /// Who packs it; defaults to everyone.
-        #[serde(default, rename = "for", skip_serializing_if = "Vec::is_empty")]
-        for_members: Vec<String>,
+        /// Member and/or group ids who pack it; defaults to the category's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        who: Option<Vec<String>>,
     },
 }
 
@@ -557,10 +595,10 @@ impl PackingItem {
         }
     }
 
-    pub fn for_members(&self) -> &[String] {
+    pub fn who(&self) -> Option<&[String]> {
         match self {
-            Self::Name(_) => &[],
-            Self::Detailed { for_members, .. } => for_members,
+            Self::Name(_) => None,
+            Self::Detailed { who, .. } => who.as_deref(),
         }
     }
 }

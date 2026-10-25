@@ -335,8 +335,12 @@ p {
   margin-left: -6px;
 }
 
+/* Pin to the top-left of the nearest positioned ancestor (or the page), so a
+   hidden label inside a horizontal scroller never extends the page width. */
 .visually-hidden {
   position: absolute !important;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   margin: -1px;

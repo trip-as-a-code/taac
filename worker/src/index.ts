@@ -166,8 +166,12 @@ function rewriteHtml(response: Response, url: URL, manifest: AccessManifest, env
       async element(el) {
         const slug = el.getAttribute('data-calendar-feed')
         if (!slug || !secret || !(manifest.site || manifest.trips[slug])) return
-        const feed = `${url.protocol}//${url.host}/trips/${encodeURIComponent(slug)}/calendar.ics?key=${await calendarKey(secret, slug)}`
+        const key = await calendarKey(secret, slug)
+        const file = el.getAttribute('data-calendar-file') ?? 'calendar.ics'
+        const feed = `${url.protocol}//${url.host}/trips/${encodeURIComponent(slug)}/${file}?key=${key}`
         el.setAttribute('href', feed)
+        // Lets the page switch to a per-person feed without a round trip.
+        el.setAttribute('data-calendar-key', key)
         el.setAttribute('data-webcal', feed.replace(/^https?:/, 'webcal:'))
       },
     })

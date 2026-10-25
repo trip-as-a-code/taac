@@ -149,8 +149,8 @@ export function localeRoot(locale: string | null, manifest: AccessManifest): str
   return locale && locale !== manifest.defaultLocale ? `/${locale}/` : '/'
 }
 
-/** `/trips/<slug>/calendar.ics`, the one path a calendar key unlocks. */
+/** `/trips/<slug>/calendar.ics` and per-person `calendar-<member>.ics`: the paths a calendar key unlocks. */
 export function calendarSlug(path: string): string | null {
-  const match = /^\/trips\/([^/]+)\/calendar\.ics$/.exec(path)
+  const match = /^\/trips\/([^/]+)\/calendar(?:-[a-z0-9_-]+)?\.ics$/.exec(path)
   return match?.[1] ? decodeURIComponent(match[1]) : null
 }

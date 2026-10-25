@@ -3,6 +3,8 @@ import type { TripExport } from '@taac/core'
 
 import Avatars from '@/components/Avatars.astro'
 import Icon, { type IconName } from '@/components/Icon.astro'
+import CurrencyPicker from '@/components/CurrencyPicker.astro'
+import PeopleLens from '@/components/PeopleLens.astro'
 import { useI18n, type Locale } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
 import { tripHue } from '@/lib/trip'
@@ -18,7 +20,8 @@ interface Props {
 }
 
 const { trip, lang, section, bare } = Astro.props
-const { t, plural, dateRange, path } = useI18n(lang)
+const i18n = useI18n(lang)
+const { t, plural, dateRange, path } = i18n
 const base = `/trips/${trip.slug}`
 const sections: { id: Section; icon: IconName; href: string }[] = [
   { id: 'overview', icon: 'overview', href: path(`${base}/`) },
@@ -68,6 +71,10 @@ const current = t(`nav.${section}`)
               <span>{t(`nav.${s.id}`)}</span>
             </a>
           ))}
+        </div>
+        <div class="tools">
+          <PeopleLens trip={trip} i18n={i18n} />
+          <CurrencyPicker trip={trip} i18n={i18n} />
         </div>
       </div>
     </nav>
@@ -132,6 +139,23 @@ const current = t(`nav.${section}`)
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
     border-bottom: 0.5px solid var(--separator);
+  }
+
+  .tabs .container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .tab-bar {

@@ -5,14 +5,15 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import type { FeatureCollection, GeoJSON } from 'geojson'
 import type { GeoJSONSource, LngLatBoundsLike, Map as MapLibre, Marker, Popup } from 'maplibre-gl'
 
-import { setupFilters, type FilterState } from '@/scripts/filters'
+import { setupFilters } from '@/scripts/filters'
+import { getLens, inLens, type Lens } from '@/scripts/lens'
 
 interface MapData {
   places: { id: string; name: string; geo: [number, number]; emoji: string; items: string[]; idea: boolean }[]
   routes: { item: string; flight: boolean; color: string; coords: [number, number][] }[]
   items: Record<
     string,
-    { title: string; kind: string; date: string | null; when: string; tokens: string; href: string }
+    { title: string; kind: string; date: string | null; when: string; people: string[]; href: string }
   >
   areas: {
     id: string
@@ -21,7 +22,7 @@ interface MapData {
     radius: number
     from: string
     to: string
-    tokens: string
+    people: string[]
   }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
 }
@@ -55,13 +56,10 @@ export async function setupMap() {
   instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
   instance.addControl(new maplibregl.GeolocateControl({ trackUserLocation: true }), 'top-right')
 
-  const state: FilterState & { day: string } = { who: '', status: '', day: '' }
+  const state: { lens: Lens; day: string } = { lens: getLens(), day: '' }
   const visibleItems = () =>
     Object.entries(data.items)
-      .filter(
-        ([, item]) =>
-          (!state.who || item.tokens.split(' ').includes(state.who)) && (!state.day || item.date === state.day),
-      )
+      .filter(([, item]) => inLens(item.people, state.lens) && (!state.day || item.date === state.day))
       .map(([id]) => id)
 
   // Overlays and routes are re-added whenever the style (light/dark) loads.
@@ -173,7 +171,7 @@ export async function setupMap() {
   }
 
   setupFilters((filters) => {
-    state.who = filters.who
+    state.lens = filters.lens
     apply(instance.loaded())
   })
   document.querySelector<HTMLSelectElement>('[data-day-filter]')?.addEventListener('change', (event) => {
@@ -185,15 +183,11 @@ export async function setupMap() {
 }
 
 /** Base areas as 64-gon circles, filtered by who and day. */
-function areaData(data: MapData, state: { who: string; day: string }): FeatureCollection {
+function areaData(data: MapData, state: { lens: Lens; day: string }): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: data.areas
-      .filter(
-        (a) =>
-          (!state.who || a.tokens.split(' ').includes(state.who)) &&
-          (!state.day || (a.from <= state.day && state.day <= a.to)),
-      )
+      .filter((a) => inLens(a.people, state.lens) && (!state.day || (a.from <= state.day && state.day <= a.to)))
       .map((a) => ({
         type: 'Feature',
         properties: { title: a.title },

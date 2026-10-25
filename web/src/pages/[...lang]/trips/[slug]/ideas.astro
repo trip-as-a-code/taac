@@ -1,10 +1,9 @@
 ---
-import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import IdeaRow from '@/components/IdeaRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { ideasByArea, memberTokens } from '@/lib/trip'
+import { ideasByArea, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -29,7 +28,6 @@ const visits = (area: string) =>
   ) : (
     <>
       <div class="toolbar">
-        <FilterBar trip={trip} i18n={i18n} status={false} />
         <div class="segmented" role="group" data-priority-filter>
           <button type="button" data-value="" aria-pressed="true">
             {t('filter.all')}
@@ -50,7 +48,7 @@ const visits = (area: string) =>
             {area && visits(area).length > 0 && (
               <ul class="visits">
                 {visits(area).map(({ base, label }) => (
-                  <li class="footnote" data-presence data-filter={memberTokens(trip, base.members)}>
+                  <li class="footnote" data-presence data-people={people(base.members)}>
                     <Icon name="calendar" size={13} />
                     {label}
                   </li>
@@ -78,10 +76,10 @@ const visits = (area: string) =>
   function setup() {
     const priority = document.querySelector<HTMLElement>('[data-priority-filter]')
     let mustOnly = false
-    let state: FilterState = { who: '', status: '' }
+    let state: FilterState | undefined
     // The participant filter runs first; must-only narrows what it left.
     const apply = () => {
-      applyFilters(state)
+      if (state) applyFilters(state)
       if (mustOnly)
         for (const idea of document.querySelectorAll<HTMLElement>('[data-item]'))
           if (idea.dataset.status !== 'must') idea.hidden = true

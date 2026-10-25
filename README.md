@@ -3,7 +3,7 @@
 Declare trips in YAML, review them in pull requests, and publish them as a website, a calendar feed, a map and a
 shared ledger. The YAML is the single source of truth; everything else is generated from it.
 
-- **Schema** — `taac/v1alpha2` trip and site files with a published JSON Schema, so editors autocomplete and CI
+- **Schema** — `taac/v1alpha3` trip and site files with a published JSON Schema, so editors autocomplete and CI
   validates.
 - **CLI** — `taac validate | build | export | schema`, with readable errors that point at the offending line.
 - **Website** — a static Astro site for any number of trips: overview, day-by-day itinerary, map, bookings, budget and
@@ -28,8 +28,8 @@ changes.
 ## A trip
 
 ```yaml
-# yaml-language-server: $schema=../schema/trip.v1alpha2.json
-apiVersion: taac/v1alpha2
+# yaml-language-server: $schema=../schema/trip.v1alpha3.json
+apiVersion: taac/v1alpha3
 kind: Trip
 metadata:
   title: Lisbon Long Weekend
@@ -43,7 +43,7 @@ members:
   - { id: alex, name: Alex }
   - { id: sam, name: Sam }
 groups:
-  - { id: early, name: Early birds, emoji: 🌅, members: [alex] }
+  - { id: early, name: Early birds, emoji: 🌅, members: [alex] } # a saved set of people
 bases: # where everyone is each night, planned or not
   - { id: lisbon, title: Lisbon, place: lisbon, from: 2027-05-14, to: 2027-05-16 }
 places:
@@ -69,7 +69,7 @@ itinerary:
     title: Tram 28 and the castle
     start: 2027-05-14T12:00:00+01:00
     end: 2027-05-14T16:00:00+01:00
-    group: early # or `members: [...]`; defaults to everyone
+    who: [early] # members and/or groups, e.g. [early, sam]; omit for everyone
     places: [castle]
     booking: { status: required, deadline: 2027-05-01 }
     notes: Markdown is **fine** here.
@@ -101,8 +101,8 @@ currencies with rates, splits that add up, and inline `${…}` that would leak.
 ## A site
 
 ```yaml
-# yaml-language-server: $schema=../schema/site.v1alpha2.json
-apiVersion: taac/v1alpha2
+# yaml-language-server: $schema=../schema/site.v1alpha3.json
+apiVersion: taac/v1alpha3
 kind: Site
 metadata:
   title: Our trips # or per language: { en: Our trips, ru: Наши поездки }

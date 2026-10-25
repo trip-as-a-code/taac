@@ -1,9 +1,8 @@
 ---
-import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { filterTokens, kindTint, memberTokens, placeEmoji } from '@/lib/trip'
+import { kindTint, placeEmoji } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -32,7 +31,7 @@ const itemInfo = Object.fromEntries([
       kind: item.kind,
       date: item.local.date,
       when: `${date(item.local.date, { day: 'numeric', month: 'short' })} · ${item.local.time ?? t(`part.${item.local.part ?? 'anytime'}`)}`,
-      tokens: filterTokens(trip, item),
+      people: item.members,
       href: path(`/trips/${trip.slug}/itinerary/#item-${item.id}`),
     },
   ]),
@@ -43,7 +42,7 @@ const itemInfo = Object.fromEntries([
       kind: idea.kind,
       date: null,
       when: `${idea.priority === 'must' ? '★ ' : ''}${t('nav.ideas')}`,
-      tokens: filterTokens(trip, idea),
+      people: idea.members,
       href: path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`),
     },
   ]),
@@ -63,7 +62,7 @@ const areas = trip.basesDerived
       radius: trip.places[b.place].radius ?? 30_000,
       from: b.from,
       to: b.to,
-      tokens: memberTokens(trip, b.members),
+      people: b.members,
     }))
 const routes = trip.items
   .filter((i) => ['flight', 'train', 'bus', 'ferry', 'transfer'].includes(i.kind) && i.places.length > 1)
@@ -82,7 +81,6 @@ const data = { places, routes, items: itemInfo, overlays, areas }
     <div class="map" data-map aria-label={t('nav.map')}></div>
     <aside class="panel" data-panel>
       <div class="panel-head">
-        <FilterBar trip={trip} i18n={i18n} status={false} />
         <label class="day-select">
           <span class="visually-hidden">{t('filter.day')}</span>
           <select data-day-filter>

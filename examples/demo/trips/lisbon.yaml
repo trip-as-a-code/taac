@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=../../../schema/trip.v1alpha2.json
-apiVersion: taac/v1alpha2
+# yaml-language-server: $schema=../../../schema/trip.v1alpha3.json
+apiVersion: taac/v1alpha3
 kind: Trip
 metadata:
   title: Lisbon Long Weekend
@@ -10,12 +10,10 @@ metadata:
   tags: [city, food]
 currency:
   base: EUR
-  rates:
-    GBP: 1.17
 members:
   - { id: alex, name: Alex }
   - { id: sam, name: Sam }
-  - { id: robin, name: Robin }
+  - { id: robin, name: Robin, currency: USD } # pays in dollars
 groups:
   - id: early
     name: Early birds
@@ -43,7 +41,8 @@ itinerary:
     transport: { carrier: TAP Air Portugal, number: TP1337 }
     booking: { status: booked, provider: TAP, reference: { secret: DEMO_PNR } }
     costs:
-      - { amount: 138, currency: GBP, paidBy: alex, label: 3 tickets }
+      # Priced in pounds, charged to Alex's card in euros.
+      - { amount: 138, currency: GBP, paidBy: alex, label: 3 tickets, charged: { amount: 161.46, currency: EUR } }
   - id: hotel
     kind: lodging
     title: Casa do Bairro
@@ -52,7 +51,7 @@ itinerary:
     places: [hotel]
     booking: { status: booked, provider: Booking.com, url: https://example.com/casa-do-bairro }
     costs:
-      - { amount: 486, currency: EUR, paidBy: sam }
+      - { amount: 486, currency: EUR, paidBy: each } # everyone paid their own third
     contacts:
       - { name: Front desk, role: hotel, phone: { secret: DEMO_HOTEL_PHONE } }
   - id: tram-28
@@ -71,12 +70,13 @@ itinerary:
     date: 2027-05-14
     part: evening
     places: [miradouro]
+    who: [alex, robin]
   - id: sintra
     kind: activity
     title: Day trip to Sintra
     start: 2027-05-15T08:30:00+01:00
     end: 2027-05-15T17:00:00+01:00
-    group: early
+    who: [early]
     places: [sintra]
     booking: { status: required, deadline: 2027-04-20 }
     costs:
@@ -116,7 +116,7 @@ packing:
     items:
       - Passport
       - Euros (cards work almost everywhere)
-      - { name: Camera, for: [sam] }
+      - { name: Camera, who: [sam] }
   - category: Clothes
     items:
       - Comfortable walking shoes — the hills are steep

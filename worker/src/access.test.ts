@@ -44,6 +44,8 @@ describe('path classification', () => {
     expect(splitLocale('/run/', manifest)).toEqual({ locale: null, rest: '/run/' })
     expect(tripOf('/ru/trips/japan/budget/', manifest)).toBe('japan')
     expect(calendarSlug('/trips/japan/calendar.ics')).toBe('japan')
+    expect(calendarSlug('/trips/japan/calendar-robin.ics')).toBe('japan')
+    expect(calendarSlug('/trips/japan/calendar-../x.ics')).toBeNull()
     expect(calendarSlug('/ru/trips/japan/calendar.ics')).toBeNull()
   })
 })

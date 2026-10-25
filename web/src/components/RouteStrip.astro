@@ -19,31 +19,30 @@ const columns = trip.days.length || 1
 
 <div class="route" style={`--hue:${tripHue(trip)};--columns:${columns}`}>
   <div class="grid">
-    {
-      rows.map((row) => (
-        <>
-          {row.label && (
-            <span class="footnote secondary label">
-              {row.emoji} {row.label}
+    {rows.map((row) => (
+      <>
+        {row.label && (
+          <span class="footnote secondary label" data-route-people={row.members.join(' ')}>
+            {row.emoji} {row.label}
+          </span>
+        )}
+        {row.bases.map((base, index) => (
+          <a
+            href={path(`/trips/${trip.slug}/itinerary/#${base.from}`)}
+            class="stop"
+            data-route-people={row.members.join(' ')}
+            data-alt={index % 2 === 1 ? '' : undefined}
+            style={`grid-column:${daysBetween(start, base.from) + 1} / span ${base.nights}`}
+            title={`${base.title} · ${plural('trip.nightsShort', base.nights)} · ${dateRange(base.from, base.to)}`}
+          >
+            <span class="name" lang={trip.locale}>
+              {base.title}
             </span>
-          )}
-          {row.bases.map((base, index) => (
-            <a
-              href={path(`/trips/${trip.slug}/itinerary/#${base.from}`)}
-              class="stop"
-              data-alt={index % 2 === 1 ? '' : undefined}
-              style={`grid-column:${daysBetween(start, base.from) + 1} / span ${base.nights}`}
-              title={`${base.title} · ${plural('trip.nightsShort', base.nights)} · ${dateRange(base.from, base.to)}`}
-            >
-              <span class="name" lang={trip.locale}>
-                {base.title}
-              </span>
-              <span class="nights">{plural('trip.nightsShort', base.nights)}</span>
-            </a>
-          ))}
-        </>
-      ))
-    }
+            <span class="nights">{plural('trip.nightsShort', base.nights)}</span>
+          </a>
+        ))}
+      </>
+    ))}
   </div>
 </div>
 

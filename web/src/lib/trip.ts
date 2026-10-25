@@ -110,14 +110,29 @@ export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 }
 
-/** Space-separated attribute tokens for client-side filtering. */
-export function filterTokens(trip: TripExport, item: { members: string[] }): string {
-  return memberTokens(trip, item.members)
+/** `data-people` value: the member ids taking part, for the people lens. */
+export function people(members: string[]): string {
+  return members.join(' ')
 }
 
-export function memberTokens(trip: TripExport, members: string[]): string {
-  const groups = trip.groups.filter((g) => g.members.some((m) => members.includes(m))).map((g) => `g:${g.id}`)
-  return [...members.map((m) => `m:${m}`), ...groups].join(' ')
+/** Human name of a party: everyone, a group, or "A & B". */
+export function partyLabel(trip: TripExport, partyId: string, everyone: string, and: string): string {
+  if (partyId === 'everyone') return everyone
+  const party = trip.parties.find((p) => p.id === partyId)
+  const group = party?.group ? trip.groups.find((g) => g.id === party.group) : undefined
+  if (group) return group.name
+  const names = (party?.members ?? partyId.split('+')).map((id) => memberName(trip, id))
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')}${and}${names.at(-1)}` : (names[0] ?? partyId)
+}
+
+export function partyEmoji(trip: TripExport, partyId: string): string | undefined {
+  const party = trip.parties.find((p) => p.id === partyId)
+  return party?.group ? trip.groups.find((g) => g.id === party.group)?.emoji : undefined
+}
+
+/** Stable hue per party, for rails and lane headers. */
+export function partyHue(partyId: string): number {
+  return (memberHue(partyId) + 200) % 360
 }
 
 export function baseById(trip: TripExport): Map<string, Base> {
@@ -134,21 +149,17 @@ export function ideasByArea(trip: TripExport): Map<string, Idea[]> {
   return out
 }
 
-/** The group whose members match exactly, for labelling a base or stay. */
-export function groupFor(trip: TripExport, members: string[]) {
-  return trip.groups.find((g) => g.members.length === members.length && g.members.every((m) => members.includes(m)))
-}
-
 /** Route rows: one per group when groups go separate ways, else one. */
-export function routeRows(trip: TripExport): { label?: string; emoji?: string; bases: Base[] }[] {
+export function routeRows(trip: TripExport): { label?: string; emoji?: string; members: string[]; bases: Base[] }[] {
   const ordered = [...trip.bases].sort((a, b) => a.from.localeCompare(b.from))
   const rows = trip.groups.map((g) => ({
     label: g.name,
     emoji: g.emoji,
+    members: g.members,
     bases: ordered.filter((b) => g.members.every((m) => b.members.includes(m))),
   }))
   const same = rows.every((r) => r.bases.map((b) => b.id).join() === rows[0]?.bases.map((b) => b.id).join())
-  return rows.length === 0 || same ? [{ bases: ordered }] : rows
+  return rows.length === 0 || same ? [{ members: trip.members.map((m) => m.id), bases: ordered }] : rows
 }
 
 /** The most common UTC offset among a trip's items — its "home" time. */
