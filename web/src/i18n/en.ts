@@ -14,6 +14,7 @@ export const en = {
   'nav.ideas': 'Ideas',
   'nav.allTrips': 'All trips',
   'nav.logout': 'Log out',
+  'nav.theme': 'Light or dark',
   'nav.language': 'Language',
   'nav.sections': 'Trip sections',
 

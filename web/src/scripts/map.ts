@@ -8,6 +8,7 @@ import type { GeoJSONSource, LngLatBoundsLike, Map as MapLibre, Marker, Popup } 
 import type { Facts } from '@/lib/facts'
 import { matchesFacts, setupFilters, showCount, tripToday, type FilterState } from '@/scripts/filters'
 import { getLens, inLens, type Lens } from '@/scripts/lens'
+import { currentTheme, onTheme } from '@/scripts/theme'
 
 interface MapData {
   places: { id: string; name: string; geo: [number, number]; emoji: string; items: string[]; idea: boolean }[]
@@ -34,6 +35,7 @@ const STYLES = {
 }
 
 let map: MapLibre | undefined
+let offTheme: (() => void) | undefined
 
 export async function setupMap() {
   const container = document.querySelector<HTMLElement>('[data-map]')
@@ -44,10 +46,10 @@ export async function setupMap() {
   maplibregl.setWorkerUrl(workerUrl)
 
   map?.remove()
-  const dark = window.matchMedia('(prefers-color-scheme: dark)')
+  const dark = currentTheme() === 'dark'
   const instance = new maplibregl.Map({
     container,
-    style: dark.matches ? STYLES.dark : STYLES.light,
+    style: dark ? STYLES.dark : STYLES.light,
     bounds: bounds(core(data.places.map((p) => p.geo))),
     fitBoundsOptions: { padding: padding() },
     attributionControl: { compact: true },
@@ -122,7 +124,8 @@ export async function setupMap() {
     }
   }
   instance.on('style.load', addLayers)
-  dark.addEventListener('change', (event) => instance.setStyle(event.matches ? STYLES.dark : STYLES.light))
+  offTheme?.()
+  offTheme = onTheme((theme) => instance.setStyle(STYLES[theme]))
 
   const markers = new Map<string, Marker>()
   let popup: Popup | undefined

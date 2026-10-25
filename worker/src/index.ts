@@ -36,7 +36,7 @@ import {
 import { handleFx } from './fx'
 import { robotsTxt, secureResponse } from './headers'
 import { languageRedirect, pageLanguage } from './i18n'
-import { renderLoginPage, renderTooManyAttempts } from './login-page'
+import { renderLoginPage, renderTooManyAttempts, type Theme } from './login-page'
 
 export interface Env {
   ASSETS: Fetcher
@@ -98,7 +98,7 @@ async function handleLogin(request: Request, url: URL, manifest: AccessManifest,
     const { success } = await env.LOGIN_LIMITER.limit({ key: `${ip}:${scope}` })
     if (!success) {
       const back = `${loginPath(lang, manifest)}?scope=${encodeURIComponent(scope)}&next=${encodeURIComponent(next)}`
-      return html(renderTooManyAttempts(lang, back), 429, { 'Retry-After': '60' })
+      return html(renderTooManyAttempts(lang, back, themeOf(request)), 429, { 'Retry-After': '60' })
     }
   }
 
@@ -113,7 +113,7 @@ async function handleLogin(request: Request, url: URL, manifest: AccessManifest,
 function handleLogout(request: Request, manifest: AccessManifest): Response {
   const names = new Set(['taac_site', ...Object.keys(manifest.trips).map((slug) => cookieName(`trip:${slug}`))])
   for (const name of cookieNames(request.headers.get('Cookie'))) {
-    if (name.startsWith('taac_') && name !== 'taac_lang') names.add(name)
+    if (name.startsWith('taac_') && name !== 'taac_lang' && name !== 'taac_theme') names.add(name)
   }
   return redirect(
     '/',
@@ -141,8 +141,14 @@ function loginPage(request: Request, url: URL, manifest: AccessManifest): Respon
       next,
       error: url.searchParams.get('error') === '1',
       trip: trip !== null,
+      theme: themeOf(request),
     }),
   )
+}
+
+/** The theme the viewer picked on the site; dark until they choose. */
+function themeOf(request: Request): Theme {
+  return readCookie(request.headers.get('Cookie'), 'taac_theme') === 'light' ? 'light' : 'dark'
 }
 
 /** Unlocks the calendar feed for subscribers, who cannot log in. */

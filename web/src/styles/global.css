@@ -303,11 +303,9 @@ p {
   font-weight: 600;
 }
 
-@media (prefers-color-scheme: dark) {
-  .segmented [aria-pressed='true'],
-  .segmented [aria-current='page'] {
-    background: #636366;
-  }
+:root[data-theme='dark'] .segmented [aria-pressed='true'],
+:root[data-theme='dark'] .segmented [aria-current='page'] {
+  background: #636366;
 }
 
 /* Avatars */
