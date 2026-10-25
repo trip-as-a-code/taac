@@ -174,4 +174,19 @@ const { t } = i18n
   .mode button {
     font-size: 12px;
   }
+
+  /* Phones: one swipeable line with the currency switch (TripLayout scrolls it). */
+  @media (max-width: 760px) {
+    .lens {
+      flex-wrap: nowrap;
+    }
+
+    .people {
+      overflow: visible;
+    }
+
+    .mode {
+      flex: none;
+    }
+  }
 </style>

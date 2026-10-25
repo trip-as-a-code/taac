@@ -382,6 +382,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
   }
 
   .value {
+    white-space: nowrap;
     font-family: var(--font-rounded);
     font-size: 30px;
     font-weight: 700;
@@ -506,6 +507,10 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
   }
 
   @media (max-width: 640px) {
+    .value {
+      font-size: clamp(22px, 7vw, 30px);
+    }
+
     .stats {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--space-3);

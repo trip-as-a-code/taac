@@ -350,6 +350,9 @@ const dash = '—'
   }
 
   .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -357,6 +360,7 @@ const dash = '—'
   }
 
   .amount {
+    white-space: nowrap;
     font-family: var(--font-rounded);
     font-size: clamp(28px, 3.6vw, 38px);
     font-weight: 700;
@@ -554,9 +558,32 @@ const dash = '—'
   }
 
   @media (max-width: 860px) {
-    .totals,
     .columns {
       grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* Phones: planned and booked side by side, the rest full width. */
+  @media (max-width: 560px) {
+    .totals {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: var(--space-3);
+    }
+
+    .totals > .total:nth-child(n + 3) {
+      grid-column: 1 / -1;
+    }
+
+    .amount {
+      font-size: clamp(19px, 6vw, 24px);
+    }
+
+    .total .footnote.tertiary {
+      font-size: 12px;
+    }
+
+    .people {
+      gap: var(--space-3);
     }
   }
 </style>

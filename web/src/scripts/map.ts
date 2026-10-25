@@ -253,7 +253,9 @@ function distanceKm([lat1, lon1]: [number, number], [lat2, lon2]: [number, numbe
 
 function padding() {
   const narrow = window.matchMedia('(max-width: 760px)').matches
-  return narrow ? { top: 40, bottom: 60, left: 30, right: 30 } : { top: 60, bottom: 60, left: 420, right: 60 }
+  // On phones the places sheet covers the lower part of the map.
+  const sheet = document.querySelector<HTMLElement>('[data-panel]')?.offsetHeight ?? 0
+  return narrow ? { top: 40, bottom: sheet + 30, left: 30, right: 30 } : { top: 60, bottom: 60, left: 420, right: 60 }
 }
 
 function escape(text: string): string {

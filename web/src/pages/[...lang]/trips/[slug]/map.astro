@@ -80,6 +80,9 @@ const data = { places, routes, items: itemInfo, overlays, areas }
   <div class="map-shell">
     <div class="map" data-map aria-label={t('nav.map')}></div>
     <aside class="panel" data-panel>
+      <button class="grabber" type="button" data-sheet-toggle aria-expanded="false" aria-label={t('map.places')}>
+        <span aria-hidden="true" />
+      </button>
       <div class="panel-head">
         <label class="day-select">
           <span class="visually-hidden">{t('filter.day')}</span>
@@ -128,7 +131,38 @@ const data = { places, routes, items: itemInfo, overlays, areas }
 <script>
   import { setupMap } from '@/scripts/map'
 
-  document.addEventListener('astro:page-load', () => void setupMap())
+  /** Phones: the panel is a bottom sheet; the grabber (or the title) expands it. */
+  function setupSheet() {
+    const panel = document.querySelector<HTMLElement>('[data-panel]')
+    const toggle = panel?.querySelector<HTMLButtonElement>('[data-sheet-toggle]')
+    if (!panel || !toggle) return
+    const set = (open: boolean) => {
+      panel.toggleAttribute('data-expanded', open)
+      toggle.setAttribute('aria-expanded', String(open))
+    }
+    toggle.addEventListener('click', () => set(!panel.hasAttribute('data-expanded')))
+    panel.querySelector('.panel-title h2')?.addEventListener('click', () => set(!panel.hasAttribute('data-expanded')))
+    // Picking a place collapses the sheet so the map shows it.
+    panel.querySelector('[data-place-list]')?.addEventListener('click', () => set(false))
+    // A swipe on the grabber opens or closes it.
+    let startY: number | undefined
+    toggle.addEventListener('touchstart', (event) => (startY = event.touches[0].clientY), { passive: true })
+    toggle.addEventListener(
+      'touchend',
+      (event) => {
+        if (startY === undefined) return
+        const delta = event.changedTouches[0].clientY - startY
+        if (Math.abs(delta) > 24) set(delta < 0)
+        startY = undefined
+      },
+      { passive: true },
+    )
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    setupSheet()
+    void setupMap()
+  })
 </script>
 
 <style>
@@ -320,27 +354,58 @@ const data = { places, routes, items: itemInfo, overlays, areas }
     box-shadow: var(--shadow-md) !important;
   }
 
+  .grabber {
+    display: none;
+  }
+
+  /* Phones: the map fills the screen between the bars; places live in a
+     bottom sheet that peeks and expands. */
   @media (max-width: 760px) {
     .map-shell {
-      height: auto;
-      min-height: 0;
-    }
-
-    .map {
-      position: relative;
-      height: 58dvh;
+      height: calc(100dvh - var(--nav-height) - env(safe-area-inset-top) - 60px - env(safe-area-inset-bottom) - 46px);
+      min-height: 360px;
+      overflow: hidden;
     }
 
     .panel {
-      position: relative;
-      inset: auto;
+      top: auto;
+      left: 0;
+      right: 0;
+      bottom: 0;
       width: auto;
-      margin: calc(-1 * var(--space-6)) var(--space-3) var(--space-6);
-      max-height: none;
+      height: 38%;
+      border-radius: 18px 18px 0 0;
+      transition: height 320ms var(--ease);
     }
 
-    .places {
-      overflow: visible;
+    .panel[data-expanded] {
+      height: 88%;
+    }
+
+    .grabber {
+      display: grid;
+      place-items: center;
+      flex: none;
+      height: 22px;
+      border: 0;
+      background: transparent;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .grabber span {
+      width: 36px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--fill-strong);
+    }
+
+    .panel-head {
+      padding-top: 0;
+    }
+
+    .panel-title h2 {
+      cursor: pointer;
     }
   }
 </style>
