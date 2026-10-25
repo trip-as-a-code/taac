@@ -68,7 +68,7 @@ const test: Record<Facet, (f: Facts, values: string[], today: string) => boolean
     return v === 'overdue' ? f.deadline < today : f.deadline >= today && f.deadline <= addDays(today, 7)
   },
   conflict: (f, [v]) => (v === 'any' ? Boolean(f.conflict) : f.conflict === v),
-  cost: (f, [v]) => (v === 'priced' ? f.priced : !f.priced),
+  cost: (f, [v]) => (v === 'priced' ? f.priced : v === 'topay' ? f.toPay : !f.priced),
 }
 
 /** Whether anything beyond the people lens narrows the page. */

@@ -191,13 +191,15 @@ const dash = '—'
                       : packing
                         ? `${t('kind.packing')} · `
                         : ''}
-                    {Object.keys(line.paid).length > 0
-                      ? t('item.paidBy', {
-                          name: Object.keys(line.paid)
-                            .map((m) => memberName(trip, m))
-                            .join(', '),
-                        })
-                      : t('item.paidByEach')}
+                    {line.unpaid
+                      ? t(line.estimate ? 'item.estimate' : 'item.unpaid')
+                      : Object.keys(line.paid).length > 0
+                        ? t('item.paidBy', {
+                            name: Object.keys(line.paid)
+                              .map((m) => memberName(trip, m))
+                              .join(', '),
+                          })
+                        : t('item.paidByEach')}
                   </span>
                 </span>
                 <span class="expense-amount tabular">
@@ -299,7 +301,11 @@ const dash = '—'
       card.hidden = (lens.people.length > 0 && !lens.people.includes(id)) || (m.paid < 0.005 && m.share < 0.005)
       card.querySelector('[data-person-paid]')!.textContent = approx + show(m.paid)
       card.querySelector('[data-person-share]')!.textContent = approx + show(m.share)
-      const balance = m.paid - m.share
+      // Only debts move the balance: unpaid and settled costs owe nothing.
+      const balance = result.settlements.reduce(
+        (sum, s) => sum + (s.to === id ? s.amount : s.from === id ? -s.amount : 0),
+        0,
+      )
       const tone = Math.abs(balance) < 0.005 ? 'even' : balance > 0 ? 'owed' : 'owes'
       card.dataset.tone = tone
       const el = card.querySelector<HTMLElement>('[data-person-balance]')!

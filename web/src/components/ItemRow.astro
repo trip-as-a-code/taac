@@ -202,13 +202,18 @@ const offsetLabel =
                 </span>
               )}
               <span class="secondary">
-                · {c.paidBy.length ? t('item.paidBy', { name: names(c.paidBy) }) : t('item.paidByEach')}
+                ·{' '}
+                {c.unpaid
+                  ? t(c.estimate ? 'item.estimate' : 'item.unpaid')
+                  : c.each
+                    ? t('item.paidByEach')
+                    : t('item.paidBy', { name: names(c.paidBy) })}
               </span>
               {c.who.join() !== item.members.join() && (
                 <span class="secondary">· {t('item.for', { names: names(c.who) })}</span>
               )}
               {c.label && <span class="secondary">· {c.label}</span>}
-              {c.settled && <span class="secondary">· {t('item.settled')}</span>}
+              {!c.settled && <span class="owed">· {t('item.owed')}</span>}
             </li>
           ))}
         </ul>
@@ -485,6 +490,12 @@ const offsetLabel =
   .facts li {
     position: relative;
     padding-left: 21px;
+  }
+
+  .facts .owed {
+    margin-left: 0.3em;
+    font-weight: 600;
+    color: var(--orange);
   }
 
   .facts .secondary {

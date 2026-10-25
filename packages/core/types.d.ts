@@ -85,13 +85,17 @@ export interface Cost {
   currency: string
   /** What was actually charged, once booked. */
   charged?: Money
-  /** Member ids who paid; empty when each paid their own share. */
+  /** Member ids who paid; empty for `each` or when nobody has paid yet. */
   paidBy: string[]
   /** Member ids the cost is for. */
   who: string[]
   label?: string
   estimate: boolean
-  /** Squared up in advance: nobody owes anyone for it. */
+  /** Nobody has paid yet: an estimate or a price to pay later. */
+  unpaid: boolean
+  /** Paid by `each`: everyone paid their own share. */
+  each: boolean
+  /** Nobody owes anybody for it: unpaid, `each`, or paid back. */
   settled: boolean
 }
 
@@ -205,7 +209,9 @@ export interface CostLine {
   settledCurrency: string
   committed: boolean
   estimate: boolean
-  /** Squared up already: `paid` mirrors `shares`. */
+  /** Nobody has paid yet: `paid` is empty. */
+  unpaid: boolean
+  /** Nobody owes anybody for it: unpaid, `each`, or paid back. */
   settled: boolean
   /** Fraction each member bears (sums to 1). */
   shares: Record<string, number>

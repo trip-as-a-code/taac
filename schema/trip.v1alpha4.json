@@ -643,8 +643,15 @@
           ]
         },
         "paidBy": {
-          "description": "Who paid: a member, a list of members and/or groups sharing the\npayment equally, or `each` — everyone paid their own share.",
-          "$ref": "#/$defs/PaidBy"
+          "description": "Who paid: a member, a list of members and/or groups sharing the\npayment equally, or `each` — everyone paid their own share. Omitted\nmeans nobody has paid yet: it counts as planned spend and nobody\nowes anybody for it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaidBy"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "who": {
           "description": "Who the cost is for; defaults to the item's participants.",
@@ -672,15 +679,14 @@
           "type": "boolean"
         },
         "settled": {
-          "description": "Already squared up between the people involved (each paid their part\nin advance, or settled it outside the trip): nobody owes anyone for\nit. `paidBy: each` says the same when everyone paid for themselves.",
+          "description": "Whether the others have paid the payer back. Travellers usually\nsquare up on the spot, so a paid cost is settled unless this says\n`false`: only then does someone owe someone for it.",
           "type": "boolean"
         }
       },
       "additionalProperties": false,
       "required": [
         "amount",
-        "currency",
-        "paidBy"
+        "currency"
       ]
     },
     "Money": {

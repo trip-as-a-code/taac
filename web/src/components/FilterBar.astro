@@ -65,6 +65,7 @@ const options: Record<Exclude<Facet, 'place'>, Option[]> = {
   ],
   cost: [
     { value: 'priced', label: t('filter.cost.priced'), some: (f) => f.priced },
+    { value: 'topay', label: t('filter.cost.topay'), some: (f) => f.toPay },
     { value: 'unpriced', label: t('filter.cost.unpriced'), some: (f) => !f.priced },
   ],
   status: statuses.map((value) => ({ value, label: t(`status.${value}`), some: (f) => f.status === value })),

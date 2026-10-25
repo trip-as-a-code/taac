@@ -31,8 +31,10 @@ fn demo_exports_without_diagnostics() {
     for line in &budget.lines {
         let shares: f64 = line.shares.values().sum();
         let paid: f64 = line.paid.values().sum();
+        // Nobody has paid for an estimate yet.
+        let expected = if line.unpaid { 0.0 } else { 1.0 };
         assert!(
-            (shares - 1.0).abs() < 1e-6 && (paid - 1.0).abs() < 1e-6,
+            (shares - 1.0).abs() < 1e-6 && (paid - expected).abs() < 1e-6,
             "{line:?}"
         );
     }

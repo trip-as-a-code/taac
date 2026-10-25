@@ -56,7 +56,7 @@ pub fn generate(trip: &Trip) -> String {
     }
     out.push('\n');
 
-    for line in &budget.lines {
+    for line in budget.lines.iter().filter(|l| !l.unpaid) {
         // Packing purchases happen before the trip: dated on its first day.
         let (day, title) = match trip.itinerary.iter().find(|i| i.id == line.item) {
             Some(item) => (item.day(), item.title.as_str()),

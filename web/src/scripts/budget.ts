@@ -69,7 +69,8 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     const visible = inLens(Object.keys(line.shares), lens)
     const mine = visible ? shown.amount * owned(line.shares, lens) : 0
     result.lines.push({ total: shown.amount, mine, exact: shown.exact })
-    debts.push({ index: result.lines.length - 1, debts: lineDebts(line.shares, line.paid, shown.amount) })
+    if (!line.settled)
+      debts.push({ index: result.lines.length - 1, debts: lineDebts(line.shares, line.paid, shown.amount) })
     if (!visible) continue
     result.estimated ||= !shown.exact
     result.planned += mine

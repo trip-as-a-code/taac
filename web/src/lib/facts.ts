@@ -16,6 +16,8 @@ export interface Facts {
   /** `open` when a blocker clash is not overridden, else `overridden`. */
   conflict?: 'open' | 'overridden'
   priced: boolean
+  /** Has a priced cost nobody has paid yet. */
+  toPay: boolean
   payers: string[]
   places: string[]
   tags: string[]
@@ -82,7 +84,7 @@ export function issuesOf(trip: TripExport, id: string): Diagnostic[] {
 }
 
 function payers(costs: Item['costs']): string[] {
-  return [...new Set(costs.flatMap((c) => (c.paidBy.length ? c.paidBy : c.who)))]
+  return [...new Set(costs.flatMap((c) => (c.unpaid ? [] : c.each ? c.who : c.paidBy)))]
 }
 
 function text(trip: TripExport, parts: (string | undefined)[], places: string[]): string {
@@ -99,6 +101,7 @@ export function itemFacts(trip: TripExport, item: Item): Facts {
     deadline: item.booking.deadline,
     conflict: clashes.length ? (clashes.some((c) => !c.overridden) ? 'open' : 'overridden') : undefined,
     priced: item.costs.some((c) => c.amount > 0),
+    toPay: item.costs.some((c) => c.amount > 0 && c.unpaid),
     payers: payers(item.costs),
     places: item.places,
     tags: item.tags,
@@ -120,6 +123,7 @@ export function ideaFacts(trip: TripExport, idea: Idea): Facts {
     priority: idea.priority,
     deadline: idea.booking?.deadline,
     priced: idea.costs.some((c) => c.amount > 0),
+    toPay: idea.costs.some((c) => c.amount > 0 && c.unpaid),
     payers: payers(idea.costs),
     places,
     tags: idea.tags,
