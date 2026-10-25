@@ -140,6 +140,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
 </TripLayout>
 
 <script>
+  import { onPage } from '@/scripts/page'
   import { setupMap } from '@/scripts/map'
 
   let resize: ResizeObserver | undefined
@@ -182,7 +183,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
     )
   }
 
-  document.addEventListener('astro:page-load', () => {
+  onPage('map', () => {
     fitShell()
     setupSheet()
     void setupMap()

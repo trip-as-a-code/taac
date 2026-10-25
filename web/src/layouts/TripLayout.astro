@@ -44,7 +44,7 @@ const current = t(`nav.${section}`)
   back={{ href: path('/'), label: t('nav.allTrips') }}
   wide={bare}
 >
-  <div class="trip" style={`--hue:${tripHue(trip)}`}>
+  <div class="trip" data-section={section} style={`--hue:${tripHue(trip)}`}>
     {!bare && (
       <header class:list={['container trip-header', { compact: section !== 'overview' }]}>
         <div class="cover-chip" transition:name={`cover-${trip.slug}`} aria-hidden="true">

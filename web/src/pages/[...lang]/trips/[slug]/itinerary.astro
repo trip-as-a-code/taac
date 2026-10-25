@@ -183,11 +183,11 @@ const offset = homeOffset(trip)
 <script>
   import { setupFilters } from '@/scripts/filters'
   import { setupLanes, type PartyInfo } from '@/scripts/lanes'
-  import { todayUTC } from '@/scripts/page'
+  import { onPage, todayUTC } from '@/scripts/page'
 
   let stopLanes: (() => void) | undefined
 
-  document.addEventListener('astro:page-load', () => {
+  onPage('itinerary', () => {
     stopLanes?.()
     const parties = JSON.parse(document.getElementById('parties')?.textContent ?? '{}') as Record<string, PartyInfo>
     stopLanes = setupLanes(parties)

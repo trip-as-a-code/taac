@@ -312,6 +312,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
 </TripLayout>
 
 <script>
+  import { onPage } from '@/scripts/page'
   import { setupFilters } from '@/scripts/filters'
   import { computeBudget, type BudgetData } from '@/scripts/budget'
   import { getLens, inLens, type Lens } from '@/scripts/lens'
@@ -398,7 +399,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
 
   let offMoney: (() => void) | undefined
 
-  document.addEventListener('astro:page-load', () => {
+  onPage('overview', () => {
     status()
     // `webcal://` (set in follow) makes calendar apps subscribe, not import once.
     setupFilters((state) => follow(state.lens))

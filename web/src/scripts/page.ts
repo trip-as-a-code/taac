@@ -5,6 +5,17 @@ import { onMoney, renderMoney } from '@/scripts/money'
 const LANG_COOKIE = 'taac_lang'
 let once = false
 
+/**
+ * Runs `setup` on every visit to one trip section. Client-side navigation
+ * keeps each visited page's scripts listening, so a page's setup has to
+ * check that it is that page.
+ */
+export function onPage(section: string, setup: () => void) {
+  document.addEventListener('astro:page-load', () => {
+    if (document.querySelector<HTMLElement>('[data-section]')?.dataset.section === section) setup()
+  })
+}
+
 export function setupPage() {
   rememberLanguageOnSwitch()
   forgetOfflineCopiesOnLogout()

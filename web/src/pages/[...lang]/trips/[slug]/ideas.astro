@@ -72,10 +72,11 @@ const visits = (area: string) =>
 </TripLayout>
 
 <script>
+  import { onPage } from '@/scripts/page'
   import { setupFilters } from '@/scripts/filters'
 
   // An area with nothing left in view folds away.
-  document.addEventListener('astro:page-load', () =>
+  onPage('ideas', () =>
     setupFilters(() => {
       for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]'))
         section.hidden = !section.querySelector('[data-item]:not([hidden])')
