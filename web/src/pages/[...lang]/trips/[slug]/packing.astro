@@ -1,4 +1,5 @@
 ---
+import Money from '@/components/Money.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { memberName, partyEmoji, partyLabel, people } from '@/lib/trip'
@@ -9,6 +10,11 @@ const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t } = i18n
 const total = trip.packing.reduce((n, c) => n + c.items.length, 0)
 const everyone = trip.members.length
+// What is still to buy, from the budget; free things show no price.
+const costs = Map.groupBy(
+  trip.budget.lines.filter((l) => l.kind === 'packing'),
+  (l) => l.item,
+)
 // Whose item it is, named like everything else: a group, or the people.
 const whose = (members: string[]) => {
   const party = trip.parties.find((p) => p.members.join() === members.join())?.id ?? members.join('+')
@@ -65,6 +71,16 @@ const whose = (members: string[]) => {
                           title={item.members.map((m) => memberName(trip, m)).join(', ')}
                         >
                           {whose(item.members)}
+                        </span>
+                      )}
+                      {costs.has(item.id) && (
+                        <span class="footnote secondary price">
+                          {costs.get(item.id)!.map((line) => (
+                            <Money amount={line.amount} currency={line.currency} charged={line.charged} lang={lang} />
+                          ))}
+                          <span class:list={['buy', { bought: item.bought }]}>
+                            {item.bought ? t('packing.bought') : t('packing.toBuy')}
+                          </span>
                         </span>
                       )}
                     </span>
@@ -262,6 +278,22 @@ const whose = (members: string[]) => {
   .text {
     display: grid;
     gap: 2px;
+  }
+
+  .price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+  }
+
+  .buy {
+    font-weight: 600;
+    color: var(--orange);
+  }
+
+  .buy.bought {
+    color: var(--green);
   }
 
   .check input:checked ~ .text .subhead {

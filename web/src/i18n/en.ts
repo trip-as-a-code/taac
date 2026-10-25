@@ -96,6 +96,7 @@ export const en = {
   'kind.activity': 'Activity',
   'kind.meal': 'Meal',
   'kind.note': 'Note',
+  'kind.packing': 'Packing',
 
   'status.required': 'To book',
   'status.booked': 'Booked',
@@ -173,6 +174,8 @@ export const en = {
   'packing.forOnly': 'For {names}',
   'packing.hint': 'Ticks are saved on this device only.',
   'packing.none': 'No packing list yet.',
+  'packing.bought': 'Bought',
+  'packing.toBuy': 'To buy',
 
   'map.places': 'Places',
   'map.fit': 'Show everything',

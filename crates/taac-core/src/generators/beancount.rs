@@ -57,22 +57,22 @@ pub fn generate(trip: &Trip) -> String {
     out.push('\n');
 
     for line in &budget.lines {
-        let Some(item) = trip.itinerary.iter().find(|i| i.id == line.item) else {
-            continue;
+        // Packing purchases happen before the trip: dated on its first day.
+        let (day, title) = match trip.itinerary.iter().find(|i| i.id == line.item) {
+            Some(item) => (item.day(), item.title.as_str()),
+            None => match &line.title {
+                Some(title) => (open, title.as_str()),
+                None => continue,
+            },
         };
         let flag = if line.committed { '*' } else { '!' };
-        let narration = line.label.as_ref().map_or_else(
-            || item.title.clone(),
-            |label| format!("{} — {label}", item.title),
-        );
+        let narration = line
+            .label
+            .as_ref()
+            .map_or_else(|| title.to_owned(), |label| format!("{title} — {label}"));
         let currency = &line.settled_currency;
-        let _ = writeln!(
-            out,
-            "{} {flag} \"{}\"",
-            item.day(),
-            narration.replace('"', "'")
-        );
-        let _ = writeln!(out, "  item: \"{}\"", item.id);
+        let _ = writeln!(out, "{day} {flag} \"{}\"", narration.replace('"', "'"));
+        let _ = writeln!(out, "  item: \"{}\"", line.item);
         if line.currency != *currency || line.charged.is_some() {
             let _ = writeln!(out, "  price: \"{} {}\"", line.amount, line.currency);
         }
@@ -135,6 +135,7 @@ fn kind_account(kind: &str) -> &'static str {
         "lodging" => "Lodging",
         "activity" => "Activity",
         "meal" => "Food",
+        "packing" => "Gear",
         _ => "Other",
     }
 }

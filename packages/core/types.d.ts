@@ -189,7 +189,10 @@ export interface Amounts {
 }
 
 export interface CostLine {
+  /** Item, idea or packing item id. */
   item: string
+  /** Packing purchases only: the packing item's name. */
+  title?: string
   label?: string
   kind: string
   amount: number
@@ -244,7 +247,7 @@ export interface TripExport {
   blockers: Blocker[]
   days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[]; blockers: DayBlocker[] }[]
   budget: Budget
-  packing: { category: string; items: { id: string; name: string; members: string[] }[] }[]
+  packing: { category: string; items: { id: string; name: string; members: string[]; bought: boolean }[] }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
   artifacts: { ics: string; icsByMember: Record<string, string>; geojson: string; beancount: string; markdown: string }
   diagnostics: Diagnostic[]

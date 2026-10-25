@@ -98,6 +98,7 @@ export const ru: Messages = {
   'kind.activity': 'Активность',
   'kind.meal': 'Еда',
   'kind.note': 'Заметка',
+  'kind.packing': 'Сборы',
 
   'status.required': 'Нужна бронь',
   'status.booked': 'Забронировано',
@@ -175,6 +176,8 @@ export const ru: Messages = {
   'packing.forOnly': 'Для: {names}',
   'packing.hint': 'Отметки сохраняются только на этом устройстве.',
   'packing.none': 'Списка вещей пока нет.',
+  'packing.bought': 'Куплено',
+  'packing.toBuy': 'Купить',
 
   'map.places': 'Места',
   'map.fit': 'Показать всё',

@@ -3,7 +3,10 @@ import { marked } from 'marked'
 
 import type { IconName } from '@/components/Icon.astro'
 
-export const kindIcon: Record<ItemKind, IconName> = {
+/** Budget categories: every item kind, plus things bought before packing. */
+export type CostKind = ItemKind | 'packing'
+
+export const kindIcon: Record<CostKind, IconName> = {
   flight: 'flight',
   train: 'train',
   bus: 'bus',
@@ -13,10 +16,11 @@ export const kindIcon: Record<ItemKind, IconName> = {
   activity: 'activity',
   meal: 'meal',
   note: 'note',
+  packing: 'packing',
 }
 
 /** CSS custom property per kind, defined in tokens. */
-export const kindTint: Record<ItemKind, string> = {
+export const kindTint: Record<CostKind, string> = {
   flight: 'var(--blue)',
   train: 'var(--teal)',
   bus: 'var(--teal)',
@@ -26,6 +30,7 @@ export const kindTint: Record<ItemKind, string> = {
   activity: 'var(--orange)',
   meal: 'var(--pink)',
   note: 'var(--gray)',
+  packing: 'var(--yellow)',
 }
 
 export const statusTone: Record<BookingStatus, string | undefined> = {

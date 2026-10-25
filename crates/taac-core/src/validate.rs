@@ -647,6 +647,8 @@ impl Validator<'_> {
                 }
             }
             for item in &category.items {
+                let packers = self.trip.who(item.who().or(category.who.as_deref()));
+                self.costs(item.name(), item.costs(), &packers, item.bought());
                 for member in item.who().into_iter().flatten() {
                     if self.trip.member(member).is_none() && self.trip.group(member).is_none() {
                         self.error(
