@@ -47,6 +47,11 @@ const pathname = Astro.url.pathname
           </a>
         ))}
       </nav>
+      <button class="nav-icon-button theme" type="button" data-theme-toggle title={t('nav.theme')}>
+        <Icon name="moon" size={19} class="to-dark" />
+        <Icon name="sun" size={19} class="to-light" />
+        <span class="visually-hidden">{t('nav.theme')}</span>
+      </button>
       {/* A real navigation: the view-transition router would replay the POST via fetch. */}
       <form class="logout" method="post" action="/api/logout" data-astro-reload>
         <button class="nav-icon-button" type="submit" title={t('nav.logout')}>
@@ -57,6 +62,14 @@ const pathname = Astro.url.pathname
     </div>
   </div>
 </header>
+
+<script>
+  import { toggleTheme } from '@/scripts/theme'
+
+  document.addEventListener('astro:page-load', () =>
+    document.querySelector('[data-theme-toggle]')?.addEventListener('click', toggleTheme),
+  )
+</script>
 
 <style>
   .nav {
@@ -210,5 +223,14 @@ const pathname = Astro.url.pathname
     .nav-inner {
       grid-template-columns: 1fr auto;
     }
+  }
+
+  .theme :global(.to-light),
+  :global(:root[data-theme='dark']) .theme :global(.to-dark) {
+    display: none;
+  }
+
+  :global(:root[data-theme='dark']) .theme :global(.to-light) {
+    display: block;
   }
 </style>

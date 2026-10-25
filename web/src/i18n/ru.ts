@@ -16,6 +16,7 @@ export const ru: Messages = {
   'nav.ideas': 'Идеи',
   'nav.allTrips': 'Все поездки',
   'nav.logout': 'Выйти',
+  'nav.theme': 'Светлая или тёмная тема',
   'nav.language': 'Язык',
   'nav.sections': 'Разделы поездки',
 

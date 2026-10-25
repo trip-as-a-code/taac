@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI Variable', 'Segoe UI',
@@ -69,38 +69,38 @@
   --duration: 240ms;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #000000;
-    --bg-elevated: #1c1c1e;
-    --bg-grouped: #1c1c1e;
-    --bg-inset: #2c2c2e;
-    --fill: rgb(120 120 128 / 0.24);
-    --fill-strong: rgb(120 120 128 / 0.36);
-    --material: rgb(22 22 24 / 0.72);
-    --material-thick: rgb(28 28 30 / 0.9);
-    --separator: rgb(84 84 88 / 0.4);
-    --separator-strong: rgb(84 84 88 / 0.65);
+/* The viewer picks the theme (NavBar); BaseLayout sets it before paint. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-elevated: #1c1c1e;
+  --bg-grouped: #1c1c1e;
+  --bg-inset: #2c2c2e;
+  --fill: rgb(120 120 128 / 0.24);
+  --fill-strong: rgb(120 120 128 / 0.36);
+  --material: rgb(22 22 24 / 0.72);
+  --material-thick: rgb(28 28 30 / 0.9);
+  --separator: rgb(84 84 88 / 0.4);
+  --separator-strong: rgb(84 84 88 / 0.65);
 
-    --label: #f5f5f7;
-    --label-secondary: rgb(235 235 245 / 0.66);
-    --label-tertiary: rgb(235 235 245 / 0.4);
+  --label: #f5f5f7;
+  --label-secondary: rgb(235 235 245 / 0.66);
+  --label-tertiary: rgb(235 235 245 / 0.4);
 
-    --blue: #0a84ff;
-    --green: #30d158;
-    --orange: #ff9f0a;
-    --red: #ff453a;
-    --purple: #bf5af2;
-    --pink: #ff375f;
-    --teal: #40c8e0;
-    --indigo: #5e5ce6;
-    --yellow: #ffd60a;
-    --tint-soft: rgb(10 132 255 / 0.18);
+  --blue: #0a84ff;
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --purple: #bf5af2;
+  --pink: #ff375f;
+  --teal: #40c8e0;
+  --indigo: #5e5ce6;
+  --yellow: #ffd60a;
+  --tint-soft: rgb(10 132 255 / 0.18);
 
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 14px rgb(0 0 0 / 0.45);
-    --shadow-lg: 0 18px 48px rgb(0 0 0 / 0.55);
-  }
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 18px 48px rgb(0 0 0 / 0.55);
 }
 
 @media (prefers-reduced-motion: reduce) {

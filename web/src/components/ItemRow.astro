@@ -405,10 +405,8 @@ const offsetLabel =
     background: hsl(var(--party-hue) 70% 50% / 0.12);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .party-pill {
-      color: hsl(var(--party-hue) 80% 72%);
-    }
+  :global(:root[data-theme='dark']) .party-pill {
+    color: hsl(var(--party-hue) 80% 72%);
   }
 
   .who {

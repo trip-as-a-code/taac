@@ -134,9 +134,7 @@ const hue = tripHue(trip)
     color: hsl(var(--hue) 70% 42%);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .countdown {
-      color: hsl(var(--hue) 85% 70%);
-    }
+  :global(:root[data-theme='dark']) .countdown {
+    color: hsl(var(--hue) 85% 70%);
   }
 </style>

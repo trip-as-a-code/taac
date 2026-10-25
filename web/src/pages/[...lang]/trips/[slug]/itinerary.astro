@@ -434,10 +434,8 @@ const offset = homeOffset(trip)
     box-shadow: inset 3px 0 0 hsl(var(--party-hue) 65% 55%);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .laned > :global(.lane-head) {
-      color: hsl(var(--party-hue) 80% 72%);
-    }
+  :global(:root[data-theme='dark']) .laned > :global(.lane-head) {
+    color: hsl(var(--party-hue) 80% 72%);
   }
 
   /* In lanes the column header names the party already. */

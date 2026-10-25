@@ -12,10 +12,10 @@ export function escapeHtml(value: string): string {
 }
 
 const STYLE = `
-:root{color-scheme:light dark;--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7;
+:root{color-scheme:light;--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7;
 --field:#fff;--accent:#0071e3;--accent-press:#0062c4;--danger:#d70015;--shadow:0 12px 40px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.04)}
-@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#38383a;
---field:#2c2c2e;--accent:#0a84ff;--accent-press:#409cff;--danger:#ff453a;--shadow:0 12px 40px rgba(0,0,0,.5)}}
+:root[data-theme=dark]{color-scheme:dark;--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#38383a;
+--field:#2c2c2e;--accent:#0a84ff;--accent-press:#409cff;--danger:#ff453a;--shadow:0 12px 40px rgba(0,0,0,.5)}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%}
 body{min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg);color:var(--text);
@@ -44,10 +44,13 @@ button:focus-visible,.button:focus-visible{outline:3px solid color-mix(in srgb,v
 
 const LOCK = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" fill="currentColor"/><path d="M8 10.5V7.75a4 4 0 0 1 8 0v2.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
 
-function page(lang: string, title: string, body: string): string {
-  return `<!doctype html><html lang="${escapeHtml(lang)}"><head><meta charset="utf-8">
+/** The theme the viewer picked on the site (`taac_theme` cookie). */
+export type Theme = 'light' | 'dark'
+
+function page(lang: string, title: string, body: string, theme: Theme = 'light'): string {
+  return `<!doctype html><html lang="${escapeHtml(lang)}" data-theme="${theme}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
-<meta name="color-scheme" content="light dark"><title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
+<title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
 <body><main>${body}</main></body></html>`
 }
 
@@ -58,6 +61,7 @@ export interface LoginPageOptions {
   next: string
   error: boolean
   trip: boolean
+  theme?: Theme
 }
 
 export function renderLoginPage(o: LoginPageOptions): string {
@@ -71,15 +75,17 @@ export function renderLoginPage(o: LoginPageOptions): string {
 <input type="hidden" name="next" value="${escapeHtml(o.next)}"><label for="password">${escapeHtml(t.password)}</label>
 <input id="password" name="password" type="password" autocomplete="current-password" autofocus required${o.error ? ' aria-invalid="true" aria-describedby="error"' : ''}>${error}
 <button type="submit">${escapeHtml(t.submit)}</button></form>`,
+    o.theme,
   )
 }
 
-export function renderTooManyAttempts(lang: string, back: string): string {
+export function renderTooManyAttempts(lang: string, back: string, theme?: Theme): string {
   const t = loginStrings(lang)
   return page(
     lang,
     t.tooManyTitle,
     `<div class="glyph">${LOCK}</div><h1>${escapeHtml(t.tooManyTitle)}</h1><p>${escapeHtml(t.tooManyBody)}</p>
 <a class="button" href="${escapeHtml(back)}">${escapeHtml(t.back)}</a>`,
+    theme,
   )
 }

@@ -31,15 +31,34 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{pageTitle}</title>
     {description && <meta name="description" content={description} />}
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f5f7" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="generator" content={Astro.generator} />
+    <script is:inline>
+      // The theme is the viewer's choice (light unless they pick dark), set
+      // before paint and again after each client-side page swap, which
+      // replaces <html>'s attributes.
+      ;(() => {
+        const apply = () => {
+          let theme = 'light'
+          try {
+            theme = localStorage.getItem('taac:theme') === 'dark' ? 'dark' : 'light'
+          } catch {
+            // Storage blocked: light it is.
+          }
+          document.documentElement.dataset.theme = theme
+          document
+            .querySelector('meta[name="theme-color"]')
+            ?.setAttribute('content', theme === 'dark' ? '#000000' : '#f5f5f7')
+        }
+        apply()
+        document.addEventListener('astro:after-swap', apply)
+      })()
+    </script>
     <script is:inline>
       // Without the edge worker (plain `astro dev`/static hosting) honour a
       // remembered language here; the worker redirects before HTML loads.

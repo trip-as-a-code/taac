@@ -425,10 +425,8 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     color: hsl(var(--hue) 70% 42%);
   }
 
-  @media (prefers-color-scheme: dark) {
-    .status {
-      color: hsl(var(--hue) 85% 72%);
-    }
+  :global(:root[data-theme='dark']) .status {
+    color: hsl(var(--hue) 85% 72%);
   }
 
   .stats {
