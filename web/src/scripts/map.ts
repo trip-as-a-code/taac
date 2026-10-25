@@ -5,7 +5,8 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import type { FeatureCollection, GeoJSON } from 'geojson'
 import type { GeoJSONSource, LngLatBoundsLike, Map as MapLibre, Marker, Popup } from 'maplibre-gl'
 
-import { setupFilters } from '@/scripts/filters'
+import type { Facts } from '@/lib/facts'
+import { matchesFacts, setupFilters, showCount, tripToday, type FilterState } from '@/scripts/filters'
 import { getLens, inLens, type Lens } from '@/scripts/lens'
 
 interface MapData {
@@ -13,7 +14,7 @@ interface MapData {
   routes: { item: string; flight: boolean; color: string; coords: [number, number][] }[]
   items: Record<
     string,
-    { title: string; kind: string; date: string | null; when: string; people: string[]; href: string }
+    { title: string; kind: string; date: string | null; when: string; people: string[]; facts: Facts; href: string }
   >
   areas: {
     id: string
@@ -56,11 +57,19 @@ export async function setupMap() {
   instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
   instance.addControl(new maplibregl.GeolocateControl({ trackUserLocation: true }), 'top-right')
 
-  const state: { lens: Lens; day: string } = { lens: getLens(), day: '' }
-  const visibleItems = () =>
-    Object.entries(data.items)
-      .filter(([, item]) => inLens(item.people, state.lens) && (!state.day || item.date === state.day))
+  const state: { lens: Lens; day: string; filters?: FilterState } = { lens: getLens(), day: '' }
+  const visibleItems = () => {
+    const today = tripToday()
+    return Object.entries(data.items)
+      .filter(
+        ([, item]) =>
+          (state.filters
+            ? matchesFacts(item.facts, item.people, state.filters, today)
+            : inLens(item.people, state.lens)) &&
+          (!state.day || item.date === state.day),
+      )
       .map(([id]) => id)
+  }
 
   // Overlays and routes are re-added whenever the style (light/dark) loads.
   const addLayers = () => {
@@ -157,6 +166,7 @@ export async function setupMap() {
 
   const apply = (fit: boolean) => {
     const allowed = new Set(visibleItems())
+    showCount(allowed.size, Object.keys(data.items).length)
     const shown = data.places.filter((p) => p.items.some((i) => allowed.has(i)))
     const shownIds = new Set(shown.map((p) => p.id))
     for (const [id, marker] of markers) marker.getElement().hidden = !shownIds.has(id)
@@ -172,6 +182,7 @@ export async function setupMap() {
 
   setupFilters((filters) => {
     state.lens = filters.lens
+    state.filters = filters
     apply(instance.loaded())
   })
   document.querySelector<HTMLSelectElement>('[data-day-filter]')?.addEventListener('change', (event) => {

@@ -1,6 +1,8 @@
 ---
+import FilterBar from '@/components/FilterBar.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
+import { itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { bookable, homeOffset } from '@/lib/trip'
 
@@ -32,6 +34,14 @@ const ratio = total ? done.length / total : 1
           <span style={`width:${ratio * 100}%`} />
         </div>
       </section>
+
+      <FilterBar
+        i18n={i18n}
+        trip={trip}
+        facts={[...open, ...done, ...cancelled].map((item) => itemFacts(trip, item))}
+        facets={['focus', 'due', 'status', 'when', 'conflict', 'kind', 'cost', 'payer', 'place', 'tag']}
+        placeholder={t('filter.searchPlans')}
+      />
 
       {open.length > 0 && (
         <section class="section">

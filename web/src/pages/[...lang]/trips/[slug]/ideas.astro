@@ -1,7 +1,9 @@
 ---
+import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import IdeaRow from '@/components/IdeaRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
+import { ideaFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { ideasByArea, people } from '@/lib/trip'
 
@@ -28,14 +30,13 @@ const visits = (area: string) =>
   ) : (
     <>
       <div class="toolbar">
-        <div class="segmented" role="group" data-priority-filter>
-          <button type="button" data-value="" aria-pressed="true">
-            {t('filter.all')}
-          </button>
-          <button type="button" data-value="must" aria-pressed="false">
-            ★ {t('ideas.mustOnly')}
-          </button>
-        </div>
+        <FilterBar
+          i18n={i18n}
+          trip={trip}
+          facts={trip.ideas.map((idea) => ideaFacts(trip, idea))}
+          facets={['priority', 'kind', 'status', 'due', 'cost', 'place', 'tag']}
+          placeholder={t('filter.searchIdeas')}
+        />
       </div>
       {areas.map(([area, ideas]) => {
         const place = area ? trip.places[area] : undefined
@@ -71,38 +72,15 @@ const visits = (area: string) =>
 </TripLayout>
 
 <script>
-  import { applyFilters, setupFilters, type FilterState } from '@/scripts/filters'
+  import { setupFilters } from '@/scripts/filters'
 
-  function setup() {
-    const priority = document.querySelector<HTMLElement>('[data-priority-filter]')
-    let mustOnly = false
-    let state: FilterState | undefined
-    // The participant filter runs first; must-only narrows what it left.
-    const apply = () => {
-      if (state) applyFilters(state)
-      if (mustOnly)
-        for (const idea of document.querySelectorAll<HTMLElement>('[data-item]'))
-          if (idea.dataset.status !== 'must') idea.hidden = true
+  // An area with nothing left in view folds away.
+  document.addEventListener('astro:page-load', () =>
+    setupFilters(() => {
       for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]'))
         section.hidden = !section.querySelector('[data-item]:not([hidden])')
-      document
-        .querySelector<HTMLElement>('[data-filter-empty]')
-        ?.toggleAttribute('hidden', Boolean(document.querySelector('[data-item]:not([hidden])')))
-    }
-    setupFilters((next) => {
-      state = next
-      apply()
-    })
-    priority?.addEventListener('click', (event) => {
-      const button = (event.target as Element).closest('button')
-      if (!button) return
-      mustOnly = button.dataset.value === 'must'
-      for (const b of priority.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b === button))
-      apply()
-    })
-  }
-
-  document.addEventListener('astro:page-load', setup)
+    }),
+  )
 </script>
 
 <style>

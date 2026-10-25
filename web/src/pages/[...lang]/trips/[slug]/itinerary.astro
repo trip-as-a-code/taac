@@ -3,6 +3,7 @@ import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
+import { itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import {
   baseById,
@@ -28,7 +29,13 @@ const offset = homeOffset(trip)
 
 <TripLayout trip={trip} lang={lang} section="itinerary">
   <div class="toolbar">
-    <FilterBar i18n={i18n} />
+    <FilterBar
+      i18n={i18n}
+      trip={trip}
+      facts={trip.items.map((item) => itemFacts(trip, item))}
+      facets={['focus', 'when', 'conflict', 'status', 'due', 'kind', 'cost', 'payer', 'place', 'tag']}
+      placeholder={t('filter.searchPlans')}
+    />
   </div>
 
   <nav class="day-strip" aria-label={t('filter.day')}>
@@ -184,7 +191,11 @@ const offset = homeOffset(trip)
     stopLanes?.()
     const parties = JSON.parse(document.getElementById('parties')?.textContent ?? '{}') as Record<string, PartyInfo>
     stopLanes = setupLanes(parties)
-    setupFilters()
+    // Days the filters emptied drop out of the strip too.
+    setupFilters(() => {
+      for (const chip of document.querySelectorAll<HTMLElement>('[data-day-link]'))
+        chip.hidden = Boolean(document.getElementById(chip.dataset.dayLink!)?.hidden)
+    })
     // Dim past days and bring today into view while the trip is underway.
     const today = new Date(todayUTC()).toISOString().slice(0, 10)
     for (const chip of document.querySelectorAll<HTMLElement>('[data-day-link]'))

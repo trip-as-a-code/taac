@@ -5,6 +5,7 @@ import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
+import { ideaFacts } from '@/lib/facts'
 import { kindIcon, kindTint, markdown, partyEmoji, partyHue, partyLabel, people } from '@/lib/trip'
 
 interface Props {
@@ -28,6 +29,7 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
   data-item
   data-people={people(idea.members)}
   data-party={idea.party}
+  data-facts={JSON.stringify(ideaFacts(trip, idea))}
   data-status={idea.priority}
   style={`--kind:${kindTint[idea.kind]};--party-hue:${partyHue(idea.party)}`}
   class:list={['idea', { shared: everyone }]}
