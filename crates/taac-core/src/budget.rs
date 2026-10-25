@@ -35,6 +35,9 @@ pub struct CostLine {
     /// Set for packing purchases, which have no itinerary item to name them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// An idea's option group: only the cheapest alternative counts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     pub kind: String,
@@ -266,6 +269,7 @@ fn line(
     let line = CostLine {
         item: id.to_owned(),
         title: None,
+        option: None,
         label: cost.label.clone(),
         kind: kind.to_owned(),
         amount: cost.amount,
@@ -390,17 +394,16 @@ pub fn compute(trip: &Trip) -> Budget {
     for idea in &trip.ideas {
         let participants = trip.who(idea.who.as_deref());
         for cost in &idea.costs {
-            budget.ideas.push(
-                line(
-                    trip,
-                    &idea.id,
-                    idea.kind.as_str(),
-                    cost,
-                    &participants,
-                    false,
-                )
-                .0,
+            let (mut line, _) = line(
+                trip,
+                &idea.id,
+                idea.kind.as_str(),
+                cost,
+                &participants,
+                false,
             );
+            line.option.clone_from(&idea.option);
+            budget.ideas.push(line);
         }
     }
 

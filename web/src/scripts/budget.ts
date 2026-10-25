@@ -82,10 +82,21 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     const moved = line.settledAmount * owned(line.shares, lens)
     result.byCurrency.set(line.settledCurrency, (result.byCurrency.get(line.settledCurrency) ?? 0) + moved)
   }
+  // Possible spend: each idea in full, but of alternatives only the cheapest.
+  const perIdea = new Map<string, { option?: string; amount: number }>()
   for (const idea of data.ideas) {
     const shown = value(priced(idea))
-    if (shown && inLens(Object.keys(idea.shares), lens)) result.possible += shown.amount * owned(idea.shares, lens)
+    if (!shown || !inLens(Object.keys(idea.shares), lens)) continue
+    const entry = perIdea.get(idea.item) ?? { option: idea.option, amount: 0 }
+    entry.amount += shown.amount * owned(idea.shares, lens)
+    perIdea.set(idea.item, entry)
   }
+  const cheapest = new Map<string, number>()
+  for (const { option, amount } of perIdea.values()) {
+    if (option) cheapest.set(option, Math.min(cheapest.get(option) ?? Infinity, amount))
+    else result.possible += amount
+  }
+  for (const amount of cheapest.values()) result.possible += amount
   result.settlements = pairDebts(debts)
   return result
 }

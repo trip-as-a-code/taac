@@ -118,6 +118,13 @@ export interface Idea {
   party: string
   priority: 'must' | 'maybe'
   duration?: 'hour' | 'halfDay' | 'day'
+  /** When it is proposed for; absent without a date. */
+  local?: Item['local']
+  /** Alternatives for one need share this label. */
+  option?: string
+  transport?: { carrier?: string; number?: string }
+  /** How to book it if chosen; never `booked`. */
+  booking?: Booking
   costs: Cost[]
   notes?: string
   url?: string
@@ -202,6 +209,8 @@ export interface CostLine {
   item: string
   /** Packing purchases only: the packing item's name. */
   title?: string
+  /** An idea's option group: only the cheapest alternative counts. */
+  option?: string
   label?: string
   kind: string
   amount: number

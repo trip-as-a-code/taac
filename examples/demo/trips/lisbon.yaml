@@ -114,12 +114,24 @@ ideas:
     places: [{ name: LX Factory, geo: [38.7036, -9.1784], category: shopping }]
     duration: halfDay
     notes: Sunday market; bookshop in an old printing hall.
-  - title: Fado night in Alfama
+  # Two options for one evening: compared side by side, only the cheaper counts as possible spend.
+  - title: Fado at Clube de Fado
+    kind: meal
+    option: Fado dinner
     area: Lisbon
+    date: 2027-05-16
+    part: evening
     priority: must
-    duration: hour
-    costs:
-      - { amount: 60, currency: EUR, estimate: true }
+    booking: { status: required, deadline: 2027-05-09, url: https://example.com/clube-de-fado }
+    costs: [{ amount: 120, currency: EUR, estimate: true }]
+  - title: Fado at Tasca do Chico
+    kind: meal
+    option: Fado dinner
+    area: Lisbon
+    date: 2027-05-16
+    part: evening
+    booking: { status: notRequired }
+    costs: [{ amount: 60, currency: EUR, estimate: true }]
 packing:
   - category: Essentials
     items:

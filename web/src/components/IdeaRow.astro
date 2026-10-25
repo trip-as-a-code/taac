@@ -6,16 +6,32 @@ import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { ideaFacts } from '@/lib/facts'
-import { kindIcon, kindTint, markdown, partyEmoji, partyHue, partyLabel, people } from '@/lib/trip'
+import { kindIcon, kindTint, markdown, partyEmoji, partyHue, partyLabel, people, statusTone } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
   idea: Idea
   i18n: I18n
+  /** On an itinerary day: marked as proposed, the date already given. */
+  proposed?: boolean
+  /** Under its option's heading, which names the option already. */
+  grouped?: boolean
 }
 
-const { trip, idea, i18n } = Astro.props
-const { t } = i18n
+const { trip, idea, i18n, proposed, grouped } = Astro.props
+const { t, date } = i18n
+// When it is proposed for, if at all: the date (unless the day says it) and
+// the time or rough part of the day.
+const when = idea.local
+  ? [
+      proposed ? undefined : date(idea.local.date, { day: 'numeric', month: 'short' }),
+      idea.local.time
+        ? `${idea.local.time}${idea.local.endTime ? `–${idea.local.endTime}` : ''}`
+        : idea.local.part && t(`part.${idea.local.part}`),
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  : undefined
 const places = idea.places.map((id) => trip.places[id]).filter(Boolean)
 const members = trip.members.filter((m) => idea.members.includes(m.id))
 const everyone = members.length === trip.members.length
@@ -32,7 +48,7 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
   data-facts={JSON.stringify(ideaFacts(trip, idea))}
   data-status={idea.priority}
   style={`--kind:${kindTint[idea.kind]};--party-hue:${partyHue(idea.party)}`}
-  class:list={['idea', { shared: everyone }]}
+  class:list={['idea', { shared: everyone, proposed }]}
 >
   <div class="glyph" aria-hidden="true">
     <Icon name={kindIcon[idea.kind]} size={18} />
@@ -49,6 +65,21 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
         </p>
       )}
       <div class="meta">
+        {proposed && <span class="badge proposal">{t('ideas.proposed')}</span>}
+        {when && <span class="footnote secondary">{when}</span>}
+        {idea.option && !grouped && (
+          <span class="badge" title={t('ideas.optionOf', { option: idea.option })}>
+            <span class="ellipsis">⇄ {idea.option}</span>
+          </span>
+        )}
+        {idea.booking?.status === 'required' && (
+          <span class="badge" data-tone={statusTone.required}>
+            {t('status.required')}
+          </span>
+        )}
+        {idea.booking?.status === 'required' && idea.booking.deadline && (
+          <time class="footnote deadline" data-relative={idea.booking.deadline} data-template={t('bookings.due')} />
+        )}
         {idea.priority === 'must' && (
           <span class="badge" data-tone="orange">
             ★ {t('ideas.must')}
@@ -119,6 +150,23 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
 </article>
 
 <style>
+  /* On an itinerary day: a dashed outline says "not decided yet". */
+  .idea.proposed {
+    border: 1px dashed var(--separator-strong);
+    border-radius: var(--radius);
+  }
+
+  .proposal {
+    color: var(--label-secondary);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--separator-strong);
+  }
+
+  .deadline {
+    color: var(--orange);
+    font-weight: 500;
+  }
+
   .idea {
     position: relative;
     display: grid;

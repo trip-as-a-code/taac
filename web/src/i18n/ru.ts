@@ -150,6 +150,7 @@ export const ru: Messages = {
     other: '{n} брони требуют внимания',
   },
   'bookings.showFlagged': 'Показать',
+  'bookings.options': 'Варианты — решить до',
   'issues.showAll': 'Показать все ({n})',
   'issues.inList': 'Открыть в списке проблем',
   'issues.none': 'Проблем не найдено.',
@@ -232,10 +233,14 @@ export const ru: Messages = {
   'budget.estimate': 'Оценка',
 
   'ideas.title': 'Идеи',
-  'ideas.lede': 'Без расписания — выбираем на месте. У каждого списка указано, когда вы там.',
+  'ideas.lede':
+    'Предложения — всё, что может стать планом. Без даты выбираем на месте (их подскажут свободные дни рядом), с датой — видны в маршруте как предложение.',
   'ideas.anywhere': 'Где угодно',
   'ideas.youAreHere': 'Там: {dates}',
   'ideas.must': 'Обязательно',
+  'ideas.proposed': 'Предложение',
+  'ideas.options': 'Варианты: {option}',
+  'ideas.optionOf': 'Один из вариантов: {option}',
   'ideas.maybe': 'Может быть',
   'ideas.mustOnly': 'Обязательные',
   'ideas.duration.hour': 'Час-два',

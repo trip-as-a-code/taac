@@ -369,22 +369,41 @@ impl Validator<'_> {
                     PlaceRef::Key(_) => {}
                 }
             }
-            // Unscheduled: stays and journeys need a date, so they are plans.
-            if idea.kind == ItemKind::Lodging || idea.kind.is_transport() {
+            // A proposal's timing is optional, but must make sense if given.
+            match (idea.start, idea.date) {
+                (Some(_), Some(_)) => {
+                    self.error("idea.when", id, "set `start` or `date`, not both".into());
+                }
+                (None, _) if idea.end.is_some() => {
+                    self.error("idea.when", id, "`end` needs a `start`".into());
+                }
+                _ => {}
+            }
+            if idea.part.is_some() && idea.date.is_none() {
+                self.error("idea.when", id, "`part` is for a `date`".into());
+            }
+            if let (Some(start), Some(end)) = (idea.start, idea.end)
+                && end < start
+            {
+                self.error("idea.when", id, "ends before it starts".into());
+            }
+            if idea
+                .booking
+                .as_ref()
+                .is_some_and(|b| b.status == BookingStatus::Booked)
+            {
                 self.error(
-                    "idea.kind",
+                    "idea.booked",
                     id,
-                    format!(
-                        "an idea can't be a {}: it needs a date, so make it a plan in the itinerary",
-                        idea.kind.as_str()
-                    ),
+                    "a booked idea is a plan: move it to the itinerary".into(),
                 );
             }
             if idea.costs.iter().any(crate::model::Cost::is_paid) {
-                self.warn(
+                self.error(
                     "idea.paid",
                     id,
-                    "an idea is only possible spend: once paid for, make it a plan in the itinerary".into(),
+                    "an idea is only possible spend: once paid for, move it to the itinerary"
+                        .into(),
                 );
             }
             self.who(&idea.id, idea.who.as_deref());
@@ -1099,12 +1118,16 @@ ideas:
     }
 
     #[test]
-    fn ideas_stay_unscheduled() {
+    fn ideas_are_proposals_of_any_kind() {
         let d = check_with(
             "ideas:
-  - { title: stay, kind: lodging }
+  - { title: stay, kind: lodging, start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, option: Stay,
+      booking: { status: required, deadline: 2026-12-01 }, costs: [{ amount: 90, currency: EUR, estimate: true }] }
+  - { title: flight, kind: flight }
+  - { title: booked, booking: { status: booked } }
   - { title: prepaid, costs: [{ amount: 5, currency: EUR, paidBy: a }] }
-  - { title: fine, costs: [{ amount: 5, currency: EUR, estimate: true }] }",
+  - { title: both, date: 2027-01-01, start: 2027-01-01T10:00:00+09:00 }
+  - { title: loose, part: evening }",
             "  - { title: x, kind: note, date: 2027-01-01, who: [everyone] }",
         );
         let at = |item: &str| {
@@ -1113,9 +1136,12 @@ ideas:
                 .map(|x| x.code)
                 .collect::<Vec<_>>()
         };
-        assert_eq!(at("stay"), ["idea.kind"], "{d:?}");
+        assert!(at("stay").is_empty(), "{d:?}");
+        assert!(at("flight").is_empty(), "{d:?}");
+        assert_eq!(at("booked"), ["idea.booked"], "{d:?}");
         assert_eq!(at("prepaid"), ["idea.paid"], "{d:?}");
-        assert!(at("fine").is_empty(), "{d:?}");
+        assert_eq!(at("both"), ["idea.when"], "{d:?}");
+        assert_eq!(at("loose"), ["idea.when"], "{d:?}");
     }
 
     #[test]

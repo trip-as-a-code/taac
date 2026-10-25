@@ -141,6 +141,15 @@ pub struct IdeaExport {
     pub id: String,
     pub title: String,
     pub kind: ItemKind,
+    /// When it is proposed for; absent for an idea without a date.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local: Option<LocalTimes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<Transport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub booking: Option<BookingExport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub area: Option<String>,
     pub places: Vec<String>,
@@ -390,15 +399,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 title: item.title.clone(),
                 start: item.start,
                 end: item.end,
-                local: LocalTimes {
-                    date: item.day(),
-                    time: item.start.map(|s| s.format("%H:%M").to_string()),
-                    offset: item.start.map(|s| s.format("%:z").to_string()),
-                    part: item.part,
-                    end_date: item.end.map(|e| e.date_naive()),
-                    end_time: item.end.map(|e| e.format("%H:%M").to_string()),
-                    end_offset: item.end.map(|e| e.format("%:z").to_string()),
-                },
+                local: local_times(item.day(), item.start, item.end, item.part),
                 places: item_places.into_iter().map(|(id, _)| id).collect(),
                 members: trip
                     .participants(item)
@@ -490,6 +491,12 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 id: idea.id.clone(),
                 title: idea.title.clone(),
                 kind: idea.kind,
+                local: idea
+                    .day()
+                    .map(|date| local_times(date, idea.start, idea.end, idea.part)),
+                option: idea.option.clone(),
+                transport: idea.transport.clone(),
+                booking: idea.booking.as_ref().map(booking_export),
                 area: idea.area.clone(),
                 places: idea_places.into_iter().map(|(id, _)| id).collect(),
                 members: trip
@@ -689,6 +696,23 @@ fn parties(trip: &Trip, bases: &[crate::loader::ResolvedBase]) -> Vec<PartyExpor
         }
     }
     out
+}
+
+fn local_times(
+    date: NaiveDate,
+    start: Option<DateTime<FixedOffset>>,
+    end: Option<DateTime<FixedOffset>>,
+    part: Option<DayPart>,
+) -> LocalTimes {
+    LocalTimes {
+        date,
+        time: start.map(|s| s.format("%H:%M").to_string()),
+        offset: start.map(|s| s.format("%:z").to_string()),
+        part,
+        end_date: end.map(|e| e.date_naive()),
+        end_time: end.map(|e| e.format("%H:%M").to_string()),
+        end_offset: end.map(|e| e.format("%:z").to_string()),
+    }
 }
 
 fn booking_export(b: &Booking) -> BookingExport {

@@ -143,6 +143,7 @@ export const en = {
   'issues.show': 'Show affected plans',
   'bookings.attention': { one: '{n} booking needs attention', other: '{n} bookings need attention' },
   'bookings.showFlagged': 'Show them',
+  'bookings.options': 'Options — decide by',
   'issues.showAll': 'Show all {n}',
   'issues.inList': 'See it in the issues list',
   'issues.none': 'No issues found.',
@@ -225,10 +226,14 @@ export const en = {
   'budget.estimate': 'Estimate',
 
   'ideas.title': 'Ideas',
-  'ideas.lede': 'Not scheduled — picked on the spot. Each list shows when you’re there.',
+  'ideas.lede':
+    'Proposals: anything that could become a plan. Without a date they are picked on the spot (free days nearby suggest them); with one they show in the itinerary as proposed.',
   'ideas.anywhere': 'Anywhere',
   'ideas.youAreHere': 'There: {dates}',
   'ideas.must': 'Must',
+  'ideas.proposed': 'Proposed',
+  'ideas.options': 'Options: {option}',
+  'ideas.optionOf': 'One option for: {option}',
   'ideas.maybe': 'Maybe',
   'ideas.mustOnly': 'Must-dos',
   'ideas.duration.hour': 'An hour or two',
