@@ -47,7 +47,7 @@ const LOCK = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-h
 /** The theme the viewer picked on the site (`taac_theme` cookie). */
 export type Theme = 'light' | 'dark'
 
-function page(lang: string, title: string, body: string, theme: Theme = 'light'): string {
+function page(lang: string, title: string, body: string, theme: Theme = 'dark'): string {
   return `<!doctype html><html lang="${escapeHtml(lang)}" data-theme="${theme}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>${escapeHtml(title)}</title><style>${STYLE}</style></head>

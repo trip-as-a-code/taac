@@ -146,9 +146,9 @@ function loginPage(request: Request, url: URL, manifest: AccessManifest): Respon
   )
 }
 
-/** The theme the viewer picked on the site; light until they choose. */
+/** The theme the viewer picked on the site; dark until they choose. */
 function themeOf(request: Request): Theme {
-  return readCookie(request.headers.get('Cookie'), 'taac_theme') === 'dark' ? 'dark' : 'light'
+  return readCookie(request.headers.get('Cookie'), 'taac_theme') === 'light' ? 'light' : 'dark'
 }
 
 /** Unlocks the calendar feed for subscribers, who cannot log in. */

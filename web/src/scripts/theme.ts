@@ -5,7 +5,7 @@ const KEY = 'taac:theme'
 export type Theme = 'light' | 'dark'
 
 export function currentTheme(): Theme {
-  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
 }
 
 export function onTheme(listener: (theme: Theme) => void): () => void {
