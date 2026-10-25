@@ -26,8 +26,11 @@ pub struct Budget {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CostLine {
-    /// Item or idea id.
+    /// Item, idea or packing item id.
     pub item: String,
+    /// Set for packing purchases, which have no itinerary item to name them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     pub kind: String,
@@ -251,6 +254,7 @@ fn line(
     let allocation = allocate(trip, cost, participants);
     let line = CostLine {
         item: id.to_owned(),
+        title: None,
         label: cost.label.clone(),
         kind: kind.to_owned(),
         amount: cost.amount,
@@ -267,6 +271,39 @@ fn line(
         paid: fractions(&allocation.paid, allocation.settled_amount),
     };
     (line, allocation)
+}
+
+impl Budget {
+    fn add(&mut self, trip: &Trip, line: CostLine, allocation: &Allocation) {
+        let committed = line.committed;
+        let currency = self
+            .by_currency
+            .entry(allocation.settled_currency.clone())
+            .or_insert_with(|| CurrencyBudget {
+                total: Amounts::default(),
+                members: trip
+                    .members
+                    .iter()
+                    .map(|m| MemberBalance {
+                        member: m.id.clone(),
+                        paid: Amounts::default(),
+                        share: Amounts::default(),
+                        balance: Decimal::ZERO,
+                    })
+                    .collect(),
+                settlements: Vec::new(),
+            });
+        currency.total.add(allocation.settled_amount, committed);
+        for balance in &mut currency.members {
+            if let Some(paid) = allocation.paid.get(&balance.member) {
+                balance.paid.add(*paid, committed);
+            }
+            if let Some(share) = allocation.shares.get(&balance.member) {
+                balance.share.add(*share, committed);
+            }
+        }
+        self.lines.push(line);
+    }
 }
 
 pub fn compute(trip: &Trip) -> Budget {
@@ -292,33 +329,29 @@ pub fn compute(trip: &Trip) -> Budget {
                 &participants,
                 committed,
             );
-            let currency = budget
-                .by_currency
-                .entry(allocation.settled_currency.clone())
-                .or_insert_with(|| CurrencyBudget {
-                    total: Amounts::default(),
-                    members: trip
-                        .members
-                        .iter()
-                        .map(|m| MemberBalance {
-                            member: m.id.clone(),
-                            paid: Amounts::default(),
-                            share: Amounts::default(),
-                            balance: Decimal::ZERO,
-                        })
-                        .collect(),
-                    settlements: Vec::new(),
-                });
-            currency.total.add(allocation.settled_amount, committed);
-            for balance in &mut currency.members {
-                if let Some(paid) = allocation.paid.get(&balance.member) {
-                    balance.paid.add(*paid, committed);
+            budget.add(trip, line, &allocation);
+        }
+    }
+
+    // Bought before the trip, so packed: free ones stay off the books.
+    for category in &trip.packing {
+        let packers = trip.who(category.who.as_deref());
+        for item in &category.items {
+            let packers = item
+                .who()
+                .map_or_else(|| packers.clone(), |who| trip.who(Some(who)));
+            let id = crate::export::packing_id(&category.category, item.name());
+            for cost in item.costs() {
+                let zero = cost.amount.is_zero()
+                    && cost.charged.as_ref().is_none_or(|c| c.amount.is_zero());
+                if zero {
+                    continue;
                 }
-                if let Some(share) = allocation.shares.get(&balance.member) {
-                    balance.share.add(*share, committed);
-                }
+                let (mut line, allocation) =
+                    line(trip, &id, "packing", cost, &packers, item.bought());
+                line.title = Some(item.name().to_owned());
+                budget.add(trip, line, &allocation);
             }
-            budget.lines.push(line);
         }
     }
 
@@ -480,5 +513,31 @@ itinerary:
             (balance("a"), balance("b"), balance("c")),
             (dec("50"), dec("50"), dec("-100"))
         );
+    }
+
+    #[test]
+    fn packing_purchases_count_and_free_ones_do_not() {
+        let b = compute(&trip(
+            r"      - { amount: 30, currency: EUR, paidBy: a }
+packing:
+  - category: Gear
+    who: [a, c]
+    items:
+      - Socks
+      - name: Adapter
+        bought: true
+        costs: [{ amount: 12, currency: EUR, paidBy: a }]
+      - name: Umbrella
+        costs: [{ amount: 0, currency: EUR, paidBy: c }]",
+        ));
+        assert_eq!(b.lines.len(), 2);
+        let adapter = &b.lines[1];
+        assert_eq!(
+            (adapter.kind.as_str(), adapter.title.as_deref()),
+            ("packing", Some("Adapter"))
+        );
+        assert!(adapter.committed);
+        assert_eq!(adapter.shares.keys().collect::<Vec<_>>(), ["a", "c"]);
+        assert_eq!(b.by_currency["EUR"].total.committed, dec("42"));
     }
 }

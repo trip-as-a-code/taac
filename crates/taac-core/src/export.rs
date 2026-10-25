@@ -299,6 +299,8 @@ pub struct PackingItemExport {
     pub name: String,
     /// Member ids who pack it.
     pub members: Vec<String>,
+    /// Its costs are budget lines with `item` = this id.
+    pub bought: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -524,13 +526,14 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     .items
                     .iter()
                     .map(|item| PackingItemExport {
-                        id: stable_id(&format!("{}\u{0}{}", category.category, item.name())),
+                        id: packing_id(&category.category, item.name()),
                         name: item.name().to_owned(),
                         members: trip
                             .who(item.who().or(category.who.as_deref()))
                             .into_iter()
                             .map(str::to_owned)
                             .collect(),
+                        bought: item.bought(),
                     })
                     .collect(),
             })
@@ -742,6 +745,11 @@ fn days(
 }
 
 /// FNV-1a, hex. Only needs to be stable, not secure.
+/// A packing item's id: stable across reorderings.
+pub(crate) fn packing_id(category: &str, name: &str) -> String {
+    stable_id(&format!("{category}\u{0}{name}"))
+}
+
 fn stable_id(input: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in input.bytes() {

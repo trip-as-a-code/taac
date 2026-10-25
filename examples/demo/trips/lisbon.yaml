@@ -117,6 +117,12 @@ packing:
       - Passport
       - Euros (cards work almost everywhere)
       - { name: Camera, who: [sam] }
+      - name: Travel adapter
+        who: [alex]
+        costs: [{ amount: 15, currency: EUR, paidBy: alex }]
+      - name: Waterproof phone pouch
+        bought: true
+        costs: [{ amount: 24, currency: EUR, paidBy: sam, label: 3-pack }]
   - category: Clothes
     items:
       - Comfortable walking shoes — the hills are steep

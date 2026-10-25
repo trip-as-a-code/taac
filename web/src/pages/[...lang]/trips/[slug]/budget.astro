@@ -1,11 +1,9 @@
 ---
-import type { ItemKind } from '@taac/core'
-
 import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { initials, itemById, kindIcon, kindTint, memberHue, memberName, people } from '@/lib/trip'
+import { initials, itemById, kindIcon, kindTint, memberHue, memberName, people, type CostKind } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -13,11 +11,12 @@ const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t, date, path } = i18n
 const { budget } = trip
 const items = itemById(trip)
-const kinds = [...new Set(budget.lines.map((l) => l.kind))] as ItemKind[]
+const kinds = [...new Set(budget.lines.map((l) => l.kind))] as CostKind[]
 const currencies = [...new Set(budget.lines.map((l) => l.settledCurrency))]
 const lines = budget.lines
   .map((line, index) => ({ line, index }))
   .sort((a, b) => (items.get(a.line.item)?.start ?? '').localeCompare(items.get(b.line.item)?.start ?? ''))
+// Packing purchases have no date and sort first: they happen before the trip.
 // Everything with an amount is filled in by scripts/budget.ts in the
 // viewer's currency; the page ships the lines, not the totals.
 const dash = '—'
@@ -158,24 +157,32 @@ const dash = '—'
         <div class="card list expenses">
           {lines.map(({ line, index }) => {
             const item = items.get(line.item)
+            const kind = (item?.kind ?? line.kind) as CostKind
+            const packing = line.kind === 'packing'
             return (
               <a
                 class="row expense"
-                href={path(`/trips/${trip.slug}/itinerary/#item-${line.item}`)}
+                href={path(
+                  packing ? `/trips/${trip.slug}/packing/` : `/trips/${trip.slug}/itinerary/#item-${line.item}`,
+                )}
                 data-item
                 data-line={index}
                 data-people={people(Object.keys(line.shares))}
                 data-status={line.committed ? 'booked' : 'required'}
-                style={item ? `--kind:${kindTint[item.kind]}` : undefined}
+                style={kindTint[kind] ? `--kind:${kindTint[kind]}` : undefined}
               >
-                <span class="glyph">{item && <Icon name={kindIcon[item.kind]} size={16} />}</span>
+                <span class="glyph">{kindIcon[kind] && <Icon name={kindIcon[kind]} size={16} />}</span>
                 <span class="expense-main">
                   <span class="subhead expense-title" lang={trip.locale}>
-                    {item?.title ?? line.item}
+                    {item?.title ?? line.title ?? line.item}
                     {line.label && <span class="secondary"> · {line.label}</span>}
                   </span>
                   <span class="footnote secondary">
-                    {item && date(item.local.date, { day: 'numeric', month: 'short' })} ·{' '}
+                    {item
+                      ? `${date(item.local.date, { day: 'numeric', month: 'short' })} · `
+                      : packing
+                        ? `${t('kind.packing')} · `
+                        : ''}
                     {Object.keys(line.paid).length > 0
                       ? t('item.paidBy', {
                           name: Object.keys(line.paid)

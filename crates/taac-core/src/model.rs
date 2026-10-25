@@ -669,6 +669,13 @@ pub enum PackingItem {
         /// Member and/or group ids who pack it; defaults to the category's.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         who: Option<Vec<String>>,
+        /// What it costs to get before packing; counts in the budget. `who`
+        /// defaults to the item's packers.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        costs: Vec<Cost>,
+        /// Already bought: its costs count as committed.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        bought: bool,
     },
 }
 
@@ -684,6 +691,17 @@ impl PackingItem {
             Self::Name(_) => None,
             Self::Detailed { who, .. } => who.as_deref(),
         }
+    }
+
+    pub fn costs(&self) -> &[Cost] {
+        match self {
+            Self::Name(_) => &[],
+            Self::Detailed { costs, .. } => costs,
+        }
+    }
+
+    pub fn bought(&self) -> bool {
+        matches!(self, Self::Detailed { bought: true, .. })
     }
 }
 

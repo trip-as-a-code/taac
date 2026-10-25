@@ -1102,6 +1102,17 @@
               "items": {
                 "type": "string"
               }
+            },
+            "costs": {
+              "description": "What it costs to get before packing; counts in the budget. `who`\ndefaults to the item's packers.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Cost"
+              }
+            },
+            "bought": {
+              "description": "Already bought: its costs count as committed.",
+              "type": "boolean"
             }
           },
           "required": [

@@ -9,7 +9,7 @@ import { useI18n, type Locale } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
 import { tripHue } from '@/lib/trip'
 
-export type Section = 'overview' | 'itinerary' | 'ideas' | 'map' | 'bookings' | 'budget' | 'packing'
+export type Section = 'overview' | 'itinerary' | 'ideas' | 'map' | 'bookings' | 'packing' | 'budget'
 
 interface Props {
   trip: TripExport
@@ -29,8 +29,9 @@ const sections: { id: Section; icon: IconName; href: string }[] = [
   ...(trip.ideas.length ? [{ id: 'ideas' as const, icon: 'sparkle' as const, href: path(`${base}/ideas/`) }] : []),
   { id: 'map', icon: 'map', href: path(`${base}/map/`) },
   { id: 'bookings', icon: 'bookings', href: path(`${base}/bookings/`) },
-  { id: 'budget', icon: 'budget', href: path(`${base}/budget/`) },
+  // Some things get bought before they can be packed: the budget comes last.
   { id: 'packing', icon: 'packing', href: path(`${base}/packing/`) },
+  { id: 'budget', icon: 'budget', href: path(`${base}/budget/`) },
 ]
 const current = t(`nav.${section}`)
 ---
