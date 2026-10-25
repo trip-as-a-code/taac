@@ -24,7 +24,8 @@ interface Props {
   trip: TripExport
   item: Item
   i18n: I18n
-  /** Show the date instead of only the time (lists outside the day view). */
+  /** Show the date instead of only the time, and link to the plan in the
+   * itinerary (lists outside the day view). */
   withDate?: boolean
   /** The trip's usual UTC offset; others get a label. */
   homeOffset?: string
@@ -52,6 +53,7 @@ const issuesHref = i18n.path(`/trips/${trip.slug}/#issue-${item.id}`)
 const unassigned = issues.some((d) => d.code === 'item.unassigned')
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
 const hasDetails =
+  withDate ||
   issues.length > 0 ||
   Boolean(item.notes) ||
   item.contacts.length > 0 ||
@@ -254,6 +256,12 @@ const offsetLabel =
           ))}
         </ul>
         <div class="links">
+          {withDate && (
+            <a class="button" href={i18n.path(`/trips/${trip.slug}/itinerary/#item-${item.id}`)}>
+              <Icon name="itinerary" size={15} />
+              <span>{t('item.inItinerary')}</span>
+            </a>
+          )}
           {item.url && (
             <a class="button" href={item.url} target="_blank" rel="noopener noreferrer">
               <Icon name="link" size={15} />
