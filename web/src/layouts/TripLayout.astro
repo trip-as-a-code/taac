@@ -45,7 +45,7 @@ const current = t(`nav.${section}`)
 >
   <div class="trip" style={`--hue:${tripHue(trip)}`}>
     {!bare && (
-      <header class="container trip-header">
+      <header class:list={['container trip-header', { compact: section !== 'overview' }]}>
         <div class="cover-chip" transition:name={`cover-${trip.slug}`} aria-hidden="true">
           {trip.cover?.emoji ?? '🧭'}
         </div>
@@ -55,8 +55,8 @@ const current = t(`nav.${section}`)
           </h1>
           <p class="subhead secondary meta">
             {section !== 'overview' && <span lang={trip.locale}>{trip.title}</span>}
-            <span>{dateRange(trip.startDate, trip.endDate)}</span>
-            <span>{plural('trip.days', trip.days.length)}</span>
+            <span class="dates">{dateRange(trip.startDate, trip.endDate)}</span>
+            <span class="dates">{plural('trip.days', trip.days.length)}</span>
             <Avatars members={trip.members} size={22} />
           </p>
         </div>
@@ -193,12 +193,110 @@ const current = t(`nav.${section}`)
       font-size: 32px;
     }
 
-    .tab-bar a span {
+    /* Sub-pages: the section is the title; the trip is one quiet line. */
+    .trip-header.compact {
+      padding-block: var(--space-5) var(--space-2);
+    }
+
+    .compact .cover-chip,
+    .compact .meta :global(.avatars),
+    .compact .meta .dates {
       display: none;
     }
 
-    .tab-bar a[aria-current] span {
-      display: inline;
+    .compact .heading h1 {
+      font-size: 32px;
+    }
+
+    .compact .meta span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  /* Phones: sections move to a bottom tab bar; the people and currency row
+     scrolls with the page instead of eating the top of the screen. */
+  @media (max-width: 760px) {
+    .trip {
+      padding-bottom: calc(60px + env(safe-area-inset-bottom));
+    }
+
+    .tabs {
+      position: static;
+      padding-block: var(--space-2) 0;
+      background: transparent;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      border-bottom: 0;
+    }
+
+    .tools {
+      flex-wrap: nowrap;
+      width: 100%;
+      margin-inline: calc(-1 * var(--gutter));
+      padding-inline: var(--gutter);
+      width: calc(100% + 2 * var(--gutter));
+      max-width: none;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tools::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab-bar {
+      position: fixed;
+      inset: auto 0 0;
+      z-index: 55;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      width: auto;
+      max-width: none;
+      gap: 0;
+      padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+      border-radius: 0;
+      background: var(--material-thick);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      backdrop-filter: saturate(180%) blur(20px);
+      border-top: 0.5px solid var(--separator);
+    }
+
+    .tab-bar a,
+    .tab-bar a[aria-current] {
+      flex-direction: column;
+      gap: 3px;
+      min-height: 50px;
+      padding: 5px 0 3px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0;
+      color: var(--label-tertiary);
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .tab-bar a[aria-current] {
+      color: var(--tint);
+    }
+
+    .tab-bar a :global(svg) {
+      width: 23px;
+      height: 23px;
+    }
+
+    .tab-bar a span {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    :global(.toast) {
+      bottom: calc(72px + env(safe-area-inset-bottom)) !important;
     }
   }
 </style>

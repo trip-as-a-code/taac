@@ -17,6 +17,8 @@ export default defineConfig({
   vite: {
     // MapLibre's worker is an ES module.
     worker: { format: 'es' },
+    // Pre-bundle the map up front, so a dev server never serves a stale copy.
+    optimizeDeps: { include: ['maplibre-gl'] },
     // Dev/preview run behind Coder's per-port subdomain proxy too.
     server: { allowedHosts: ['localhost', 'localhost'] },
     preview: { allowedHosts: ['localhost', 'localhost'] },

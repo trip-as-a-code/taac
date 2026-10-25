@@ -65,7 +65,7 @@ export const ru: Messages = {
   'trip.downloadIcsFor': 'Календарь {name} (.ics)',
 
   'currency.label': 'Валюта',
-  'budget.ratesNote': 'Пересчитано по курсам ЕЦБ на {date}. Для забронированного — фактически списанные суммы.',
+  'budget.ratesNote': 'Пересчитано по курсам ЕЦБ ({date}). Для забронированного — фактически списанные суммы.',
   'budget.noRates': 'Курсы недоступны — суммы показаны в исходной валюте.',
   'budget.inCurrency': 'Движение денег в {currency}',
   'packing.pickPerson': 'Выберите одного человека выше, чтобы отмечать его список.',
