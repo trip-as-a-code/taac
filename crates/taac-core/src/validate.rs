@@ -6,7 +6,7 @@ use chrono::{DateTime, FixedOffset, NaiveDate};
 use rust_decimal::Decimal;
 
 use crate::diagnostics::Diagnostic;
-use crate::loader::{Site, Trip};
+use crate::loader::{EVERYONE, Site, Trip};
 use crate::model::{BookingStatus, ItemKind, PlaceRef, Split};
 
 pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
@@ -99,6 +99,13 @@ impl Validator<'_> {
     fn people(&mut self) {
         let mut seen = HashSet::new();
         for member in &self.trip.members {
+            if member.id == EVERYONE {
+                self.error(
+                    "member.id",
+                    None,
+                    "`everyone` is reserved for every member".into(),
+                );
+            }
             if !seen.insert(member.id.as_str()) {
                 self.error(
                     "member.duplicate",
@@ -121,6 +128,13 @@ impl Validator<'_> {
                     "group.duplicate",
                     None,
                     format!("group `{}` declared twice", group.id),
+                );
+            }
+            if group.id == EVERYONE {
+                self.error(
+                    "group.id",
+                    None,
+                    "`everyone` is reserved for every member".into(),
                 );
             }
             if seen.contains(group.id.as_str()) {
@@ -255,10 +269,10 @@ impl Validator<'_> {
             self.error(
                 "who.empty",
                 Some(id),
-                "`who` lists nobody; omit it for everyone".into(),
+                "`who` lists nobody; use `everyone` for everyone".into(),
             );
         }
-        for entry in who {
+        for entry in who.iter().filter(|w| *w != EVERYONE) {
             if trip.member(entry).is_none() && trip.group(entry).is_none() {
                 self.error(
                     "who.unknown",
@@ -266,6 +280,13 @@ impl Validator<'_> {
                     format!("`{entry}` is neither a member nor a group"),
                 );
             }
+        }
+        if who.len() > 1 && who.iter().any(|w| w == EVERYONE) {
+            self.warn(
+                "who.redundant",
+                Some(id),
+                "`everyone` already includes the rest".into(),
+            );
         }
         for group in who.iter().filter_map(|w| trip.group(w)) {
             for member in group.members.iter().filter(|m| who.contains(m)) {
@@ -476,25 +497,10 @@ impl Validator<'_> {
                         .is_some_and(|(from, to)| end < *from || day > *to)
                 })
                 .collect();
-            if !absent.is_empty() {
-                let (code, hint) = if item.who.is_none() {
-                    (
-                        "item.unassigned",
-                        "it is for everyone by default; set `who`",
-                    )
-                } else {
-                    ("item.absent", "fix `who` or the dates")
-                };
-                let verb = if absent.len() == 1 { "is" } else { "are" };
-                self.warn(
-                    code,
-                    id,
-                    format!(
-                        "{} {verb} not on the trip on {day}: {hint}",
-                        absent.join(", ")
-                    ),
-                );
-            } else if item.who.is_none() && item.kind != ItemKind::Note {
+            let verb = if absent.len() == 1 { "is" } else { "are" };
+            if item.who.is_none() && trip.members.len() > 1 {
+                // Everyone by default is easy to miss: say who goes. When the
+                // default is also wrong, say why.
                 let mut apart: Vec<&str> = bases
                     .iter()
                     .filter(|b| b.from <= day && day <= b.to)
@@ -502,20 +508,37 @@ impl Validator<'_> {
                     .collect();
                 apart.sort_unstable();
                 apart.dedup();
-                if apart.len() > 1 {
+                let why = if !absent.is_empty() {
+                    format!(
+                        ", but {} {verb} not on the trip on {day}",
+                        absent.join(", ")
+                    )
+                } else if apart.len() > 1 {
                     let names: Vec<&str> = apart
                         .iter()
                         .map(|p| trip.places.get(*p).map_or(*p, |place| place.name.as_str()))
                         .collect();
-                    self.warn(
-                        "item.unassigned",
-                        id,
-                        format!(
-                            "the group is split between {} on {day}, but this is for everyone: set `who`",
-                            names.join(" and ")
-                        ),
-                    );
-                }
+                    format!(
+                        ", but the group is split between {} on {day}",
+                        names.join(" and ")
+                    )
+                } else {
+                    String::new()
+                };
+                self.warn(
+                    "item.unassigned",
+                    id,
+                    format!("no `who`, so it counts as everyone{why}: list members or groups, or `everyone`"),
+                );
+            } else if !absent.is_empty() {
+                self.warn(
+                    "item.absent",
+                    id,
+                    format!(
+                        "{} {verb} not on the trip on {day}: fix `who` or the dates",
+                        absent.join(", ")
+                    ),
+                );
             }
             if item.kind == ItemKind::Lodging && item.places.is_empty() {
                 self.warn(
@@ -914,8 +937,8 @@ ideas:
   - { id: t1, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-02 }
   - { id: k, title: Kyoto, place: kyoto, from: 2027-01-03, to: 2027-01-03 }
   - { id: t2, title: Tokyo, place: tokyo, from: 2027-01-04, to: 2027-01-05 }",
-            "  - { id: flat, kind: lodging, title: Flat, start: 2027-01-01T15:00:00+09:00, end: 2027-01-06T10:00:00+09:00, places: [flat] }
-  - { id: ryokan, kind: lodging, title: Ryokan, start: 2027-01-03T15:00:00+09:00, end: 2027-01-04T10:00:00+09:00, places: [ryokan] }",
+            "  - { id: flat, kind: lodging, title: Flat, start: 2027-01-01T15:00:00+09:00, end: 2027-01-06T10:00:00+09:00, places: [flat], who: [everyone] }
+  - { id: ryokan, kind: lodging, title: Ryokan, start: 2027-01-03T15:00:00+09:00, end: 2027-01-04T10:00:00+09:00, places: [ryokan], who: [everyone] }",
         );
         assert!(d.is_empty(), "{d:?}");
     }
@@ -960,13 +983,31 @@ ideas:
     }
 
     #[test]
+    fn who_must_be_said_and_everyone_says_it() {
+        let d = check(
+            "  - { id: quiet, kind: activity, title: Q, date: 2027-01-01 }
+  - { id: said, kind: activity, title: S, date: 2027-01-01, who: [everyone] }
+  - { id: both, kind: activity, title: B, date: 2027-01-01, who: [everyone, a] }",
+        );
+        let at = |item: &str| {
+            d.iter()
+                .filter(|x| x.item.as_deref() == Some(item))
+                .map(|x| x.code)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(at("quiet"), ["item.unassigned"], "{d:?}");
+        assert!(at("said").is_empty(), "{d:?}");
+        assert_eq!(at("both"), ["who.redundant"], "{d:?}");
+    }
+
+    #[test]
     fn bookings_with_loose_ends() {
         let d = check(
             "  - { id: hotel, kind: lodging, title: H, start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, booking: { status: booked } }
   - { id: out, kind: flight, title: O, start: 2027-01-01T08:00:00+09:00, end: 2027-01-01T09:00:00+09:00, places: [tokyo, kyoto],
       booking: { status: booked, reference: { secret: PNR } }, costs: [{ amount: 9, currency: EUR, paidBy: a, estimate: true }] }
   - { id: back, kind: flight, title: B, start: 2027-01-02T08:00:00+09:00, end: 2027-01-02T09:00:00+09:00, places: [kyoto, tokyo],
-      booking: { status: booked, reference: { secret: PNR } } }",
+      who: [everyone], booking: { status: booked, reference: { secret: PNR } } }",
         );
         let codes = codes(&d);
         for code in [

@@ -64,7 +64,11 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
             class="footnote secondary"
           />
         ))}
-        {!everyone && (
+        {everyone ? (
+          <span class="who" title={members.map((m) => m.name).join(', ')}>
+            <span class="party-pill">{party}</span>
+          </span>
+        ) : (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
             <span class="party-pill">
               {emoji && <span aria-hidden="true">{emoji}</span>}

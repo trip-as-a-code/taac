@@ -43,6 +43,8 @@ const isStay = item.kind === 'lodging'
 const transport = [item.transport?.carrier, item.transport?.number].filter(Boolean).join(' ')
 // Blocker clashes already have their own badge.
 const issues = issuesOf(trip, item.id).filter((d) => d.code !== 'blocker.conflict')
+// No `who` means everyone, but nobody chose that: the issue says so instead.
+const unassigned = issues.some((d) => d.code === 'item.unassigned')
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
 const hasDetails =
   issues.length > 0 ||
@@ -137,7 +139,13 @@ const offsetLabel =
             class="footnote secondary cost"
           />
         ))}
-        {!everyone && (
+        {everyone ? (
+          !unassigned && (
+            <span class="who" title={members.map((m) => m.name).join(', ')}>
+              <span class="party-pill">{party}</span>
+            </span>
+          )
+        ) : (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
             <span class="party-pill">
               {emoji && <span aria-hidden="true">{emoji}</span>}
