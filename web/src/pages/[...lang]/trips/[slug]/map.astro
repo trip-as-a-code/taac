@@ -1,6 +1,8 @@
 ---
+import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
+import { ideaFacts, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { kindTint, placeEmoji } from '@/lib/trip'
 
@@ -32,6 +34,7 @@ const itemInfo = Object.fromEntries([
       date: item.local.date,
       when: `${date(item.local.date, { day: 'numeric', month: 'short' })} · ${item.local.time ?? t(`part.${item.local.part ?? 'anytime'}`)}`,
       people: item.members,
+      facts: itemFacts(trip, item),
       href: path(`/trips/${trip.slug}/itinerary/#item-${item.id}`),
     },
   ]),
@@ -43,6 +46,7 @@ const itemInfo = Object.fromEntries([
       date: null,
       when: `${idea.priority === 'must' ? '★ ' : ''}${t('nav.ideas')}`,
       people: idea.members,
+      facts: ideaFacts(trip, idea),
       href: path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`),
     },
   ]),
@@ -97,6 +101,13 @@ const data = { places, routes, items: itemInfo, overlays, areas }
           </select>
           <Icon name="chevronDown" size={14} />
         </label>
+        <FilterBar
+          i18n={i18n}
+          trip={trip}
+          facts={[...trip.items.map((i) => itemFacts(trip, i)), ...trip.ideas.map((i) => ideaFacts(trip, i))]}
+          facets={['focus', 'when', 'kind', 'status', 'conflict', 'cost', 'priority', 'place', 'tag']}
+          placeholder={t('filter.searchPlaces')}
+        />
       </div>
       <div class="panel-title">
         <h2 class="headline">

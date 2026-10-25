@@ -5,6 +5,7 @@ import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
+import { itemFacts } from '@/lib/facts'
 import {
   daysBetween,
   kindIcon,
@@ -53,6 +54,7 @@ const offsetLabel =
   data-party={item.party}
   data-status={item.booking.status}
   data-day={item.local.date}
+  data-facts={JSON.stringify(itemFacts(trip, item))}
   style={`--kind:${kindTint[item.kind]};--party-hue:${partyHue(item.party)}`}
   class:list={['item', { shared: everyone }]}
 >
