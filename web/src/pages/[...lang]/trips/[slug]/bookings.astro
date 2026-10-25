@@ -1,8 +1,9 @@
 ---
 import FilterBar from '@/components/FilterBar.astro'
+import IdeaRow from '@/components/IdeaRow.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
-import { issuesOf, itemFacts } from '@/lib/facts'
+import { ideaFacts, issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { bookable, homeOffset } from '@/lib/trip'
 
@@ -16,6 +17,11 @@ const byDeadline = (a: (typeof trip.items)[number], b: (typeof trip.items)[numbe
 const open = trip.items.filter((i) => i.booking.status === 'required').sort(byDeadline)
 const done = trip.items.filter((i) => i.booking.status === 'booked')
 const cancelled = trip.items.filter((i) => i.booking.status === 'cancelled')
+// Options that would need booking if chosen: decided before their deadline,
+// not counted in the progress.
+const options = trip.ideas
+  .filter((i) => i.booking?.status === 'required')
+  .sort((a, b) => (a.booking!.deadline ?? '9999').localeCompare(b.booking!.deadline ?? '9999'))
 const total = bookable(trip).length
 const ratio = total ? done.length / total : 1
 // Bookings the validator flagged: filter to them here, or read why in the list.
@@ -48,7 +54,10 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
         <FilterBar
           i18n={i18n}
           trip={trip}
-          facts={[...open, ...done, ...cancelled].map((item) => itemFacts(trip, item))}
+          facts={[
+            ...[...open, ...done, ...cancelled].map((item) => itemFacts(trip, item)),
+            ...options.map((idea) => ideaFacts(trip, idea)),
+          ]}
           facets={['focus', 'issue', 'due', 'status', 'when', 'conflict', 'kind', 'cost', 'payer', 'place', 'tag']}
           placeholder={t('filter.searchPlans')}
         />
@@ -65,6 +74,20 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
           <div class="card list">
             {open.map((item) => (
               <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {options.length > 0 && (
+        <section class="section">
+          <div class="section-header">
+            <h2>{t('bookings.options')}</h2>
+            <span class="badge">{options.length}</span>
+          </div>
+          <div class="card list">
+            {options.map((idea) => (
+              <IdeaRow trip={trip} idea={idea} i18n={i18n} />
             ))}
           </div>
         </section>

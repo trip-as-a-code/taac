@@ -1,6 +1,7 @@
 ---
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
+import IdeaRow from '@/components/IdeaRow.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { itemFacts } from '@/lib/facts'
@@ -25,6 +26,11 @@ const { t, date, path } = i18n
 const bases = baseById(trip)
 // Shown on free days: ideas near each base, must-dos first.
 const SUGGESTED = 3
+// Ideas with a date show on that day as proposed, by time.
+const proposals = Map.groupBy(
+  trip.ideas.filter((i) => i.local).sort((a, b) => (a.local!.time ?? '').localeCompare(b.local!.time ?? '')),
+  (i) => i.local!.date,
+)
 const items = itemById(trip)
 const offset = homeOffset(trip)
 ---
@@ -146,6 +152,13 @@ const offset = homeOffset(trip)
               <div class="row-wrap" data-party={items.get(id)!.party}>
                 <ItemRow trip={trip} item={items.get(id)!} i18n={i18n} homeOffset={offset} />
               </div>
+            ))}
+          </div>
+        )}
+        {proposals.has(day.date) && (
+          <div class="proposals" aria-label={t('ideas.proposed')}>
+            {proposals.get(day.date)!.map((idea) => (
+              <IdeaRow trip={trip} idea={idea} i18n={i18n} proposed />
             ))}
           </div>
         )}
@@ -551,5 +564,12 @@ const offset = homeOffset(trip)
   .whose {
     font-weight: 600;
     color: var(--label);
+  }
+
+  /* Proposed, not planned: separate dashed cards rather than one list. */
+  .proposals {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
   }
 </style>

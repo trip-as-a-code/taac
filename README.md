@@ -87,12 +87,19 @@ blockers: # time someone is unavailable; plans inside it are flagged
     days: [mon, tue, wed, thu, fri] # omit for every day
     time: { start: '09:00', end: '17:00', timezone: Europe/London } # omit for whole days
     # strict: true turns warnings into errors; a plan opts out with `overrides: [Work]`
-ideas: # not scheduled: picked on the spot, listed on the days you're in the area
-  - title: Fado night in Alfama
+ideas: # proposals: anything that could become a plan, never booked or paid yet
+  - title: Fado night in Alfama # no date: suggested on free days nearby
     area: Lisbon
     priority: must # or maybe (default)
     duration: hour # hour, halfDay, day
     costs: [{ amount: 60, currency: EUR, estimate: true }]
+  - title: Pestana Palace # a dated option: shown on that day as proposed
+    kind: lodging
+    option: Last night # alternatives share a label; only the cheapest counts as possible spend
+    start: 2027-05-16T15:00:00+01:00
+    end: 2027-05-17T11:00:00+01:00
+    booking: { status: required, deadline: 2027-05-01 } # listed under "Options — decide by"
+    costs: [{ amount: 240, currency: EUR, estimate: true }]
 packing:
   - category: Essentials
     items: [Passport, { name: Camera, who: [Sam] }]

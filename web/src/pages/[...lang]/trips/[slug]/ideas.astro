@@ -1,4 +1,6 @@
 ---
+import type { Idea } from '@taac/core'
+
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import IdeaRow from '@/components/IdeaRow.astro'
@@ -16,6 +18,15 @@ const areas = [...ideasByArea(trip).entries()].sort(([a], [b]) => {
   const first = (key: string) => trip.bases.find((base) => base.place === key)?.from ?? (key ? '9998' : '9999')
   return first(a).localeCompare(first(b))
 })
+// Ideas without an option first, then each option's alternatives together.
+const groups = (ideas: Idea[]) => {
+  const out: { option?: string; ideas: Idea[] }[] = []
+  const loose = ideas.filter((i) => !i.option)
+  if (loose.length) out.push({ ideas: loose })
+  for (const option of new Set(ideas.flatMap((i) => (i.option ? [i.option] : []))))
+    out.push({ option, ideas: ideas.filter((i) => i.option === option) })
+  return out
+}
 const visits = (area: string) =>
   trip.bases
     .filter((b) => inBase(trip, b, area))
@@ -34,7 +45,7 @@ const visits = (area: string) =>
           i18n={i18n}
           trip={trip}
           facts={trip.ideas.map((idea) => ideaFacts(trip, idea))}
-          facets={['issue', 'priority', 'kind', 'cost', 'place', 'tag']}
+          facets={['issue', 'priority', 'when', 'status', 'due', 'kind', 'cost', 'place', 'tag']}
           placeholder={t('filter.searchIdeas')}
         />
       </div>
@@ -69,11 +80,19 @@ const visits = (area: string) =>
                 ))}
               </ul>
             )}
-            <div class="card list">
-              {ideas.map((idea) => (
-                <IdeaRow trip={trip} idea={idea} i18n={i18n} />
-              ))}
-            </div>
+            {/* Alternatives for one need sit together, to compare. */}
+            {groups(ideas).map(({ option, ideas: group }) => (
+              <div class="card list" data-option={option}>
+                {option && (
+                  <p class="option-head footnote" lang={trip.locale}>
+                    ⇄ {t('ideas.options', { option })}
+                  </p>
+                )}
+                {group.map((idea) => (
+                  <IdeaRow trip={trip} idea={idea} i18n={i18n} grouped={Boolean(option)} />
+                ))}
+              </div>
+            ))}
           </section>
         )
       })}
@@ -141,5 +160,21 @@ const visits = (area: string) =>
   .empty {
     padding: var(--space-12) 0;
     text-align: center;
+  }
+
+  .area .card + .card {
+    margin-top: var(--space-3);
+  }
+
+  .option-head {
+    margin: 0;
+    padding: 10px var(--space-4) 0;
+    font-weight: 600;
+    color: var(--label-secondary);
+  }
+
+  /* An option's whole card hides when the filters leave none of it. */
+  .card.list:not(:has([data-item]:not([hidden]))) {
+    display: none;
   }
 </style>

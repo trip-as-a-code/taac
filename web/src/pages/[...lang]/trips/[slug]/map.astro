@@ -52,8 +52,10 @@ const itemInfo = Object.fromEntries([
     {
       title: idea.title,
       kind: idea.kind,
-      date: null,
-      when: `${idea.priority === 'must' ? '★ ' : ''}${t('nav.ideas')}`,
+      date: idea.local?.date ?? null,
+      when: idea.local
+        ? `${date(idea.local.date, { day: 'numeric', month: 'short' })} · ${t('ideas.proposed')}`
+        : `${idea.priority === 'must' ? '★ ' : ''}${t('nav.ideas')}`,
       people: idea.members,
       facts: ideaFacts(trip, idea),
       href: path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`),

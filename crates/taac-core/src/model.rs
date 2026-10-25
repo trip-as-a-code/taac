@@ -189,8 +189,11 @@ pub struct Base {
     pub notes: Option<String>,
 }
 
-/// Something worth doing, without a date: decided on the spot. Nothing about
-/// it is scheduled, booked or paid; once it is, it becomes a plan.
+/// A proposal: anything that could become a plan (an activity, a hotel or a
+/// flight option, a restaurant to reserve). It has a plan's shape, so
+/// choosing it means moving it to the itinerary. A date is optional: without
+/// one it is suggested on free days nearby; with one it shows on that day as
+/// proposed. It is never booked or paid; that makes it a plan.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Idea {
@@ -200,6 +203,24 @@ pub struct Idea {
     pub title: String,
     #[serde(default = "default_idea_kind")]
     pub kind: ItemKind,
+    /// When it would happen, if that is known: like a plan's `start`/`end`,
+    /// or `date` with an optional `part`. All optional, for any kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date-time"))]
+    pub start: Option<DateTime<FixedOffset>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date-time"))]
+    pub end: Option<DateTime<FixedOffset>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date"))]
+    pub date: Option<NaiveDate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<DayPart>,
+    /// Alternatives for the same need share a label (`option: Kyoto stay`):
+    /// they are compared side by side and only the cheapest counts as
+    /// possible spend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub option: Option<String>,
     /// Name of the area (in `places`) the idea belongs to; days spent in a base
     /// on that area surface it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -213,6 +234,12 @@ pub struct Idea {
     pub priority: Priority,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<IdeaDuration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<Transport>,
+    /// How to book it if chosen: `required` (with a `deadline`) or
+    /// `notRequired`. `booked` makes it a plan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub booking: Option<Booking>,
     /// What it would cost, usually `estimate: true`: possible spend only,
     /// nobody has paid. Booking and paying make it a plan in the itinerary.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -228,6 +255,13 @@ pub struct Idea {
 
 fn default_idea_kind() -> ItemKind {
     ItemKind::Activity
+}
+
+impl Idea {
+    /// The day it is proposed for, if any.
+    pub fn day(&self) -> Option<NaiveDate> {
+        self.start.map(|s| s.date_naive()).or(self.date)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize, JsonSchema)]

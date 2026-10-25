@@ -885,7 +885,7 @@
       ]
     },
     "Idea": {
-      "description": "Something worth doing, without a date: decided on the spot. Nothing about\nit is scheduled, booked or paid; once it is, it becomes a plan.",
+      "description": "A proposal: anything that could become a plan (an activity, a hotel or a\nflight option, a restaurant to reserve). It has a plan's shape, so\nchoosing it means moving it to the itinerary. A date is optional: without\none it is suggested on free days nearby; with one it shows on that day as\nproposed. It is never booked or paid; that makes it a plan.",
       "type": "object",
       "properties": {
         "title": {
@@ -894,6 +894,45 @@
         "kind": {
           "$ref": "#/$defs/ItemKind",
           "default": "activity"
+        },
+        "start": {
+          "description": "When it would happen, if that is known: like a plan's `start`/`end`,\nor `date` with an optional `part`. All optional, for any kind.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "end": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "part": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DayPart"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "option": {
+          "description": "Alternatives for the same need share a label (`option: Kyoto stay`):\nthey are compared side by side and only the cheapest counts as\npossible spend.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "area": {
           "description": "Name of the area (in `places`) the idea belongs to; days spent in a base\non that area surface it.",
@@ -926,6 +965,27 @@
           "anyOf": [
             {
               "$ref": "#/$defs/IdeaDuration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Transport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "booking": {
+          "description": "How to book it if chosen: `required` (with a `deadline`) or\n`notRequired`. `booked` makes it a plan.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Booking"
             },
             {
               "type": "null"
