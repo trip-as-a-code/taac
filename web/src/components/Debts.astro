@@ -1,0 +1,69 @@
+---
+import type { TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import Money from '@/components/Money.astro'
+import type { I18n } from '@/i18n'
+import { lineDebts } from '@/lib/debts'
+import { memberName } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  /** Plan or packing item id: its budget lines. */
+  id: string
+  i18n: I18n
+}
+
+const { trip, id, i18n } = Astro.props
+// Who owes whom for this one thing, per currency the money moved in.
+const owed = new Map<string, { from: string; to: string; amount: number; currency: string }>()
+for (const line of trip.budget.lines.filter((l) => l.item === id)) {
+  for (const d of lineDebts(line.shares, line.paid, line.settledAmount)) {
+    const key = `${d.from}\u0000${d.to}\u0000${line.settledCurrency}`
+    const entry = owed.get(key) ?? { ...d, amount: 0, currency: line.settledCurrency }
+    entry.amount += d.amount
+    owed.set(key, entry)
+  }
+}
+const debts = [...owed.values()].filter((d) => d.amount > 0.005)
+---
+
+{debts.length > 0 && (
+  <ul class="debts footnote" aria-label={i18n.t('item.owes')}>
+    {debts.map((d) => (
+      <li>
+        <span>{memberName(trip, d.from)}</span>
+        <Icon name="arrowRight" size={12} />
+        <span>{memberName(trip, d.to)}</span>
+        <Money amount={Math.round(d.amount * 100) / 100} currency={d.currency} lang={i18n.lang} class="amount" />
+      </li>
+    ))}
+  </ul>
+)}
+
+<style>
+  .debts {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    margin: 2px 0 0;
+    padding: 0;
+    color: var(--label-secondary);
+  }
+
+  .debts li {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .debts :global(svg) {
+    color: var(--label-tertiary);
+  }
+
+  .debts :global(.amount) {
+    font-weight: 600;
+    color: var(--label);
+  }
+</style>

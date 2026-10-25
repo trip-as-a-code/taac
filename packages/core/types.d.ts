@@ -91,6 +91,8 @@ export interface Cost {
   who: string[]
   label?: string
   estimate: boolean
+  /** Squared up in advance: nobody owes anyone for it. */
+  settled: boolean
 }
 
 export interface Booking {
@@ -203,6 +205,8 @@ export interface CostLine {
   settledCurrency: string
   committed: boolean
   estimate: boolean
+  /** Squared up already: `paid` mirrors `shares`. */
+  settled: boolean
   /** Fraction each member bears (sums to 1). */
   shares: Record<string, number>
   /** Fraction each member paid (sums to 1). */

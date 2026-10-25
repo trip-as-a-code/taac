@@ -84,7 +84,7 @@ itinerary:
     places: [Pena Palace]
     booking: { status: required, deadline: 2027-04-20 }
     costs:
-      - { amount: 64, currency: EUR, paidBy: Alex }
+      - { amount: 64, currency: EUR, paidBy: Alex, settled: true } # Sam paid Alex back on the spot
   - kind: meal
     title: Pastéis de nata in Belém
     who: [everyone]

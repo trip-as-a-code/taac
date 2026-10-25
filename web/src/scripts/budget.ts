@@ -4,6 +4,7 @@
 
 import type { CostLine } from '@taac/core'
 
+import { lineDebts, pairDebts, type Debt, type PairDebt } from '@/lib/debts'
 import { inLens, type Lens } from '@/scripts/lens'
 import { value } from '@/scripts/money'
 
@@ -27,7 +28,8 @@ export interface Computed {
   /** What moved in each currency (charged, else quoted), for the selection. */
   byCurrency: Map<string, number>
   members: Map<string, { paid: number; share: number }>
-  settlements: { from: string; to: string; amount: number }[]
+  /** Who owes whom, per pair, with the expenses behind each debt. */
+  settlements: PairDebt[]
   /** Per line, in display currency: the whole line and the selection's part. */
   lines: ({ total: number; mine: number; exact: boolean } | null)[]
 }
@@ -54,6 +56,7 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     settlements: [],
     lines: [],
   }
+  const debts: { index: number; debts: Debt[] }[] = []
   for (const line of data.lines) {
     const shown = value(priced(line))
     if (!shown) {
@@ -66,6 +69,7 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     const visible = inLens(Object.keys(line.shares), lens)
     const mine = visible ? shown.amount * owned(line.shares, lens) : 0
     result.lines.push({ total: shown.amount, mine, exact: shown.exact })
+    debts.push({ index: result.lines.length - 1, debts: lineDebts(line.shares, line.paid, shown.amount) })
     if (!visible) continue
     result.estimated ||= !shown.exact
     result.planned += mine
@@ -81,32 +85,6 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     const shown = value(priced(idea))
     if (shown && inLens(Object.keys(idea.shares), lens)) result.possible += shown.amount * owned(idea.shares, lens)
   }
-  result.settlements = settle(result.members)
+  result.settlements = pairDebts(debts)
   return result
-}
-
-/** Greedy: the largest debtor pays the largest creditor until all are even. */
-function settle(members: Map<string, { paid: number; share: number }>) {
-  const cent = 0.005
-  const creditors: [string, number][] = []
-  const debtors: [string, number][] = []
-  for (const [m, { paid, share }] of members) {
-    const balance = paid - share
-    if (balance > cent) creditors.push([m, balance])
-    else if (balance < -cent) debtors.push([m, -balance])
-  }
-  const out: { from: string; to: string; amount: number }[] = []
-  while (creditors.length && debtors.length) {
-    creditors.sort((a, b) => b[1] - a[1])
-    debtors.sort((a, b) => b[1] - a[1])
-    const c = creditors[0]
-    const d = debtors[0]
-    const amount = Math.min(c[1], d[1])
-    out.push({ from: d[0], to: c[0], amount })
-    c[1] -= amount
-    d[1] -= amount
-    if (c[1] <= cent) creditors.shift()
-    if (d[1] <= cent) debtors.shift()
-  }
-  return out
 }

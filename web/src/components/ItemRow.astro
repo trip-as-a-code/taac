@@ -2,6 +2,7 @@
 import type { Item, TripExport } from '@taac/core'
 
 import Avatars from '@/components/Avatars.astro'
+import Debts from '@/components/Debts.astro'
 import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
@@ -155,6 +156,7 @@ const offsetLabel =
           </span>
         )}
       </div>
+      <Debts trip={trip} id={item.id} i18n={i18n} />
       {issues.length > 0 && (
         <ul class="issues footnote">
           {issues.map((d) => (
@@ -206,6 +208,7 @@ const offsetLabel =
                 <span class="secondary">· {t('item.for', { names: names(c.who) })}</span>
               )}
               {c.label && <span class="secondary">· {c.label}</span>}
+              {c.settled && <span class="secondary">· {t('item.settled')}</span>}
             </li>
           ))}
         </ul>

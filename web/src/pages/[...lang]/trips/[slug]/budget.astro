@@ -113,13 +113,19 @@ const dash = '—'
           </div>
           <ul class="card list" data-settlements data-none={t('budget.settled')} />
           <template data-settlement-template>
-            <li class="row settlement">
-              <span class="headline" data-from />
-              <Icon name="arrowRight" size={16} class="arrow" />
-              <span class="headline" data-to />
-              <span class="tabular settle-amount" data-amount />
+            <li>
+              <details class="debt">
+                <summary class="row settlement">
+                  <span class="headline" data-from />
+                  <Icon name="arrowRight" size={16} class="arrow" />
+                  <span class="headline" data-to />
+                  <span class="tabular settle-amount" data-amount />
+                </summary>
+                <ul class="because footnote" aria-label={t('budget.because')} data-because />
+              </details>
             </li>
           </template>
+          <p class="footnote tertiary debt-hint">{t('budget.debtHint')}</p>
         </section>
 
         <section class="section">
@@ -163,7 +169,9 @@ const dash = '—'
               <a
                 class="row expense"
                 href={path(
-                  packing ? `/trips/${trip.slug}/packing/` : `/trips/${trip.slug}/itinerary/#item-${line.item}`,
+                  packing
+                    ? `/trips/${trip.slug}/packing/#packing-${line.item}`
+                    : `/trips/${trip.slug}/itinerary/#item-${line.item}`,
                 )}
                 data-item
                 data-line={index}
@@ -225,6 +233,17 @@ const dash = '—'
       lines: budget.lines,
       ideas: budget.ideas,
       members: trip.members.map((m) => m.id),
+      links: budget.lines.map((l) =>
+        path(
+          l.kind === 'packing'
+            ? `/trips/${trip.slug}/packing/#packing-${l.item}`
+            : `/trips/${trip.slug}/itinerary/#item-${l.item}`,
+        ),
+      ),
+      titles: budget.lines.map((l) => {
+        const title = items.get(l.item)?.title ?? l.title ?? l.item
+        return l.label ? `${title} · ${l.label}` : title
+      }),
       names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),
     }).replace(/</g, '\\u003c')}
   />
@@ -237,7 +256,7 @@ const dash = '—'
   import { getLens } from '@/scripts/lens'
   import { displayCurrency, format, onMoney, ratesDate } from '@/scripts/money'
 
-  type Data = BudgetData & { members: string[]; names: Record<string, string> }
+  type Data = BudgetData & { members: string[]; names: Record<string, string>; titles: string[]; links: string[] }
 
   function render() {
     const raw = document.getElementById('budget-data')?.textContent
@@ -306,6 +325,22 @@ const dash = '—'
         row.querySelector('[data-from]')!.textContent = data.names[s.from] ?? s.from
         row.querySelector('[data-to]')!.textContent = data.names[s.to] ?? s.to
         row.querySelector('[data-amount]')!.textContent = approx + show(s.amount)
+        // The expenses behind it: what each adds, and what offsets it.
+        const because = row.querySelector('[data-because]')!
+        for (const l of s.lines) {
+          const li = document.createElement('li')
+          const link = document.createElement('a')
+          link.href = data.links[l.index] ?? '#'
+          const title = document.createElement('span')
+          title.textContent = title.title = data.titles[l.index] ?? ''
+          const amount = document.createElement('span')
+          amount.className = 'tabular'
+          amount.textContent = `${l.amount < 0 ? '− ' : ''}${approx}${show(Math.abs(l.amount))}`
+          li.toggleAttribute('data-offset', l.amount < 0)
+          link.append(title, amount)
+          li.append(link)
+          because.append(li)
+        }
         list.append(row)
       }
     }
@@ -468,6 +503,71 @@ const dash = '—'
   .settlement {
     flex-wrap: wrap;
     row-gap: 2px;
+  }
+
+  .debt summary {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .debt:not([open]) summary:hover {
+    background: var(--fill);
+  }
+
+  .debt summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .because {
+    list-style: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    margin: 0;
+    padding: 0 var(--space-4) var(--space-3);
+    color: var(--label-secondary);
+  }
+
+  /* Rows are built in the browser, without the scope attribute. */
+  .because :global(li) {
+    min-width: 0;
+  }
+
+  .because :global(a) {
+    display: flex;
+    min-width: 0;
+    padding: 4px 0;
+    color: inherit;
+    text-decoration: none;
+    gap: var(--space-3);
+    justify-content: space-between;
+  }
+
+  .because :global(a:hover span:first-child) {
+    color: var(--tint);
+  }
+
+  .because :global(li span:first-child) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .because :global(li span:last-child) {
+    flex: none;
+  }
+
+  .because :global([data-offset]) {
+    color: var(--green);
+  }
+
+  .debt-hint {
+    margin: var(--space-2) var(--space-1) 0;
+  }
+
+  [data-settlements] > li + li {
+    border-top: 0.5px solid var(--separator);
   }
 
   .settlement :global(.arrow) {
