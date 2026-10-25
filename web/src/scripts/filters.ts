@@ -34,7 +34,7 @@ export function setupFilters(onChange?: Listener): FilterState | undefined {
         group.querySelector('button')?.setAttribute('aria-pressed', 'true')
       }
     }
-    apply(state)
+    applyFilters(state)
     onChange?.(state)
   }
 
@@ -65,7 +65,7 @@ export function matches(el: HTMLElement, state: FilterState): boolean {
   return true
 }
 
-function apply(state: FilterState) {
+export function applyFilters(state: FilterState) {
   let visible = 0
   for (const el of document.querySelectorAll<HTMLElement>('[data-item]')) {
     const show = matches(el, state)
@@ -73,12 +73,14 @@ function apply(state: FilterState) {
     if (show) visible++
   }
   const filtered = Boolean(state.who || state.status)
-  for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]')) {
-    const any = section.querySelector('[data-item]:not([hidden])')
-    section.hidden = filtered && !any
+  for (const presence of document.querySelectorAll<HTMLElement>('[data-presence]')) {
+    presence.hidden = !matches(presence, { ...state, status: '' })
   }
-  for (const stay of document.querySelectorAll<HTMLElement>('[data-stay]')) {
-    stay.hidden = !matches(stay, { ...state, status: '' })
+  for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]')) {
+    const items = section.querySelector('[data-item]:not([hidden])')
+    // Without a status filter, a day where the person is somewhere still counts.
+    const here = !state.status && section.querySelector('[data-presence]:not([hidden])')
+    section.hidden = filtered && !items && !here
   }
   document.querySelector<HTMLElement>('[data-filter-empty]')?.toggleAttribute('hidden', visible > 0)
 }

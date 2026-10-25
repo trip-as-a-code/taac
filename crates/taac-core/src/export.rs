@@ -10,7 +10,10 @@ use crate::budget::{self, Budget};
 use crate::diagnostics::Diagnostic;
 use crate::generators;
 use crate::loader::{Site, Trip};
-use crate::model::{BookingStatus, Cover, Group, ItemKind, Member, Place, Transport};
+use crate::model::{
+    Booking, BookingStatus, Cost, Cover, DayPart, Group, IdeaDuration, ItemKind, Member, Place,
+    Priority, Text, Transport,
+};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,9 +27,9 @@ pub struct SiteExport {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SiteInfo {
-    pub title: String,
+    pub title: Text,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    pub description: Option<Text>,
     /// Worker secret name guarding the whole site, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password_secret: Option<String>,
@@ -57,7 +60,11 @@ pub struct TripExport {
     pub members: Vec<Member>,
     pub groups: Vec<Group>,
     pub places: IndexMap<String, Place>,
+    pub bases: Vec<BaseExport>,
+    /// Bases were derived from lodging rather than declared.
+    pub bases_derived: bool,
     pub items: Vec<ItemExport>,
+    pub ideas: Vec<IdeaExport>,
     pub days: Vec<DayExport>,
     pub budget: Budget,
     pub packing: Vec<PackingCategoryExport>,
@@ -75,11 +82,53 @@ pub struct CurrencyExport {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BaseExport {
+    pub id: String,
+    pub title: String,
+    pub place: String,
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    pub nights: i64,
+    pub members: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeaExport {
+    pub id: String,
+    pub title: String,
+    pub kind: ItemKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub area: Option<String>,
+    pub places: Vec<String>,
+    pub members: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    pub priority: Priority,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<IdeaDuration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub booking: Option<BookingExport>,
+    pub costs: Vec<CostExport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ItemExport {
     pub id: String,
     pub kind: ItemKind,
     pub title: String,
-    pub start: DateTime<FixedOffset>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start: Option<DateTime<FixedOffset>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end: Option<DateTime<FixedOffset>>,
     /// Wall-clock fields in the item's own offset, for display without a
@@ -105,8 +154,13 @@ pub struct ItemExport {
 #[serde(rename_all = "camelCase")]
 pub struct LocalTimes {
     pub date: NaiveDate,
-    pub time: String,
-    pub offset: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<String>,
+    /// Rough time of day for items without a time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub part: Option<DayPart>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_date: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -139,6 +193,7 @@ pub struct CostExport {
     pub paid_by: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    pub estimate: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -157,8 +212,18 @@ pub struct DayExport {
     pub date: NaiveDate,
     /// Items starting this day, in order.
     pub items: Vec<String>,
-    /// Lodging items covering this night.
-    pub stays: Vec<String>,
+    /// Who sleeps where tonight.
+    pub stays: Vec<Presence>,
+    /// Which base each person is in tonight.
+    pub bases: Vec<Presence>,
+}
+
+/// A base or lodging item and the members it applies to on a given day.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Presence {
+    pub id: String,
+    pub members: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -237,9 +302,10 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 start: item.start,
                 end: item.end,
                 local: LocalTimes {
-                    date: item.start.date_naive(),
-                    time: item.start.format("%H:%M").to_string(),
-                    offset: item.start.format("%:z").to_string(),
+                    date: item.day(),
+                    time: item.start.map(|s| s.format("%H:%M").to_string()),
+                    offset: item.start.map(|s| s.format("%:z").to_string()),
+                    part: item.part,
                     end_date: item.end.map(|e| e.date_naive()),
                     end_time: item.end.map(|e| e.format("%H:%M").to_string()),
                     end_offset: item.end.map(|e| e.format("%:z").to_string()),
@@ -260,29 +326,9 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                         url: None,
                         has_reference: false,
                     },
-                    |b| BookingExport {
-                        status: b.status,
-                        deadline: b.deadline,
-                        provider: b.provider.clone(),
-                        url: b.url.clone(),
-                        has_reference: b.reference.is_some(),
-                    },
+                    booking_export,
                 ),
-                costs: item
-                    .costs
-                    .iter()
-                    .map(|c| CostExport {
-                        amount: c.amount,
-                        currency: c.currency.clone(),
-                        base_amount: trip
-                            .currency
-                            .as_ref()
-                            .and_then(|cur| cur.to_base(c.amount, &c.currency))
-                            .map(budget::round),
-                        paid_by: c.paid_by.clone(),
-                        label: c.label.clone(),
-                    })
-                    .collect(),
+                costs: cost_exports(trip, &item.costs),
                 contacts: item
                     .contacts
                     .iter()
@@ -300,8 +346,45 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         })
         .collect();
 
+    let ideas = trip
+        .ideas
+        .iter()
+        .map(|idea| {
+            let idea_places = trip.idea_places(idea);
+            for (id, place) in &idea_places {
+                places.entry(id.clone()).or_insert_with(|| (*place).clone());
+            }
+            IdeaExport {
+                id: idea.id.clone(),
+                title: idea.title.clone(),
+                kind: idea.kind,
+                area: idea.area.clone(),
+                places: idea_places.into_iter().map(|(id, _)| id).collect(),
+                members: trip
+                    .who(idea.members.as_deref(), idea.group.as_deref())
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                group: idea.group.clone(),
+                priority: idea.priority,
+                duration: idea.duration,
+                booking: idea.booking.as_ref().map(booking_export),
+                costs: cost_exports(trip, &idea.costs),
+                notes: idea.notes.clone(),
+                url: idea.url.clone(),
+                tags: idea.tags.clone(),
+            }
+        })
+        .collect();
+
+    let bases = trip.bases();
+    for base in &bases {
+        places
+            .entry(base.place_id.clone())
+            .or_insert_with(|| base.place.clone());
+    }
     let (start_date, end_date) = date_range(trip);
-    let days = days(trip, start_date, end_date);
+    let days = days(trip, &bases, start_date, end_date);
 
     TripExport {
         slug: trip.slug.clone(),
@@ -328,7 +411,23 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         members: trip.members.clone(),
         groups: trip.groups.clone(),
         places,
+        bases: bases
+            .iter()
+            .map(|b| BaseExport {
+                id: b.id.clone(),
+                title: b.title.clone(),
+                place: b.place_id.clone(),
+                from: b.from,
+                to: b.to,
+                nights: (b.to - b.from).num_days() + 1,
+                members: b.members.clone(),
+                group: b.group.clone(),
+                notes: b.notes.clone(),
+            })
+            .collect(),
+        bases_derived: trip.declared_bases.is_empty(),
         items,
+        ideas,
         days,
         budget: budget::compute(trip),
         packing: trip
@@ -365,18 +464,58 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
     }
 }
 
-/// First and last wall-clock date touched by any item.
+fn booking_export(b: &Booking) -> BookingExport {
+    BookingExport {
+        status: b.status,
+        deadline: b.deadline,
+        provider: b.provider.clone(),
+        url: b.url.clone(),
+        has_reference: b.reference.is_some(),
+    }
+}
+
+fn cost_exports(trip: &Trip, costs: &[Cost]) -> Vec<CostExport> {
+    costs
+        .iter()
+        .map(|c| CostExport {
+            amount: c.amount,
+            currency: c.currency.clone(),
+            base_amount: trip
+                .currency
+                .as_ref()
+                .and_then(|cur| cur.to_base(c.amount, &c.currency))
+                .map(budget::round),
+            paid_by: c.paid_by.clone(),
+            label: c.label.clone(),
+            estimate: c.estimate,
+        })
+        .collect()
+}
+
+/// First and last wall-clock date touched by any item or base.
 pub fn date_range(trip: &Trip) -> (Option<NaiveDate>, Option<NaiveDate>) {
-    let start = trip.itinerary.iter().map(|i| i.start.date_naive()).min();
+    let bases = trip.bases();
+    let start = trip
+        .itinerary
+        .iter()
+        .map(crate::model::Item::day)
+        .chain(bases.iter().map(|b| b.from))
+        .min();
     let end = trip
         .itinerary
         .iter()
-        .map(|i| i.end.unwrap_or(i.start).date_naive())
+        .map(|i| i.span().map_or(i.day(), |(_, end)| end.date_naive()))
+        .chain(bases.iter().map(|b| b.to))
         .max();
     (start, end)
 }
 
-fn days(trip: &Trip, start: Option<NaiveDate>, end: Option<NaiveDate>) -> Vec<DayExport> {
+fn days(
+    trip: &Trip,
+    bases: &[crate::loader::ResolvedBase],
+    start: Option<NaiveDate>,
+    end: Option<NaiveDate>,
+) -> Vec<DayExport> {
     let (Some(start), Some(end)) = (start, end) else {
         return Vec::new();
     };
@@ -388,18 +527,33 @@ fn days(trip: &Trip, start: Option<NaiveDate>, end: Option<NaiveDate>) -> Vec<Da
             items: trip
                 .itinerary
                 .iter()
-                .filter(|i| i.start.date_naive() == date)
+                .filter(|i| i.day() == date)
                 .map(|i| i.id.clone())
                 .collect(),
             stays: trip
                 .itinerary
                 .iter()
                 .filter(|i| i.kind == ItemKind::Lodging)
-                .filter(|i| {
-                    let check_out = i.end.unwrap_or(i.start).date_naive();
-                    i.start.date_naive() <= date && date < check_out
+                .filter_map(|i| {
+                    let members: Vec<String> = trip
+                        .participants(i)
+                        .into_iter()
+                        .filter(|m| trip.sleeps_at(bases, i, m, date))
+                        .map(str::to_owned)
+                        .collect();
+                    (!members.is_empty()).then(|| Presence {
+                        id: i.id.clone(),
+                        members,
+                    })
                 })
-                .map(|i| i.id.clone())
+                .collect(),
+            bases: bases
+                .iter()
+                .filter(|b| b.from <= date && date <= b.to)
+                .map(|b| Presence {
+                    id: b.id.clone(),
+                    members: b.members.clone(),
+                })
                 .collect(),
         });
         date += Duration::days(1);

@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=../../../schema/trip.v1alpha1.json
-apiVersion: taac/v1alpha1
+# yaml-language-server: $schema=../../../schema/trip.v1alpha2.json
+apiVersion: taac/v1alpha2
 kind: Trip
 metadata:
   title: Lisbon Long Weekend
@@ -21,7 +21,10 @@ groups:
     name: Early birds
     emoji: 🌅
     members: [alex, sam]
+bases:
+  - { id: lisbon, title: Lisbon, place: lisbon, from: 2027-05-14, to: 2027-05-16 }
 places:
+  lisbon: { name: Lisbon, geo: [38.7223, -9.1393], category: city, radius: 12000 }
   lis: { name: Lisbon Airport (LIS), geo: [38.7742, -9.1342], category: airport }
   lgw: { name: London Gatwick (LGW), geo: [51.1537, -0.1821], category: airport }
   hotel: { name: Casa do Bairro, geo: [38.7105, -9.1466], category: hotel, address: 'Rua da Rosa 12, Lisboa' }
@@ -65,8 +68,8 @@ itinerary:
   - id: sunset
     kind: activity
     title: Sunset at the miradouro
-    start: 2027-05-14T19:30:00+01:00
-    end: 2027-05-14T21:00:00+01:00
+    date: 2027-05-14
+    part: evening
     places: [miradouro]
   - id: sintra
     kind: activity
@@ -94,6 +97,20 @@ itinerary:
     places: [lis, lgw]
     transport: { carrier: TAP Air Portugal, number: TP1338 }
     booking: { status: booked, reference: { secret: DEMO_PNR } }
+ideas:
+  - id: lx-factory
+    title: LX Factory market
+    area: lisbon
+    places: [{ name: LX Factory, geo: [38.7036, -9.1784], category: shopping }]
+    duration: halfDay
+    notes: Sunday market; bookshop in an old printing hall.
+  - id: fado
+    title: Fado night in Alfama
+    area: lisbon
+    priority: must
+    duration: hour
+    costs:
+      - { amount: 60, currency: EUR, paidBy: sam, estimate: true }
 packing:
   - category: Essentials
     items:

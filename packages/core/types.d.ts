@@ -12,9 +12,12 @@ export interface Diagnostic {
   item?: string
 }
 
+/** One string for every language, or one per language. */
+export type Text = string | Record<string, string>
+
 export interface SiteExport {
-  apiVersion: 'taac/v1alpha1'
-  site: { title: string; description?: string; passwordSecret?: string }
+  apiVersion: 'taac/v1alpha2'
+  site: { title: Text; description?: Text; passwordSecret?: string }
   trips: TripExport[]
   diagnostics: Diagnostic[]
 }
@@ -44,18 +47,74 @@ export interface Place {
   category?: string
   address?: string
   url?: string
+  /** Metres; set on areas. */
+  radius?: number
+}
+
+export type DayPart = 'morning' | 'afternoon' | 'evening'
+
+export interface Base {
+  id: string
+  title: string
+  place: string
+  from: ISODate
+  to: ISODate
+  nights: number
+  members: string[]
+  group?: string
+  notes?: string
+}
+
+export interface Cost {
+  amount: number
+  currency: string
+  baseAmount: number | null
+  paidBy: string
+  label?: string
+  estimate: boolean
+}
+
+export interface Booking {
+  status: BookingStatus
+  deadline?: ISODate
+  provider?: string
+  url?: string
+  hasReference: boolean
+}
+
+export interface Idea {
+  id: string
+  title: string
+  kind: ItemKind
+  area?: string
+  places: string[]
+  members: string[]
+  group?: string
+  priority: 'must' | 'maybe'
+  duration?: 'hour' | 'halfDay' | 'day'
+  booking?: Booking
+  costs: Cost[]
+  notes?: string
+  url?: string
+  tags: string[]
+}
+
+export interface Presence {
+  id: string
+  members: string[]
 }
 
 export interface Item {
   id: string
   kind: ItemKind
   title: string
-  start: ISODateTime
+  start?: ISODateTime
   end?: ISODateTime
   local: {
     date: ISODate
-    time: string
-    offset: string
+    time?: string
+    offset?: string
+    part?: DayPart
     endDate?: ISODate
     endTime?: string
     endOffset?: string
@@ -64,8 +123,8 @@ export interface Item {
   members: string[]
   group?: string
   transport?: { carrier?: string; number?: string }
-  booking: { status: BookingStatus; deadline?: ISODate; provider?: string; url?: string; hasReference: boolean }
-  costs: { amount: number; currency: string; baseAmount: number | null; paidBy: string; label?: string }[]
+  booking: Booking
+  costs: Cost[]
   contacts: { name: string; role?: string; hasPhone: boolean; hasEmail: boolean }[]
   notes?: string
   url?: string
@@ -80,6 +139,8 @@ export interface Amounts {
 export interface Budget {
   base: string
   total: Amounts
+  /** Estimated cost of ideas, in the base currency. */
+  possible: number
   byCurrency: Record<string, Amounts>
   byKind: Record<string, Amounts>
   members: { member: string; paid: Amounts; share: Amounts; balance: number }[]
@@ -92,6 +153,7 @@ export interface Budget {
     baseAmount: number
     paidBy: string
     committed: boolean
+    estimate: boolean
     shares: Record<string, number>
   }[]
 }
@@ -111,8 +173,11 @@ export interface TripExport {
   members: Member[]
   groups: Group[]
   places: Record<string, Place>
+  bases: Base[]
+  basesDerived: boolean
   items: Item[]
-  days: { date: ISODate; items: string[]; stays: string[] }[]
+  ideas: Idea[]
+  days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[] }[]
   budget: Budget
   packing: { category: string; items: { id: string; name: string; for: string[] }[] }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]

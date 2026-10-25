@@ -47,14 +47,26 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
     }
 
     let _ = writeln!(out, "## Itinerary\n");
+    let bases = trip.bases();
     let mut current = None;
     for item in &trip.itinerary {
-        let date = item.start.date_naive();
+        let date = item.day();
         if current != Some(date) {
             let _ = writeln!(out, "### {}\n", date.format("%a %-d %b %Y"));
+            let here: Vec<String> = bases
+                .iter()
+                .filter(|b| !b.derived && b.from <= date && date <= b.to)
+                .map(|b| b.title.clone())
+                .collect();
+            if !here.is_empty() {
+                let _ = writeln!(out, "📍 {}\n", here.join(" · "));
+            }
             current = Some(date);
         }
-        let time = item.start.format("%H:%M");
+        let time = item.start.map_or_else(
+            || item.part.map_or("—", |p| p.as_str()).to_owned(),
+            |s| s.format("%H:%M").to_string(),
+        );
         let until = item
             .end
             .map(|e| format!("–{}", e.format("%H:%M")))
@@ -82,6 +94,25 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
         }
     }
     out.push('\n');
+
+    if !trip.ideas.is_empty() {
+        let _ = writeln!(out, "## Ideas\n");
+        for idea in &trip.ideas {
+            let area = idea
+                .area
+                .as_ref()
+                .and_then(|a| trip.places.get(a))
+                .map(|p| format!(" — {}", p.name))
+                .unwrap_or_default();
+            let must = if idea.priority == crate::model::Priority::Must {
+                " ⭐"
+            } else {
+                ""
+            };
+            let _ = writeln!(out, "- [ ] {}{must}{area}", idea.title);
+        }
+        out.push('\n');
+    }
 
     let budget = budget::compute(trip);
     if !budget.lines.is_empty() {

@@ -58,7 +58,7 @@ pub fn generate(trip: &Trip) -> String {
         let _ = writeln!(
             out,
             "{} {flag} \"{}\"",
-            item.start.date_naive(),
+            item.day(),
             narration.replace('"', "'")
         );
         let _ = writeln!(out, "  item: \"{}\"", item.id);

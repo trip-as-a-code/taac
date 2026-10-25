@@ -1,4 +1,4 @@
-import type { BookingStatus, Item, ItemKind, Member, TripExport } from '@taac/core'
+import type { Base, BookingStatus, Idea, Item, ItemKind, Member, TripExport } from '@taac/core'
 import { marked } from 'marked'
 
 import type { IconName } from '@/components/Icon.astro'
@@ -111,14 +111,49 @@ export function escapeHtml(text: string): string {
 }
 
 /** Space-separated attribute tokens for client-side filtering. */
-export function filterTokens(trip: TripExport, item: Item): string {
-  const groups = trip.groups.filter((g) => g.members.some((m) => item.members.includes(m))).map((g) => `g:${g.id}`)
-  return [...item.members.map((m) => `m:${m}`), ...groups].join(' ')
+export function filterTokens(trip: TripExport, item: { members: string[] }): string {
+  return memberTokens(trip, item.members)
+}
+
+export function memberTokens(trip: TripExport, members: string[]): string {
+  const groups = trip.groups.filter((g) => g.members.some((m) => members.includes(m))).map((g) => `g:${g.id}`)
+  return [...members.map((m) => `m:${m}`), ...groups].join(' ')
+}
+
+export function baseById(trip: TripExport): Map<string, Base> {
+  return new Map(trip.bases.map((b) => [b.id, b]))
+}
+
+/** Ideas per area key ('' for ideas without one), in declaration order. */
+export function ideasByArea(trip: TripExport): Map<string, Idea[]> {
+  const out = new Map<string, Idea[]>()
+  for (const idea of trip.ideas) {
+    const key = idea.area ?? ''
+    out.set(key, [...(out.get(key) ?? []), idea])
+  }
+  return out
+}
+
+/** The group whose members match exactly, for labelling a base or stay. */
+export function groupFor(trip: TripExport, members: string[]) {
+  return trip.groups.find((g) => g.members.length === members.length && g.members.every((m) => members.includes(m)))
+}
+
+/** Route rows: one per group when groups go separate ways, else one. */
+export function routeRows(trip: TripExport): { label?: string; emoji?: string; bases: Base[] }[] {
+  const ordered = [...trip.bases].sort((a, b) => a.from.localeCompare(b.from))
+  const rows = trip.groups.map((g) => ({
+    label: g.name,
+    emoji: g.emoji,
+    bases: ordered.filter((b) => g.members.every((m) => b.members.includes(m))),
+  }))
+  const same = rows.every((r) => r.bases.map((b) => b.id).join() === rows[0]?.bases.map((b) => b.id).join())
+  return rows.length === 0 || same ? [{ bases: ordered }] : rows
 }
 
 /** The most common UTC offset among a trip's items — its "home" time. */
 export function homeOffset(trip: TripExport): string | undefined {
   const counts = new Map<string, number>()
-  for (const item of trip.items) counts.set(item.local.offset, (counts.get(item.local.offset) ?? 0) + 1)
+  for (const { local } of trip.items) if (local.offset) counts.set(local.offset, (counts.get(local.offset) ?? 0) + 1)
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
 }

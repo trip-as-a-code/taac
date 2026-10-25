@@ -20,6 +20,7 @@ import {
   splitLocale,
   type AccessManifest,
   type Scope,
+  localizedText,
 } from './access'
 import {
   calendarKey,
@@ -135,7 +136,7 @@ function loginPage(request: Request, url: URL, manifest: AccessManifest): Respon
   return html(
     renderLoginPage({
       lang,
-      title: trip?.title ?? manifest.title,
+      title: trip?.title ?? localizedText(manifest.title, lang),
       scope,
       next,
       error: url.searchParams.get('error') === '1',

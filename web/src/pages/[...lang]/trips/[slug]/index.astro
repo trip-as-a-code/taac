@@ -3,6 +3,7 @@ import Avatars from '@/components/Avatars.astro'
 import Icon, { type IconName } from '@/components/Icon.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import ProgressRing from '@/components/ProgressRing.astro'
+import RouteStrip from '@/components/RouteStrip.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { bookable, homeOffset, initials, memberHue } from '@/lib/trip'
@@ -79,6 +80,15 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       <span class="label footnote secondary">{t('trip.totalBudget')}</span>
     </a>
   </section>
+
+  {trip.bases.length > 0 && (
+    <section class="section">
+      <div class="section-header">
+        <h2>{t('trip.route')}</h2>
+      </div>
+      <RouteStrip trip={trip} i18n={i18n} />
+    </section>
+  )}
 
   <div class="columns">
     <section class="section">

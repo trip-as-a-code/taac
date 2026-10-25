@@ -11,7 +11,7 @@ const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t } = i18n
 const offset = homeOffset(trip)
 const byDeadline = (a: (typeof trip.items)[number], b: (typeof trip.items)[number]) =>
-  (a.booking.deadline ?? '9999').localeCompare(b.booking.deadline ?? '9999') || a.start.localeCompare(b.start)
+  (a.booking.deadline ?? '9999').localeCompare(b.booking.deadline ?? '9999') || a.local.date.localeCompare(b.local.date)
 const open = trip.items.filter((i) => i.booking.status === 'required').sort(byDeadline)
 const done = trip.items.filter((i) => i.booking.status === 'booked')
 const cancelled = trip.items.filter((i) => i.booking.status === 'cancelled')

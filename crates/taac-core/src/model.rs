@@ -1,4 +1,4 @@
-//! The `taac/v1alpha1` document model. Every type here is both the serde
+//! The `taac/v1alpha2` document model. Every type here is both the serde
 //! representation of the YAML and the source of the published JSON Schema.
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
@@ -7,17 +7,18 @@ use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const API_VERSION: &str = "taac/v1alpha1";
+pub const API_VERSION: &str = "taac/v1alpha2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 pub enum ApiVersion {
-    #[serde(rename = "taac/v1alpha1")]
-    V1Alpha1,
+    #[serde(rename = "taac/v1alpha2")]
+    V1Alpha2,
 }
 
 /// One YAML file of a trip. A trip is a single `kind: Trip` file, or a
 /// directory holding one `kind: Trip` file plus any number of `kind: TripPart`
-/// files whose places, itinerary, packing and overlays are merged into it.
+/// files whose bases, places, itinerary, ideas, packing and overlays are
+/// merged into it.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(title = "taac Trip")]
@@ -34,11 +35,17 @@ pub struct TripFile {
     /// Named subsets of members travelling together (tracks).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<Group>,
+    /// Where people are, day by day, whether or not anything is planned.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bases: Vec<Base>,
     /// Reusable places, referenced from items by key.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub places: IndexMap<String, Place>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub itinerary: Vec<Item>,
+    /// Unscheduled things to pick from on the spot.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ideas: Vec<Idea>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packing: Vec<PackingCategory>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -144,6 +151,119 @@ pub struct Place {
     pub address: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// Makes the place an area (a city, a valley) of this many metres around
+    /// `geo`; bases and ideas use areas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1))]
+    pub radius: Option<u32>,
+}
+
+/// A stretch of days spent in one area, by everyone or some of the members.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Base {
+    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    pub id: String,
+    pub title: String,
+    /// Key of an area in `places`.
+    pub place: String,
+    /// First night here.
+    #[schemars(with = "String", extend("format" = "date"))]
+    pub from: NaiveDate,
+    /// Last night here (inclusive).
+    #[schemars(with = "String", extend("format" = "date"))]
+    pub to: NaiveDate,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub members: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// Markdown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+/// Something worth doing, without a date: decided on the spot.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Idea {
+    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    pub id: String,
+    pub title: String,
+    #[serde(default = "default_idea_kind")]
+    pub kind: ItemKind,
+    /// Key of the area (in `places`) the idea belongs to; days spent in a base
+    /// on that area surface it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub area: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub places: Vec<PlaceRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub members: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub priority: Priority,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<IdeaDuration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub booking: Option<Booking>,
+    /// Usually `estimate: true`; counted as possible spend only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<Cost>,
+    /// Markdown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+}
+
+fn default_idea_kind() -> ItemKind {
+    ItemKind::Activity
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum Priority {
+    Must,
+    #[default]
+    Maybe,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum IdeaDuration {
+    Hour,
+    HalfDay,
+    Day,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum DayPart {
+    Morning,
+    Afternoon,
+    Evening,
+}
+
+impl DayPart {
+    /// Representative wall-clock minute, for ordering within a day.
+    pub fn minute(self) -> u32 {
+        match self {
+            Self::Morning => 9 * 60,
+            Self::Afternoon => 14 * 60,
+            Self::Evening => 19 * 60,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Morning => "morning",
+            Self::Afternoon => "afternoon",
+            Self::Evening => "evening",
+        }
+    }
 }
 
 /// A key into `places`, or a place declared inline.
@@ -161,12 +281,21 @@ pub struct Item {
     pub id: String,
     pub kind: ItemKind,
     pub title: String,
-    /// RFC 3339 with the local offset of where it happens.
-    #[schemars(with = "String", extend("format" = "date-time"))]
-    pub start: DateTime<FixedOffset>,
+    /// RFC 3339 with the local offset of where it happens. Set this, or
+    /// `date` for plans without a fixed time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date-time"))]
+    pub start: Option<DateTime<FixedOffset>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date-time"))]
     pub end: Option<DateTime<FixedOffset>>,
+    /// A day without a time; not for lodging or transport.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date"))]
+    pub date: Option<NaiveDate>,
+    /// Rough time of day for a `date`-only item.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<DayPart>,
     /// Ordered stops: origin → destination for transport, venues otherwise.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
@@ -190,6 +319,32 @@ pub struct Item {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+}
+
+impl Item {
+    /// The wall-clock day it happens on (in its own offset).
+    pub fn day(&self) -> NaiveDate {
+        self.start
+            .map(|s| s.date_naive())
+            .or(self.date)
+            .unwrap_or_default()
+    }
+
+    /// Orders items within and across days: day, then wall-clock minute.
+    pub fn sort_key(&self) -> (NaiveDate, u32) {
+        use chrono::Timelike;
+        let minute = match (self.start, self.part) {
+            (Some(start), _) => start.hour() * 60 + start.minute(),
+            (None, Some(part)) => part.minute(),
+            (None, None) => 12 * 60,
+        };
+        (self.day(), minute)
+    }
+
+    /// Both ends when the item has real times.
+    pub fn span(&self) -> Option<(DateTime<FixedOffset>, DateTime<FixedOffset>)> {
+        self.start.map(|start| (start, self.end.unwrap_or(start)))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, JsonSchema)]
@@ -310,6 +465,9 @@ pub struct Cost {
     pub split: Split,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// A guess rather than a quote.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub estimate: bool,
 }
 
 /// How a cost is shared among the item's participants.
@@ -444,9 +602,37 @@ pub enum SiteKind {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SiteMetadata {
-    pub title: String,
+    pub title: Text,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    pub description: Option<Text>,
+}
+
+/// Text shown in the interface: one string for every language, or one per
+/// language (`{ en: …, ru: … }`), falling back to English, then the first.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Text {
+    Plain(String),
+    Localized(IndexMap<String, String>),
+}
+
+impl Text {
+    pub fn get(&self, lang: &str) -> &str {
+        match self {
+            Self::Plain(text) => text,
+            Self::Localized(map) => map
+                .get(lang)
+                .or_else(|| map.get("en"))
+                .or_else(|| map.values().next())
+                .map_or("", String::as_str),
+        }
+    }
+}
+
+impl From<String> for Text {
+    fn from(text: String) -> Self {
+        Self::Plain(text)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]

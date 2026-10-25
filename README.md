@@ -3,7 +3,7 @@
 Declare trips in YAML, review them in pull requests, and publish them as a website, a calendar feed, a map and a
 shared ledger. The YAML is the single source of truth; everything else is generated from it.
 
-- **Schema** — `taac/v1alpha1` trip and site files with a published JSON Schema, so editors autocomplete and CI
+- **Schema** — `taac/v1alpha2` trip and site files with a published JSON Schema, so editors autocomplete and CI
   validates.
 - **CLI** — `taac validate | build | export | schema`, with readable errors that point at the offending line.
 - **Website** — a static Astro site for any number of trips: overview, day-by-day itinerary, map, bookings, budget and
@@ -28,8 +28,8 @@ changes.
 ## A trip
 
 ```yaml
-# yaml-language-server: $schema=../schema/trip.v1alpha1.json
-apiVersion: taac/v1alpha1
+# yaml-language-server: $schema=../schema/trip.v1alpha2.json
+apiVersion: taac/v1alpha2
 kind: Trip
 metadata:
   title: Lisbon Long Weekend
@@ -44,7 +44,10 @@ members:
   - { id: sam, name: Sam }
 groups:
   - { id: early, name: Early birds, emoji: 🌅, members: [alex] }
+bases: # where everyone is each night, planned or not
+  - { id: lisbon, title: Lisbon, place: lisbon, from: 2027-05-14, to: 2027-05-16 }
 places:
+  lisbon: { name: Lisbon, geo: [38.7223, -9.1393], radius: 12000 } # an area
   lgw: { name: London Gatwick, geo: [51.1537, -0.1821], category: airport }
   lis: { name: Lisbon Airport, geo: [38.7742, -9.1342], category: airport }
   castle: { name: Castelo de São Jorge, geo: [38.7139, -9.1335], category: historic }
@@ -70,26 +73,39 @@ itinerary:
     places: [castle]
     booking: { status: required, deadline: 2027-05-01 }
     notes: Markdown is **fine** here.
+  - id: sunset
+    kind: activity
+    title: Sunset at a miradouro
+    date: 2027-05-14 # no fixed time
+    part: evening # morning, afternoon, evening
+ideas: # not scheduled: picked on the spot, listed on the days you're in the area
+  - id: fado
+    title: Fado night in Alfama
+    area: lisbon
+    priority: must # or maybe (default)
+    duration: hour # hour, halfDay, day
+    costs: [{ amount: 60, currency: EUR, paidBy: sam, estimate: true }]
 packing:
   - category: Essentials
     items: [Passport, { name: Camera, for: [sam] }]
 ```
 
-A trip can also be a directory: one `kind: Trip` file plus any number of `kind: TripPart` files (places, itinerary
-chunks, packing) merged into it — fewer merge conflicts when several people edit at once. See
-[`examples/demo`](examples/demo) and the full schema in [`schema/`](schema).
+Without `bases`, they are derived from lodging. A trip can also be a directory: one `kind: Trip` file plus any number
+of `kind: TripPart` files (bases, places, itinerary chunks, ideas, packing) merged into it — fewer merge conflicts
+when several people edit at once. See [`examples/demo`](examples/demo) and the full schema in [`schema/`](schema).
 
 `taac validate` checks what the schema cannot: references, time zones, `end ≥ start`, per-person overlaps (people on
-different tracks don't clash), currencies with rates, splits that add up, and inline `${…}` that would leak.
+different tracks don't clash; a flat kept while away isn't slept in), overlapping bases, nights nobody accounted for,
+currencies with rates, splits that add up, and inline `${…}` that would leak.
 
 ## A site
 
 ```yaml
-# yaml-language-server: $schema=../schema/site.v1alpha1.json
-apiVersion: taac/v1alpha1
+# yaml-language-server: $schema=../schema/site.v1alpha2.json
+apiVersion: taac/v1alpha2
 kind: Site
 metadata:
-  title: Our trips
+  title: Our trips # or per language: { en: Our trips, ru: Наши поездки }
 access: # optional: password-protect the whole site
   password: { secret: SITE_PASSWORD }
 trips:

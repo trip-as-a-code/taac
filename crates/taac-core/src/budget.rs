@@ -13,6 +13,9 @@ use crate::model::{BookingStatus, Item, Split};
 pub struct Budget {
     pub base: String,
     pub total: Amounts,
+    /// Estimated cost of ideas, kept apart from plans.
+    #[serde(with = "rust_decimal::serde::float")]
+    pub possible: Decimal,
     pub by_currency: IndexMap<String, Amounts>,
     pub by_kind: IndexMap<String, Amounts>,
     pub members: Vec<MemberBalance>,
@@ -73,6 +76,7 @@ pub struct CostLine {
     pub base_amount: Decimal,
     pub paid_by: String,
     pub committed: bool,
+    pub estimate: bool,
     /// Base-currency share per member.
     #[serde(serialize_with = "float_map")]
     pub shares: IndexMap<String, Decimal>,
@@ -157,6 +161,7 @@ pub fn compute(trip: &Trip) -> Budget {
     let mut budget = Budget {
         base: base.clone(),
         total: Amounts::default(),
+        possible: Decimal::ZERO,
         by_currency: IndexMap::new(),
         by_kind: IndexMap::new(),
         members: trip
@@ -222,10 +227,23 @@ pub fn compute(trip: &Trip) -> Budget {
                 base_amount,
                 paid_by: cost.paid_by.clone(),
                 committed,
+                estimate: cost.estimate,
                 shares,
             });
         }
     }
+
+    budget.possible = trip
+        .ideas
+        .iter()
+        .flat_map(|idea| &idea.costs)
+        .filter_map(|c| {
+            trip.currency
+                .as_ref()
+                .and_then(|cur| cur.to_base(c.amount, &c.currency))
+        })
+        .map(round)
+        .sum();
 
     for balance in &mut budget.members {
         balance.balance = balance.paid.planned - balance.share.planned;

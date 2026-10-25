@@ -1,0 +1,154 @@
+---
+import FilterBar from '@/components/FilterBar.astro'
+import Icon from '@/components/Icon.astro'
+import IdeaRow from '@/components/IdeaRow.astro'
+import TripLayout from '@/layouts/TripLayout.astro'
+import { tripPage, tripPaths } from '@/lib/paths'
+import { ideasByArea, memberTokens } from '@/lib/trip'
+
+export const getStaticPaths = tripPaths
+
+const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+const { t, plural, dateRange } = i18n
+const areas = [...ideasByArea(trip).entries()].sort(([a], [b]) => {
+  // Areas in the order the trip visits them; ideas without one last.
+  const first = (key: string) => trip.bases.find((base) => base.place === key)?.from ?? (key ? '9998' : '9999')
+  return first(a).localeCompare(first(b))
+})
+const visits = (area: string) =>
+  trip.bases
+    .filter((b) => b.place === area)
+    .sort((a, b) => a.from.localeCompare(b.from))
+    .map((b) => ({ base: b, label: dateRange(b.from, b.to) }))
+---
+
+<TripLayout trip={trip} lang={lang} section="ideas">
+  <p class="lede secondary">{t('ideas.lede')}</p>
+  {trip.ideas.length === 0 ? (
+    <p class="card card-pad secondary">{t('ideas.none')}</p>
+  ) : (
+    <>
+      <div class="toolbar">
+        <FilterBar trip={trip} i18n={i18n} status={false} />
+        <div class="segmented" role="group" data-priority-filter>
+          <button type="button" data-value="" aria-pressed="true">
+            {t('filter.all')}
+          </button>
+          <button type="button" data-value="must" aria-pressed="false">
+            ★ {t('ideas.mustOnly')}
+          </button>
+        </div>
+      </div>
+      {areas.map(([area, ideas]) => {
+        const place = area ? trip.places[area] : undefined
+        return (
+          <section class="section area" id={`area-${area || 'anywhere'}`} data-day-section>
+            <div class="section-header">
+              <h2 lang={trip.locale}>{place?.name ?? t('ideas.anywhere')}</h2>
+              <span class="footnote secondary">{plural('ideas.count', ideas.length)}</span>
+            </div>
+            {area && visits(area).length > 0 && (
+              <ul class="visits">
+                {visits(area).map(({ base, label }) => (
+                  <li class="footnote" data-presence data-filter={memberTokens(trip, base.members)}>
+                    <Icon name="calendar" size={13} />
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div class="card list">
+              {ideas.map((idea) => (
+                <IdeaRow trip={trip} idea={idea} i18n={i18n} />
+              ))}
+            </div>
+          </section>
+        )
+      })}
+      <p class="empty secondary" data-filter-empty hidden>
+        {t('filter.empty')}
+      </p>
+    </>
+  )}
+</TripLayout>
+
+<script>
+  import { applyFilters, setupFilters, type FilterState } from '@/scripts/filters'
+
+  function setup() {
+    const priority = document.querySelector<HTMLElement>('[data-priority-filter]')
+    let mustOnly = false
+    let state: FilterState = { who: '', status: '' }
+    // The participant filter runs first; must-only narrows what it left.
+    const apply = () => {
+      applyFilters(state)
+      if (mustOnly)
+        for (const idea of document.querySelectorAll<HTMLElement>('[data-item]'))
+          if (idea.dataset.status !== 'must') idea.hidden = true
+      for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]'))
+        section.hidden = !section.querySelector('[data-item]:not([hidden])')
+      document
+        .querySelector<HTMLElement>('[data-filter-empty]')
+        ?.toggleAttribute('hidden', Boolean(document.querySelector('[data-item]:not([hidden])')))
+    }
+    setupFilters((next) => {
+      state = next
+      apply()
+    })
+    priority?.addEventListener('click', (event) => {
+      const button = (event.target as Element).closest('button')
+      if (!button) return
+      mustOnly = button.dataset.value === 'must'
+      for (const b of priority.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b === button))
+      apply()
+    })
+  }
+
+  document.addEventListener('astro:page-load', setup)
+</script>
+
+<style>
+  .lede {
+    max-width: 60ch;
+    margin-bottom: var(--space-5);
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .area {
+    margin-top: var(--space-8);
+    scroll-margin-top: calc(var(--nav-height) + 64px);
+  }
+
+  .visits {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -4px 0 var(--space-3);
+    padding: 0;
+  }
+
+  .visits li {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: var(--tint);
+    background: var(--tint-soft);
+  }
+
+  .list > :global(* + *) {
+    border-top: 0.5px solid var(--separator);
+  }
+
+  .empty {
+    padding: var(--space-12) 0;
+    text-align: center;
+  }
+</style>
