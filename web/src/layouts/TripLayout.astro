@@ -26,10 +26,10 @@ const base = `/trips/${trip.slug}`
 const sections: { id: Section; icon: IconName; href: string }[] = [
   { id: 'overview', icon: 'overview', href: path(`${base}/`) },
   { id: 'itinerary', icon: 'itinerary', href: path(`${base}/itinerary/`) },
-  { id: 'map', icon: 'map', href: path(`${base}/map/`) },
-  { id: 'bookings', icon: 'bookings', href: path(`${base}/bookings/`) },
   // Always there, even before the first idea: it explains what ideas are.
   { id: 'ideas', icon: 'sparkle', href: path(`${base}/ideas/`) },
+  { id: 'map', icon: 'map', href: path(`${base}/map/`) },
+  { id: 'bookings', icon: 'bookings', href: path(`${base}/bookings/`) },
   // Some things get bought before they can be packed: the budget comes last.
   { id: 'packing', icon: 'packing', href: path(`${base}/packing/`) },
   { id: 'budget', icon: 'budget', href: path(`${base}/budget/`) },
