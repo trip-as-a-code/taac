@@ -1,0 +1,25 @@
+# sharp 0.35.4 and undici 7.x reach us only through wrangler → miniflare,
+# the local `wrangler dev` simulator; neither ships in the deployed worker or
+# site. The fixes (miniflare pins sharp exactly; undici 7.30.1) are still
+# inside the 14-day dependency cooldown — drop these once Dependabot bumps
+# wrangler past them.
+
+[[IgnoredVulns]]
+id = "GHSA-4qv8-2p9j-2685"
+ignoreUntil = 2026-11-15
+reason = "undici EventSource DoS; dev-only via wrangler/miniflare."
+
+[[IgnoredVulns]]
+id = "GHSA-f72v-6w45-q472"
+ignoreUntil = 2026-11-15
+reason = "undici SRI bypass; dev-only via wrangler/miniflare."
+
+[[IgnoredVulns]]
+id = "GHSA-xjj6-f33q-929c"
+ignoreUntil = 2026-11-15
+reason = "undici content-encoding DoS; dev-only via wrangler/miniflare."
+
+[[IgnoredVulns]]
+id = "GHSA-wq5f-xc86-pv6w"
+ignoreUntil = 2026-11-15
+reason = "sharp/librsvg CVE-2026-96889; miniflare pins sharp 0.35.4, dev-only via wrangler. The site's own sharp (astro) is 0.35.5."

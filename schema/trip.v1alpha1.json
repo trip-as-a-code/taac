@@ -1,0 +1,725 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "taac Trip",
+  "description": "One YAML file of a trip. A trip is a single `kind: Trip` file, or a\ndirectory holding one `kind: Trip` file plus any number of `kind: TripPart`\nfiles whose places, itinerary, packing and overlays are merged into it.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "$ref": "#/$defs/ApiVersion"
+    },
+    "kind": {
+      "$ref": "#/$defs/TripKind"
+    },
+    "metadata": {
+      "description": "Required on `kind: Trip`, forbidden on `kind: TripPart`.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TripMetadata"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currency": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CurrencyConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Member"
+      }
+    },
+    "groups": {
+      "description": "Named subsets of members travelling together (tracks).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Group"
+      }
+    },
+    "places": {
+      "description": "Reusable places, referenced from items by key.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Place"
+      }
+    },
+    "itinerary": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Item"
+      }
+    },
+    "packing": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PackingCategory"
+      }
+    },
+    "map": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MapConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind"
+  ],
+  "$defs": {
+    "ApiVersion": {
+      "type": "string",
+      "enum": [
+        "taac/v1alpha1"
+      ]
+    },
+    "TripKind": {
+      "type": "string",
+      "enum": [
+        "Trip",
+        "TripPart"
+      ]
+    },
+    "TripMetadata": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "description": "URL slug; defaults to the trip's file or directory name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "locale": {
+          "description": "BCP 47 language of the trip's own text (titles, notes), e.g. `en`, `ru`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timezone": {
+          "description": "IANA time zone of the destination, e.g. `Asia/Tokyo`.",
+          "type": "string"
+        },
+        "cover": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cover"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "timezone"
+      ]
+    },
+    "Cover": {
+      "type": "object",
+      "properties": {
+        "emoji": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hue": {
+          "description": "Hue (0–360) of the generated cover gradient.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 360
+        }
+      },
+      "additionalProperties": false
+    },
+    "CurrencyConfig": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "description": "ISO 4217 code every amount is converted to for totals and settlements.",
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "rates": {
+          "description": "Value of one unit of each foreign currency in `base`, e.g. `JPY: 0.0061`.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "base"
+      ]
+    },
+    "Member": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "emoji": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Group": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "emoji": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "members"
+      ]
+    },
+    "Place": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "geo": {
+          "description": "`[latitude, longitude]`, WGS 84.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "category": {
+          "description": "Free-form; well-known values get dedicated icons: airport, station,\nhotel, ryokan, temple, shrine, garden, nature, museum, shopping,\nfood, historic, attraction, viewpoint, onsen.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "address": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "geo"
+      ]
+    },
+    "Item": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "kind": {
+          "$ref": "#/$defs/ItemKind"
+        },
+        "title": {
+          "type": "string"
+        },
+        "start": {
+          "description": "RFC 3339 with the local offset of where it happens.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "places": {
+          "description": "Ordered stops: origin → destination for transport, venues otherwise.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlaceRef"
+          }
+        },
+        "members": {
+          "description": "Participants; defaults to `group`'s members, else everyone.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "transport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Transport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "booking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Booking"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cost"
+          }
+        },
+        "contacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Contact"
+          }
+        },
+        "notes": {
+          "description": "Markdown.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "title",
+        "start"
+      ]
+    },
+    "ItemKind": {
+      "type": "string",
+      "enum": [
+        "flight",
+        "train",
+        "bus",
+        "ferry",
+        "transfer",
+        "lodging",
+        "activity",
+        "meal",
+        "note"
+      ]
+    },
+    "PlaceRef": {
+      "description": "A key into `places`, or a place declared inline.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/Place"
+        }
+      ]
+    },
+    "Transport": {
+      "type": "object",
+      "properties": {
+        "carrier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "number": {
+          "description": "Flight or train number, e.g. `AY61`, `Hikari 645`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Booking": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/BookingStatus"
+        },
+        "deadline": {
+          "description": "Book by this date.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reference": {
+          "description": "Confirmation number / PNR. Never published.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ]
+    },
+    "BookingStatus": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "booked",
+            "notRequired",
+            "cancelled"
+          ]
+        },
+        {
+          "description": "Needs a reservation that has not been made yet.",
+          "type": "string",
+          "const": "required"
+        }
+      ]
+    },
+    "Secret": {
+      "description": "A confidential value, resolved by name from `.env`, `secrets.yaml` or the\nenvironment. Only local builds run with `--reveal` ever see it.",
+      "type": "object",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "secret"
+      ]
+    },
+    "Cost": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "format": "double"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "paidBy": {
+          "type": "string"
+        },
+        "split": {
+          "$ref": "#/$defs/Split",
+          "default": "equal"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "amount",
+        "currency",
+        "paidBy"
+      ]
+    },
+    "Split": {
+      "description": "How a cost is shared among the item's participants.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SplitKeyword"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "shares": {
+              "description": "Proportional weights per member.",
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "required": [
+            "shares"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "exact": {
+              "description": "Exact amounts per member, in the cost's currency; must sum to it.",
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "required": [
+            "exact"
+          ]
+        }
+      ]
+    },
+    "SplitKeyword": {
+      "oneOf": [
+        {
+          "description": "Evenly among participants.",
+          "type": "string",
+          "const": "equal"
+        },
+        {
+          "description": "Borne by the payer alone.",
+          "type": "string",
+          "const": "personal"
+        }
+      ]
+    },
+    "Contact": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "email": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "PackingCategory": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PackingItem"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "items"
+      ]
+    },
+    "PackingItem": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "for": {
+              "description": "Who packs it; defaults to everyone.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      ]
+    },
+    "MapConfig": {
+      "type": "object",
+      "properties": {
+        "overlays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Overlay"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Overlay": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "file": {
+          "description": "`GeoJSON` file, relative to the trip directory.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "file"
+      ]
+    }
+  }
+}

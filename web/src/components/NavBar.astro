@@ -1,0 +1,213 @@
+---
+import Icon from '@/components/Icon.astro'
+import { locales, localeNames, switchLocalePath, useI18n, type Locale } from '@/i18n'
+import { site } from '@/lib/build'
+
+interface Props {
+  lang: Locale
+  title?: string
+  back?: { href: string; label: string }
+}
+
+const { lang, title, back } = Astro.props
+const { t, path } = useI18n(lang)
+const pathname = Astro.url.pathname
+---
+
+<header class="nav">
+  <div class="nav-inner">
+    <div class="nav-leading">
+      {back ? (
+        <a class="nav-back" href={back.href}>
+          <Icon name="chevronLeft" size={22} />
+          <span>{back.label}</span>
+        </a>
+      ) : (
+        <a class="nav-brand" href={path('/')}>
+          <img src="/favicon.svg" alt="" width="22" height="22" />
+          <span>{site.site.title}</span>
+        </a>
+      )}
+    </div>
+    <div class="nav-title" aria-hidden="true">
+      {title}
+    </div>
+    <div class="nav-trailing">
+      <nav class="lang" aria-label={t('nav.language')}>
+        {locales.map((l) => (
+          <a
+            href={switchLocalePath(pathname, l)}
+            hreflang={l}
+            lang={l}
+            data-set-lang={l}
+            aria-current={l === lang ? 'true' : undefined}
+            title={localeNames[l]}
+          >
+            {l.toUpperCase()}
+          </a>
+        ))}
+      </nav>
+      <form class="logout" method="post" action="/api/logout">
+        <button class="nav-icon-button" type="submit" title={t('nav.logout')}>
+          <Icon name="logout" size={19} />
+          <span class="visually-hidden">{t('nav.logout')}</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</header>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: calc(var(--nav-height) + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    background: var(--material);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 0.5px solid transparent;
+    transition: border-color var(--duration) var(--ease);
+  }
+
+  :global(html[data-scrolled]) .nav {
+    border-bottom-color: var(--separator);
+  }
+
+  .nav-inner {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--space-3);
+    height: var(--nav-height);
+    max-width: calc(var(--content) + 2 * var(--gutter));
+    margin-inline: auto;
+    padding-inline: var(--gutter);
+  }
+
+  .nav-leading {
+    min-width: 0;
+  }
+
+  .nav-brand,
+  .nav-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--label);
+    text-decoration: none;
+  }
+
+  .nav-brand span,
+  .nav-back span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav-brand img {
+    border-radius: 6px;
+  }
+
+  .nav-back {
+    color: var(--tint);
+    font-weight: 400;
+    margin-left: -6px;
+  }
+
+  .nav-back:hover,
+  .nav-brand:hover {
+    text-decoration: none;
+    opacity: 0.8;
+  }
+
+  .nav-title {
+    max-width: min(46vw, 420px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+      opacity var(--duration) var(--ease),
+      transform var(--duration) var(--ease);
+  }
+
+  :global(html[data-title-hidden]) .nav-title {
+    opacity: 1;
+    transform: none;
+  }
+
+  .nav-trailing {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  .lang {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 999px;
+    background: var(--fill);
+  }
+
+  .lang a {
+    min-width: 34px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-align: center;
+    color: var(--label-secondary);
+    text-decoration: none;
+  }
+
+  .lang a[aria-current] {
+    background: var(--bg-elevated);
+    color: var(--label);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .logout {
+    display: none;
+    margin: 0;
+  }
+
+  :global(html[data-auth]) .logout {
+    display: block;
+  }
+
+  .nav-icon-button {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--tint);
+    cursor: pointer;
+  }
+
+  .nav-icon-button:hover {
+    background: var(--tint-soft);
+  }
+
+  @media (max-width: 560px) {
+    .nav-title {
+      display: none;
+    }
+
+    .nav-inner {
+      grid-template-columns: 1fr auto;
+    }
+  }
+</style>

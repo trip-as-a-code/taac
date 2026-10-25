@@ -1,0 +1,59 @@
+---
+import TripCard from '@/components/TripCard.astro'
+import { langParams, localeFromParam, useI18n } from '@/i18n'
+import BaseLayout from '@/layouts/BaseLayout.astro'
+import { site } from '@/lib/build'
+
+export function getStaticPaths() {
+  return langParams().map((params) => ({ params }))
+}
+
+const lang = localeFromParam(Astro.params.lang)
+const i18n = useI18n(lang)
+const { t } = i18n
+// Trip-only passwords: the card stays, its details don't.
+const trips = [...site.trips].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''))
+---
+
+<BaseLayout lang={lang} description={site.site.description} navTitle={t('site.trips')}>
+  <div class="container">
+    <header class="hero">
+      <h1 class="large-title" data-large-title>
+        {t('site.trips')}
+      </h1>
+      {site.site.description && <p class="title-3 secondary lede">{site.site.description}</p>}
+    </header>
+    {trips.length === 0 ? (
+      <p class="secondary empty">{t('site.empty')}</p>
+    ) : (
+      <div class="grid">
+        {trips.map((trip) => (
+          <TripCard trip={trip} i18n={i18n} locked={Boolean(trip.passwordSecret)} />
+        ))}
+      </div>
+    )}
+  </div>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding-block: var(--space-12) var(--space-8);
+  }
+
+  .lede {
+    margin-top: var(--space-3);
+    font-weight: 400;
+    max-width: 40ch;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: var(--space-6);
+  }
+
+  .empty {
+    padding: var(--space-12) 0;
+    text-align: center;
+  }
+</style>

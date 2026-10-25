@@ -1,0 +1,228 @@
+---
+import FilterBar from '@/components/FilterBar.astro'
+import TripLayout from '@/layouts/TripLayout.astro'
+import { tripPage, tripPaths } from '@/lib/paths'
+import { memberName } from '@/lib/trip'
+
+export const getStaticPaths = tripPaths
+
+const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+const { t } = i18n
+const total = trip.packing.reduce((n, c) => n + c.items.length, 0)
+const tokens = (forMembers: string[]) => {
+  const members = forMembers.length ? forMembers : trip.members.map((m) => m.id)
+  const groups = trip.groups.filter((g) => g.members.some((m) => members.includes(m))).map((g) => `g:${g.id}`)
+  return [...members.map((m) => `m:${m}`), ...groups].join(' ')
+}
+---
+
+<TripLayout trip={trip} lang={lang} section="packing">
+  {total === 0 ? (
+    <p class="card card-pad secondary">{t('packing.none')}</p>
+  ) : (
+    <div data-packing={trip.slug} data-template={t('packing.progress')}>
+      <section class="head">
+        <div class="progress">
+          <span class="title-3 tabular" data-packing-count>
+            {t('packing.progress', { done: 0, total })}
+          </span>
+          <div class="bar">
+            <span data-packing-bar />
+          </div>
+        </div>
+        <button class="button" type="button" data-packing-reset>
+          {t('packing.reset')}
+        </button>
+      </section>
+      <div class="toolbar">
+        <FilterBar trip={trip} i18n={i18n} status={false} />
+      </div>
+      <div class="categories">
+        {trip.packing.map((category) => (
+          <section class="category" data-day-section>
+            <h2 class="headline" lang={trip.locale}>
+              {category.category}
+            </h2>
+            <ul class="card list">
+              {category.items.map((item) => (
+                <li data-item data-filter={tokens(item.for)} data-status="">
+                  <label class="row check">
+                    <input type="checkbox" data-packing-item={item.id} />
+                    <span class="box" aria-hidden="true" />
+                    <span class="text">
+                      <span class="subhead" lang={trip.locale}>
+                        {item.name}
+                      </span>
+                      {item.for.length > 0 && (
+                        <span class="footnote secondary">
+                          {t('packing.forOnly', { names: item.for.map((m) => memberName(trip, m)).join(', ') })}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      <p class="footnote tertiary hint">{t('packing.hint')}</p>
+    </div>
+  )}
+</TripLayout>
+
+<script>
+  import { setupFilters } from '@/scripts/filters'
+
+  function setup() {
+    const root = document.querySelector<HTMLElement>('[data-packing]')
+    if (!root) return
+    const key = `taac:packing:${root.dataset.packing}`
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('[data-packing-item]')]
+    let checked: Record<string, boolean> = {}
+    try {
+      checked = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, boolean>
+    } catch {
+      checked = {}
+    }
+    const save = () => {
+      try {
+        localStorage.setItem(key, JSON.stringify(checked))
+      } catch {
+        // Ticks are a convenience; losing them is fine.
+      }
+    }
+    const render = () => {
+      const visible = boxes.filter((b) => !b.closest<HTMLElement>('[data-item]')!.hidden)
+      const done = visible.filter((b) => b.checked).length
+      root.querySelector('[data-packing-count]')!.textContent = root.dataset
+        .template!.replace('{done}', String(done))
+        .replace('{total}', String(visible.length))
+      root.querySelector<HTMLElement>('[data-packing-bar]')!.style.width =
+        `${visible.length ? (done / visible.length) * 100 : 0}%`
+    }
+    for (const box of boxes) {
+      box.checked = Boolean(checked[box.dataset.packingItem!])
+      box.addEventListener('change', () => {
+        checked[box.dataset.packingItem!] = box.checked
+        save()
+        render()
+      })
+    }
+    root.querySelector('[data-packing-reset]')?.addEventListener('click', () => {
+      checked = {}
+      for (const box of boxes) box.checked = false
+      save()
+      render()
+    })
+    setupFilters(() => render())
+    render()
+  }
+
+  document.addEventListener('astro:page-load', setup)
+</script>
+
+<style>
+  .head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .progress {
+    display: grid;
+    gap: var(--space-2);
+    flex: 1;
+    max-width: 420px;
+  }
+
+  .bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--fill);
+    overflow: hidden;
+  }
+
+  .bar span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--tint);
+    transition: width 400ms var(--ease-out);
+  }
+
+  .toolbar {
+    margin-top: var(--space-5);
+  }
+
+  .categories {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    gap: var(--space-6);
+    margin-top: var(--space-6);
+    align-items: start;
+  }
+
+  .category h2 {
+    margin: 0 0 var(--space-2) var(--space-4);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--label-secondary);
+  }
+
+  .check {
+    position: relative;
+    cursor: pointer;
+    align-items: flex-start;
+  }
+
+  .check input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .box {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border-radius: 50%;
+    border: 1.5px solid var(--separator-strong);
+    transition:
+      background var(--duration) var(--ease),
+      border-color var(--duration) var(--ease);
+  }
+
+  .check input:checked + .box {
+    border-color: var(--tint);
+    background: var(--tint)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E")
+      center / 14px no-repeat;
+  }
+
+  .check input:focus-visible + .box {
+    outline: 3px solid color-mix(in srgb, var(--tint) 55%, transparent);
+    outline-offset: 2px;
+  }
+
+  .text {
+    display: grid;
+    gap: 2px;
+  }
+
+  .check input:checked ~ .text .subhead {
+    color: var(--label-tertiary);
+    text-decoration: line-through;
+    text-decoration-color: var(--separator-strong);
+  }
+
+  .hint {
+    margin-top: var(--space-6);
+    text-align: center;
+  }
+</style>

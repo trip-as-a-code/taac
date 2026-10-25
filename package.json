@@ -1,0 +1,37 @@
+{
+  "name": "taac",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Trip as a Code: trips declared in YAML, compiled into calendars, maps, ledgers and a website",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "web",
+    "worker"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "eslint-plugin-astro": "3.2.1",
+    "globals": "17.13.0",
+    "prettier": "3.9.9",
+    "prettier-plugin-astro": "1.1.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.3"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "workerd": true
+  }
+}

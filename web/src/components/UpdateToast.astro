@@ -1,0 +1,43 @@
+---
+import { useI18n, type Locale } from '@/i18n'
+
+const { lang } = Astro.props as { lang: Locale }
+const { t } = useI18n(lang)
+---
+
+<div class="toast" role="status" data-update-toast hidden>
+  <span>{t('update.available')}</span>
+  <button class="button button-primary" type="button" data-update-reload>
+    {t('update.reload')}
+  </button>
+</div>
+
+<style>
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    padding: 10px 10px 10px 20px;
+    border-radius: 999px;
+    font-size: 15px;
+    background: var(--material-thick);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-50%);
+    animation: rise 420ms var(--ease-out);
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 16px);
+    }
+  }
+</style>

@@ -1,0 +1,115 @@
+version: '3'
+
+vars:
+  # Site the web build renders; the root Taskfile points it at the instance.
+  TAAC_SITE: '{{.TAAC_SITE | default (printf "%s/examples/demo/site.yaml" .TASKFILE_DIR)}}'
+
+env:
+  TAAC_SITE: '{{.TAAC_SITE}}'
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  install:
+    desc: Install Node dependencies
+    cmds:
+      - npm ci
+
+  wasm:
+    desc: Build the Rust core to WebAssembly into packages/core/pkg
+    sources:
+      - Cargo.toml
+      - Cargo.lock
+      - crates/**/*.rs
+      - crates/**/Cargo.toml
+    generates:
+      - packages/core/pkg/taac_bg.wasm
+    cmds:
+      - cargo build -p taac-wasm --target wasm32-unknown-unknown --release
+      - wasm-bindgen --target web --out-dir packages/core/pkg --out-name taac target/wasm32-unknown-unknown/release/taac_wasm.wasm
+
+  cli:
+    desc: Build the taac CLI (release)
+    cmds:
+      - cargo build --release -p taac-cli
+
+  schema:
+    desc: Regenerate the JSON Schemas in schema/
+    cmds:
+      - cargo run -q -p taac-cli -- schema --out schema
+
+  schema:check:
+    desc: Fail if the committed JSON Schemas are stale
+    cmds:
+      - task: schema
+      - git diff --exit-code -- schema
+
+  rust:fmt:
+    desc: Check Rust formatting
+    cmds:
+      - cargo fmt --all -- --check
+
+  rust:lint:
+    desc: Lint Rust with clippy (warnings are errors)
+    cmds:
+      - cargo clippy --all-targets --locked -- -D warnings
+
+  rust:test:
+    desc: Run the Rust test suite
+    cmds:
+      - cargo test --locked
+
+  web:dev:
+    desc: Run the website in development mode against TAAC_SITE
+    deps: [wasm]
+    cmds:
+      - npm run dev -w @taac/web
+
+  web:build:
+    desc: Build the static website for TAAC_SITE into web/dist
+    deps: [wasm]
+    cmds:
+      - npm run build -w @taac/web
+
+  web:check:
+    desc: Type-check the website (astro check)
+    deps: [wasm]
+    cmds:
+      - npm run typecheck -w @taac/web
+
+  worker:check:
+    desc: Type-check the worker
+    cmds:
+      - npm run typecheck -w @taac/worker
+
+  lint:
+    desc: Lint TypeScript, JavaScript and Astro with eslint
+    cmds:
+      - npm run lint
+
+  test:
+    desc: Run the Rust and TypeScript test suites
+    cmds:
+      - task: rust:test
+      - npx vitest run
+
+  build:
+    desc: Build the website
+    cmds:
+      - task: web:build
+
+  verify:
+    desc: The full CI mirror — format, lint, tests, schemas, type checks, build
+    cmds:
+      - task: rust:fmt
+      - task: rust:lint
+      - task: rust:test
+      - task: schema:check
+      - task: lint
+      - task: web:check
+      - task: worker:check
+      - npx vitest run
+      - task: build

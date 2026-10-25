@@ -1,0 +1,146 @@
+---
+import FilterBar from '@/components/FilterBar.astro'
+import ItemRow from '@/components/ItemRow.astro'
+import TripLayout from '@/layouts/TripLayout.astro'
+import { tripPage, tripPaths } from '@/lib/paths'
+import { bookable, homeOffset } from '@/lib/trip'
+
+export const getStaticPaths = tripPaths
+
+const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+const { t } = i18n
+const offset = homeOffset(trip)
+const byDeadline = (a: (typeof trip.items)[number], b: (typeof trip.items)[number]) =>
+  (a.booking.deadline ?? '9999').localeCompare(b.booking.deadline ?? '9999') || a.start.localeCompare(b.start)
+const open = trip.items.filter((i) => i.booking.status === 'required').sort(byDeadline)
+const done = trip.items.filter((i) => i.booking.status === 'booked')
+const cancelled = trip.items.filter((i) => i.booking.status === 'cancelled')
+const total = bookable(trip).length
+const ratio = total ? done.length / total : 1
+---
+
+<TripLayout trip={trip} lang={lang} section="bookings">
+  {total === 0 ? (
+    <p class="card card-pad secondary">{t('bookings.none')}</p>
+  ) : (
+    <>
+      <section class="progress card card-pad">
+        <div class="progress-head">
+          <span class="title-2 tabular">{Math.round(ratio * 100)}%</span>
+          <span class="subhead secondary">{t('bookings.progress', { done: done.length, total })}</span>
+        </div>
+        <div class="bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done.length}>
+          <span style={`width:${ratio * 100}%`} />
+        </div>
+      </section>
+
+      <div class="toolbar">
+        <FilterBar trip={trip} i18n={i18n} status={false} />
+      </div>
+
+      {open.length > 0 && (
+        <section class="section">
+          <div class="section-header">
+            <h2>{t('bookings.open')}</h2>
+            <span class="badge" data-tone="orange">
+              {open.length}
+            </span>
+          </div>
+          <div class="card list">
+            {open.map((item) => (
+              <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {done.length > 0 && (
+        <section class="section">
+          <div class="section-header">
+            <h2>{t('bookings.done')}</h2>
+            <span class="badge" data-tone="green">
+              {done.length}
+            </span>
+          </div>
+          <div class="card list">
+            {done.map((item) => (
+              <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {cancelled.length > 0 && (
+        <section class="section">
+          <div class="section-header">
+            <h2>{t('bookings.cancelled')}</h2>
+          </div>
+          <div class="card list">
+            {cancelled.map((item) => (
+              <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} />
+            ))}
+          </div>
+        </section>
+      )}
+      <p class="empty secondary" data-filter-empty hidden>
+        {t('filter.empty')}
+      </p>
+    </>
+  )}
+</TripLayout>
+
+<script>
+  import { setupFilters } from '@/scripts/filters'
+
+  document.addEventListener('astro:page-load', () => {
+    setupFilters()
+    for (const section of document.querySelectorAll<HTMLElement>('.section')) {
+      section.hidden = !section.querySelector('[data-item]:not([hidden])')
+    }
+  })
+</script>
+
+<style>
+  .progress {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .progress-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+  }
+
+  .bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--fill);
+    overflow: hidden;
+  }
+
+  .bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--green), color-mix(in srgb, var(--green) 70%, var(--teal)));
+    transition: width 600ms var(--ease-out);
+  }
+
+  .toolbar {
+    margin-top: var(--space-6);
+  }
+
+  .section {
+    margin-top: var(--space-6);
+  }
+
+  .list > :global(* + *) {
+    border-top: 0.5px solid var(--separator);
+  }
+
+  .empty {
+    padding: var(--space-12) 0;
+    text-align: center;
+  }
+</style>

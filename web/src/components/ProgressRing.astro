@@ -1,0 +1,27 @@
+---
+interface Props {
+  value: number
+  total: number
+  size?: number
+}
+
+const { value, total, size = 22 } = Astro.props
+const ratio = total > 0 ? value / total : 1
+const r = 9
+const circumference = 2 * Math.PI * r
+---
+
+<svg class="ring" width={size} height={size} viewBox="0 0 22 22" aria-hidden="true">
+  <circle cx="11" cy="11" r={r} fill="none" stroke="currentColor" stroke-opacity="0.18" stroke-width="3"></circle>
+  <circle
+    cx="11"
+    cy="11"
+    r={r}
+    fill="none"
+    stroke="currentColor"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-dasharray={`${circumference * ratio} ${circumference}`}
+    transform="rotate(-90 11 11)"
+  ></circle>
+</svg>

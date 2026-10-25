@@ -1,0 +1,50 @@
+---
+import Icon from '@/components/Icon.astro'
+import { useI18n } from '@/i18n'
+import BaseLayout from '@/layouts/BaseLayout.astro'
+
+// One static 404 for every locale; the copy is short enough to show both.
+const en = useI18n('en')
+const ru = useI18n('ru')
+---
+
+<BaseLayout lang="en" title={en.t('notFound.title')}>
+  <div class="container not-found">
+    <span class="glyph">
+      <Icon name="map" size={34} />
+    </span>
+    <h1 class="title-2">{en.t('notFound.title')}</h1>
+    <p class="secondary">{en.t('notFound.body')}</p>
+    <p class="secondary" lang="ru">
+      {ru.t('notFound.body')}
+    </p>
+    <a class="button button-primary" href="/">
+      {en.t('notFound.back')}
+    </a>
+  </div>
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-3);
+    padding-block: var(--space-16);
+    text-align: center;
+  }
+
+  .glyph {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    margin-bottom: var(--space-3);
+    border-radius: 22px;
+    color: var(--tint);
+    background: var(--tint-soft);
+  }
+
+  .button {
+    margin-top: var(--space-4);
+  }
+</style>

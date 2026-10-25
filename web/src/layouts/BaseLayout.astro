@@ -1,0 +1,101 @@
+---
+import { ClientRouter } from 'astro:transitions'
+
+import NavBar from '@/components/NavBar.astro'
+import UpdateToast from '@/components/UpdateToast.astro'
+import { localeFromParam, type Locale } from '@/i18n'
+import { buildId, site } from '@/lib/build'
+import '@/styles/global.css'
+
+interface Props {
+  lang: Locale
+  title?: string
+  description?: string
+  /** Shown centred in the navigation bar once the large title scrolls away. */
+  navTitle?: string
+  back?: { href: string; label: string }
+  /** Language of the trip's own text, when it differs from the UI. */
+  contentLang?: string
+  wide?: boolean
+}
+
+const { lang = localeFromParam(undefined), title, description, navTitle, back, wide } = Astro.props
+const pageTitle = title ? `${title} · ${site.site.title}` : site.site.title
+---
+
+<!doctype html>
+<html lang={lang} data-build={buildId}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{pageTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="generator" content={Astro.generator} />
+    <script is:inline>
+      // Without the edge worker (plain `astro dev`/static hosting) honour a
+      // remembered language here; the worker redirects before HTML loads.
+      ;(() => {
+        try {
+          const saved = document.cookie.match(/(?:^|; )taac_lang=(\w+)/)?.[1] ?? localStorage.getItem('taac_lang')
+          const path = location.pathname
+          const prefixed = /^\/ru(\/|$)/.test(path)
+          if (saved === 'ru' && !prefixed && document.documentElement.lang === 'en')
+            location.replace('/ru' + (path === '/' ? '/' : path) + location.search + location.hash)
+        } catch {
+          // Storage or cookies blocked: stay on the default locale.
+        }
+      })()
+    </script>
+    <ClientRouter fallback="swap" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      {lang === 'ru' ? 'Перейти к содержимому' : 'Skip to content'}
+    </a>
+    <NavBar lang={lang} title={navTitle} back={back} />
+    <main id="main" class:list={{ wide }}>
+      <slot />
+    </main>
+    <UpdateToast lang={lang} />
+  </body>
+</html>
+
+<script>
+  import { setupPage } from '@/scripts/page'
+
+  document.addEventListener('astro:page-load', setupPage)
+</script>
+
+<style>
+  .skip-link {
+    position: absolute;
+    left: 12px;
+    top: -60px;
+    z-index: 100;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--tint);
+    color: white;
+    transition: top var(--duration) var(--ease);
+  }
+
+  .skip-link:focus {
+    top: 10px;
+  }
+
+  main {
+    padding-bottom: calc(var(--space-16) + env(safe-area-inset-bottom));
+  }
+
+  main.wide {
+    padding-bottom: 0;
+  }
+</style>

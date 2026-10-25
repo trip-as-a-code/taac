@@ -1,0 +1,52 @@
+---
+import type { TripExport } from '@taac/core'
+
+import type { I18n } from '@/i18n'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+  status?: boolean
+}
+
+const { trip, i18n, status = true } = Astro.props
+const { t } = i18n
+const who = [
+  { value: '', label: t('trip.everyone') },
+  ...trip.groups.map((g) => ({ value: `g:${g.id}`, label: `${g.emoji ? g.emoji + ' ' : ''}${g.name}` })),
+  ...(trip.members.length > 1 ? trip.members.map((m) => ({ value: `m:${m.id}`, label: m.name })) : []),
+]
+---
+
+<div class="filters" data-filters data-trip={trip.slug}>
+  {who.length > 1 && (
+    <div class="segmented" role="group" aria-label={t('filter.who')} data-filter-group="who">
+      {who.map((w) => (
+        <button type="button" data-value={w.value} aria-pressed={w.value === '' ? 'true' : 'false'}>
+          {w.label}
+        </button>
+      ))}
+    </div>
+  )}
+  {status && (
+    <div class="segmented" role="group" aria-label={t('filter.status')} data-filter-group="status">
+      <button type="button" data-value="" aria-pressed="true">
+        {t('filter.all')}
+      </button>
+      <button type="button" data-value="required" aria-pressed="false">
+        {t('filter.toBook')}
+      </button>
+      <button type="button" data-value="booked" aria-pressed="false">
+        {t('filter.booked')}
+      </button>
+    </div>
+  )}
+</div>
+
+<style>
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+  }
+</style>

@@ -1,0 +1,25 @@
+{
+  "name": "@taac/core",
+  "version": "0.1.0",
+  "description": "Trip as a Code core (Rust → WebAssembly): load, validate and export trips",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./types": {
+      "types": "./types.d.ts"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "types.d.ts",
+    "pkg/"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

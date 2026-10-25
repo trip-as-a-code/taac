@@ -1,0 +1,10 @@
+target/
+dist/
+node_modules/
+packages/core/pkg/
+web/.astro/
+schema/
+.changes/
+CHANGELOG.md
+package-lock.json
+examples/**/overlays/

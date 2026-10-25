@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../schema/site.v1alpha1.json
+apiVersion: taac/v1alpha1
+kind: Site
+metadata:
+  title: Demo trips
+  description: A sample taac site. Replace the trips with your own.
+trips:
+  - path: trips/lisbon.yaml

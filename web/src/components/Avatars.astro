@@ -1,0 +1,37 @@
+---
+import type { Member } from '@taac/core'
+
+import { initials, memberHue } from '@/lib/trip'
+
+interface Props {
+  members: Member[]
+  size?: number
+  max?: number
+}
+
+const { members, size = 28, max = 5 } = Astro.props
+const shown = members.slice(0, max)
+const rest = members.length - shown.length
+---
+
+<span class="avatars" style={`--size:${size}px`}>
+  {shown.map((m) => (
+    <span class="avatar" style={`--hue:${memberHue(m.id)}`} title={m.name}>
+      {initials(m)}
+    </span>
+  ))}
+  {rest > 0 && <span class="avatar more">+{rest}</span>}
+</span>
+
+<style>
+  .avatars .avatar {
+    width: var(--size);
+    height: var(--size);
+    font-size: calc(var(--size) * 0.42);
+  }
+
+  .more {
+    background: var(--fill-strong);
+    color: var(--label);
+  }
+</style>

@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "taac Site",
+  "description": "The deployment: which trips it serves and who may see them.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "$ref": "#/$defs/ApiVersion"
+    },
+    "kind": {
+      "$ref": "#/$defs/SiteKind"
+    },
+    "metadata": {
+      "$ref": "#/$defs/SiteMetadata"
+    },
+    "trips": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SiteTrip"
+      }
+    },
+    "access": {
+      "description": "Password-protects the whole site.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Access"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "trips"
+  ],
+  "$defs": {
+    "ApiVersion": {
+      "type": "string",
+      "enum": [
+        "taac/v1alpha1"
+      ]
+    },
+    "SiteKind": {
+      "type": "string",
+      "enum": [
+        "Site"
+      ]
+    },
+    "SiteMetadata": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "title"
+      ]
+    },
+    "SiteTrip": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Trip file or directory, relative to the site file.",
+          "type": "string"
+        },
+        "access": {
+          "description": "Password-protects this trip only.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Access"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ]
+    },
+    "Access": {
+      "type": "object",
+      "properties": {
+        "password": {
+          "description": "Worker secret holding the password.",
+          "$ref": "#/$defs/Secret"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "password"
+      ]
+    },
+    "Secret": {
+      "description": "A confidential value, resolved by name from `.env`, `secrets.yaml` or the\nenvironment. Only local builds run with `--reveal` ever see it.",
+      "type": "object",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "secret"
+      ]
+    }
+  }
+}

@@ -1,0 +1,412 @@
+---
+import Avatars from '@/components/Avatars.astro'
+import Icon, { type IconName } from '@/components/Icon.astro'
+import ItemRow from '@/components/ItemRow.astro'
+import ProgressRing from '@/components/ProgressRing.astro'
+import TripLayout from '@/layouts/TripLayout.astro'
+import { tripPage, tripPaths } from '@/lib/paths'
+import { bookable, homeOffset, initials, memberHue } from '@/lib/trip'
+
+export const getStaticPaths = tripPaths
+
+const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+const { t, plural, money, path, number } = i18n
+const base = `/trips/${trip.slug}`
+const toBook = trip.items
+  .filter((i) => i.booking.status === 'required')
+  .sort((a, b) => (a.booking.deadline ?? '9999').localeCompare(b.booking.deadline ?? '9999'))
+const needsBooking = bookable(trip)
+const booked = needsBooking.filter((i) => i.booking.status === 'booked').length
+const placeCount = new Set(trip.items.flatMap((i) => i.places)).size
+const currency = trip.currency?.base ?? 'EUR'
+const offset = homeOffset(trip)
+
+const downloads: { icon: IconName; label: string; href: string; file: string }[] = [
+  { icon: 'calendar', label: t('trip.downloadIcs'), href: `${base}/calendar.ics`, file: `${trip.slug}.ics` },
+  { icon: 'map', label: t('trip.downloadGeojson'), href: `${base}/map.geojson`, file: `${trip.slug}.geojson` },
+  {
+    icon: 'wallet',
+    label: t('trip.downloadBeancount'),
+    href: `${base}/budget.beancount`,
+    file: `${trip.slug}.beancount`,
+  },
+  { icon: 'note', label: t('trip.downloadMarkdown'), href: `${base}/itinerary.md`, file: `${trip.slug}.md` },
+]
+---
+
+<TripLayout trip={trip} lang={lang} section="overview">
+  <section class="intro">
+    {trip.summary && (
+      <p class="summary" lang={trip.locale}>
+        {trip.summary}
+      </p>
+    )}
+    {trip.startDate && trip.endDate && (
+      <p
+        class="status headline"
+        data-trip-status
+        data-start={trip.startDate}
+        data-end={trip.endDate}
+        data-before={t('trip.startsIn')}
+        data-after={t('trip.endedOn')}
+        data-during={t('trip.underway')}
+      />
+    )}
+  </section>
+
+  <section class="stats">
+    <a class="stat card" href={path(`${base}/itinerary/`)}>
+      <Icon name="calendar" size={20} />
+      <span class="value tabular">{number(trip.days.length)}</span>
+      <span class="label footnote secondary">{plural('trip.days', trip.days.length).replace(/^[\d\s ]+/, '')}</span>
+    </a>
+    <a class="stat card" href={path(`${base}/map/`)}>
+      <Icon name="pin" size={20} />
+      <span class="value tabular">{number(placeCount)}</span>
+      <span class="label footnote secondary">{plural('trip.places', placeCount).replace(/^[\d\s ]+/, '')}</span>
+    </a>
+    <a class="stat card" href={path(`${base}/bookings/`)}>
+      <ProgressRing value={booked} total={needsBooking.length} />
+      <span class="value tabular">
+        {booked}
+        <span class="of">/{needsBooking.length}</span>
+      </span>
+      <span class="label footnote secondary">{t('trip.booked')}</span>
+    </a>
+    <a class="stat card" href={path(`${base}/budget/`)}>
+      <Icon name="wallet" size={20} />
+      <span class="value tabular">{money(trip.budget.total.planned, currency, { maximumFractionDigits: 0 })}</span>
+      <span class="label footnote secondary">{t('trip.totalBudget')}</span>
+    </a>
+  </section>
+
+  <div class="columns">
+    <section class="section">
+      <div class="section-header">
+        <h2>{t('trip.toBook')}</h2>
+        {toBook.length > 0 && (
+          <a class="subhead" href={path(`${base}/bookings/`)}>
+            {t('trip.viewAll')}
+          </a>
+        )}
+      </div>
+      {toBook.length > 0 ? (
+        <div class="card list">
+          {toBook.slice(0, 4).map((item) => (
+            <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} />
+          ))}
+        </div>
+      ) : (
+        <p class="card card-pad all-booked">
+          <Icon name="check" size={18} />
+          {t('trip.allBooked')}
+        </p>
+      )}
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>{t('trip.travellers')}</h2>
+      </div>
+      <ul class="card list people">
+        {trip.members.map((member) => {
+          const groups = trip.groups.filter((g) => g.members.includes(member.id))
+          return (
+            <li class="row">
+              <span class="avatar" style={`--hue:${memberHue(member.id)}`}>
+                {initials(member)}
+              </span>
+              <div class="person">
+                <span class="headline">{member.name}</span>
+                {groups.length > 0 && (
+                  <span class="footnote secondary">
+                    {groups.map((g) => `${g.emoji ?? ''} ${g.name}`.trim()).join(' · ')}
+                  </span>
+                )}
+              </div>
+              {member.links?.[0] && (
+                <a class="link" href={member.links[0]} target="_blank" rel="noopener noreferrer">
+                  <Icon name="link" size={16} />
+                  <span class="visually-hidden">{member.name}</span>
+                </a>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {trip.groups.length > 0 && (
+        <div class="groups">
+          {trip.groups.map((group) => (
+            <div class="group card card-pad">
+              <div class="group-head">
+                <span class="group-emoji">{group.emoji ?? '👥'}</span>
+                <span class="headline">{group.name}</span>
+                <Avatars members={trip.members.filter((m) => group.members.includes(m.id))} size={22} />
+              </div>
+              {group.description && (
+                <p class="footnote secondary" lang={trip.locale}>
+                  {group.description}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  </div>
+
+  <section class="section">
+    <div class="section-header">
+      <h2>{t('trip.export')}</h2>
+    </div>
+    <div class="card list exports">
+      <a class="row subscribe" href={`${base}/calendar.ics`} data-calendar-feed={trip.slug} data-subscribe>
+        <span class="tile">
+          <Icon name="calendar" size={18} />
+        </span>
+        <span class="export-text">
+          <span class="headline">{t('trip.subscribe')}</span>
+          <span class="footnote secondary">{t('trip.subscribeHint')}</span>
+        </span>
+        <Icon name="chevronRight" size={16} class="chevron" />
+      </a>
+      {downloads.map((d) => (
+        <a
+          class="row"
+          href={d.href}
+          download={d.file}
+          data-calendar-feed={d.icon === 'calendar' ? trip.slug : undefined}
+        >
+          <span class="tile muted">
+            <Icon name={d.icon} size={18} />
+          </span>
+          <span class="export-text">
+            <span>{d.label}</span>
+          </span>
+          <Icon name="download" size={16} class="chevron" />
+        </a>
+      ))}
+    </div>
+    <p class="footnote tertiary hint">{t('trip.exportHint')}</p>
+  </section>
+</TripLayout>
+
+<script>
+  import { renderRelativeDates, todayUTC } from '@/scripts/page'
+
+  function status() {
+    const el = document.querySelector<HTMLElement>('[data-trip-status]')
+    if (!el) return
+    const { start, end, before, after, during } = el.dataset
+    const today = todayUTC()
+    const startMs = Date.parse(`${start}T00:00:00Z`)
+    const endMs = Date.parse(`${end}T00:00:00Z`)
+    if (today < startMs) {
+      el.dataset.relative = start
+      el.dataset.template = before
+    } else if (today > endMs) {
+      el.dataset.relative = end
+      el.dataset.template = after
+    } else {
+      el.textContent = during!.replace('{n}', String(Math.round((today - startMs) / 86_400_000) + 1))
+      return
+    }
+    renderRelativeDates(el.parentElement!)
+  }
+
+  /** `webcal://` makes calendar apps subscribe instead of importing once. */
+  function subscribeLinks() {
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-subscribe]')) {
+      const url = new URL(link.href, location.href)
+      link.href = link.dataset.webcal ?? `webcal://${url.host}${url.pathname}${url.search}`
+    }
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    status()
+    subscribeLinks()
+  })
+</script>
+
+<style>
+  .intro {
+    display: grid;
+    gap: var(--space-3);
+    max-width: 68ch;
+  }
+
+  .summary {
+    font-size: 19px;
+    line-height: 1.45;
+    color: var(--label-secondary);
+  }
+
+  .status {
+    color: hsl(var(--hue) 70% 42%);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .status {
+      color: hsl(var(--hue) 85% 72%);
+    }
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+  }
+
+  .stat {
+    display: grid;
+    align-content: start;
+    gap: 2px;
+    padding: var(--space-4) var(--space-5) var(--space-5);
+    color: var(--label);
+    text-decoration: none;
+    transition: transform 240ms var(--ease);
+  }
+
+  .stat:hover {
+    text-decoration: none;
+    transform: translateY(-2px);
+  }
+
+  .stat > :global(svg),
+  .stat > :global(.ring) {
+    margin-bottom: var(--space-3);
+    color: hsl(var(--hue) 65% 48%);
+  }
+
+  .value {
+    font-family: var(--font-rounded);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+
+  .of {
+    font-size: 20px;
+    color: var(--label-tertiary);
+  }
+
+  .label {
+    text-transform: capitalize;
+  }
+
+  .columns {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 0 var(--space-8);
+  }
+
+  .all-booked {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--green);
+  }
+
+  .people .row {
+    gap: var(--space-3);
+  }
+
+  .person {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .link {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: var(--label-tertiary);
+  }
+
+  .link:hover {
+    background: var(--fill);
+    color: var(--tint);
+  }
+
+  .groups {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .group {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .group-head :global(.avatars) {
+    margin-left: auto;
+  }
+
+  .group-emoji {
+    font-size: 20px;
+  }
+
+  .exports .row {
+    color: var(--label);
+    text-decoration: none;
+  }
+
+  .exports .row:hover {
+    background: var(--fill);
+    text-decoration: none;
+  }
+
+  .tile {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    color: white;
+    background: linear-gradient(160deg, #ff5f57, #e0302a);
+  }
+
+  .tile.muted {
+    color: var(--label-secondary);
+    background: var(--fill);
+  }
+
+  .export-text {
+    display: grid;
+    flex: 1;
+  }
+
+  .exports :global(.chevron) {
+    color: var(--label-tertiary);
+  }
+
+  .hint {
+    margin-top: var(--space-2);
+    padding-inline: var(--space-4);
+  }
+
+  @media (max-width: 900px) {
+    .columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+  }
+</style>

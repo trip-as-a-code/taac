@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=../../../schema/trip.v1alpha1.json
+apiVersion: taac/v1alpha1
+kind: Trip
+metadata:
+  title: Lisbon Long Weekend
+  summary: Tiles, trams and pastéis de nata — three days on the Tagus.
+  locale: en
+  timezone: Europe/Lisbon
+  cover: { emoji: 🚋, hue: 28 }
+  tags: [city, food]
+currency:
+  base: EUR
+  rates:
+    GBP: 1.17
+members:
+  - { id: alex, name: Alex }
+  - { id: sam, name: Sam }
+  - { id: robin, name: Robin }
+groups:
+  - id: early
+    name: Early birds
+    emoji: 🌅
+    members: [alex, sam]
+places:
+  lis: { name: Lisbon Airport (LIS), geo: [38.7742, -9.1342], category: airport }
+  lgw: { name: London Gatwick (LGW), geo: [51.1537, -0.1821], category: airport }
+  hotel: { name: Casa do Bairro, geo: [38.7105, -9.1466], category: hotel, address: 'Rua da Rosa 12, Lisboa' }
+  castle: { name: Castelo de São Jorge, geo: [38.7139, -9.1335], category: historic, url: https://castelodesaojorge.pt }
+  belem: { name: Pastéis de Belém, geo: [38.6975, -9.2032], category: food }
+  jeronimos: { name: Jerónimos Monastery, geo: [38.6979, -9.2068], category: historic }
+  sintra: { name: Pena Palace, geo: [38.7876, -9.3906], category: historic }
+  miradouro: { name: Miradouro da Senhora do Monte, geo: [38.7194, -9.1327], category: viewpoint }
+itinerary:
+  - id: outbound
+    kind: flight
+    title: London → Lisbon
+    start: 2027-05-14T07:05:00+01:00
+    end: 2027-05-14T09:50:00+01:00
+    places: [lgw, lis]
+    transport: { carrier: TAP Air Portugal, number: TP1337 }
+    booking: { status: booked, provider: TAP, reference: { secret: DEMO_PNR } }
+    costs:
+      - { amount: 138, currency: GBP, paidBy: alex, label: 3 tickets }
+  - id: hotel
+    kind: lodging
+    title: Casa do Bairro
+    start: 2027-05-14T15:00:00+01:00
+    end: 2027-05-17T11:00:00+01:00
+    places: [hotel]
+    booking: { status: booked, provider: Booking.com, url: https://example.com/casa-do-bairro }
+    costs:
+      - { amount: 486, currency: EUR, paidBy: sam }
+    contacts:
+      - { name: Front desk, role: hotel, phone: { secret: DEMO_HOTEL_PHONE } }
+  - id: tram-28
+    kind: activity
+    title: Tram 28 and the castle
+    start: 2027-05-14T12:00:00+01:00
+    end: 2027-05-14T16:00:00+01:00
+    places: [castle]
+    booking: { status: required, deadline: 2027-05-01, url: https://castelodesaojorge.pt }
+    costs:
+      - { amount: 45, currency: EUR, paidBy: robin }
+    notes: Buy castle tickets online to **skip the queue**. Tram 28 boards at Martim Moniz.
+  - id: sunset
+    kind: activity
+    title: Sunset at the miradouro
+    start: 2027-05-14T19:30:00+01:00
+    end: 2027-05-14T21:00:00+01:00
+    places: [miradouro]
+  - id: sintra
+    kind: activity
+    title: Day trip to Sintra
+    start: 2027-05-15T08:30:00+01:00
+    end: 2027-05-15T17:00:00+01:00
+    group: early
+    places: [sintra]
+    booking: { status: required, deadline: 2027-04-20 }
+    costs:
+      - { amount: 64, currency: EUR, paidBy: alex }
+  - id: belem
+    kind: meal
+    title: Pastéis de nata in Belém
+    start: 2027-05-16T10:00:00+01:00
+    end: 2027-05-16T11:00:00+01:00
+    places: [belem, jeronimos]
+    costs:
+      - { amount: 18.6, currency: EUR, paidBy: robin, split: { shares: { alex: 1, sam: 1, robin: 2 } } }
+  - id: inbound
+    kind: flight
+    title: Lisbon → London
+    start: 2027-05-17T18:40:00+01:00
+    end: 2027-05-17T21:15:00+01:00
+    places: [lis, lgw]
+    transport: { carrier: TAP Air Portugal, number: TP1338 }
+    booking: { status: booked, reference: { secret: DEMO_PNR } }
+packing:
+  - category: Essentials
+    items:
+      - Passport
+      - Euros (cards work almost everywhere)
+      - { name: Camera, for: [sam] }
+  - category: Clothes
+    items:
+      - Comfortable walking shoes — the hills are steep
+      - Light jacket for the evenings

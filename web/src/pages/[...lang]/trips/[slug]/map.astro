@@ -1,0 +1,311 @@
+---
+import FilterBar from '@/components/FilterBar.astro'
+import Icon from '@/components/Icon.astro'
+import TripLayout from '@/layouts/TripLayout.astro'
+import { tripPage, tripPaths } from '@/lib/paths'
+import { filterTokens, kindTint, placeEmoji } from '@/lib/trip'
+
+export const getStaticPaths = tripPaths
+
+const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+const { t, date, path } = i18n
+
+// Only what the map needs, inlined as JSON in the page (never in a JS bundle).
+const used = new Map<string, { id: string; items: string[] }>()
+for (const item of trip.items) {
+  for (const id of item.places) {
+    if (!used.has(id)) used.set(id, { id, items: [] })
+    used.get(id)!.items.push(item.id)
+  }
+}
+const itemInfo = Object.fromEntries(
+  trip.items.map((item) => [
+    item.id,
+    {
+      title: item.title,
+      kind: item.kind,
+      date: item.local.date,
+      when: `${date(item.local.date, { day: 'numeric', month: 'short' })} · ${item.local.time}`,
+      tokens: filterTokens(trip, item),
+      href: path(`/trips/${trip.slug}/itinerary/#item-${item.id}`),
+    },
+  ]),
+)
+const places = [...used.values()].map(({ id, items }) => {
+  const place = trip.places[id]
+  return { id, name: place.name, geo: place.geo, emoji: placeEmoji(place.category), items }
+})
+const routes = trip.items
+  .filter((i) => ['flight', 'train', 'bus', 'ferry', 'transfer'].includes(i.kind) && i.places.length > 1)
+  .map((i) => ({
+    item: i.id,
+    flight: i.kind === 'flight',
+    color: kindTint[i.kind],
+    coords: i.places.map((id) => [trip.places[id].geo[1], trip.places[id].geo[0]]),
+  }))
+const overlays = trip.overlays.map((o) => ({ name: o.name, data: o.data }))
+const data = { places, routes, items: itemInfo, overlays }
+---
+
+<TripLayout trip={trip} lang={lang} section="map" bare>
+  <div class="map-shell">
+    <div class="map" data-map aria-label={t('nav.map')}></div>
+    <aside class="panel" data-panel>
+      <div class="panel-head">
+        <FilterBar trip={trip} i18n={i18n} status={false} />
+        <label class="day-select">
+          <span class="visually-hidden">{t('filter.day')}</span>
+          <select data-day-filter>
+            <option value="">{t('filter.allDays')}</option>
+            {trip.days.map((day, index) => (
+              <option value={day.date}>
+                {t('trip.dayN', { n: index + 1 })} ·{' '}
+                {date(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}
+              </option>
+            ))}
+          </select>
+          <Icon name="chevronDown" size={14} />
+        </label>
+      </div>
+      <div class="panel-title">
+        <h2 class="headline">
+          {t('map.places')} <span class="secondary tabular" data-place-count></span>
+        </h2>
+        <button class="button button-plain" type="button" data-fit>
+          <Icon name="expand" size={15} />
+          {t('map.fit')}
+        </button>
+      </div>
+      <ul class="places list" data-place-list>
+        {places.map((p) => (
+          <li>
+            <button type="button" class="row place" data-place={p.id}>
+              <span class="emoji">{p.emoji}</span>
+              <span class="subhead name" lang={trip.locale}>
+                {p.name}
+              </span>
+              <span class="footnote tertiary tabular">{p.items.length}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p class="footnote secondary none" data-no-places hidden>
+        {t('map.noPlaces')}
+      </p>
+    </aside>
+  </div>
+  <script type="application/json" id="map-data" set:html={JSON.stringify(data).replace(/</g, '\\u003c')} />
+</TripLayout>
+
+<script>
+  import { setupMap } from '@/scripts/map'
+
+  document.addEventListener('astro:page-load', () => void setupMap())
+</script>
+
+<style>
+  .map-shell {
+    position: relative;
+    height: calc(100dvh - var(--nav-height) - env(safe-area-inset-top) - 49px);
+    min-height: 420px;
+  }
+
+  .map {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-inset);
+  }
+
+  .panel {
+    position: absolute;
+    top: var(--space-4);
+    left: var(--space-4);
+    bottom: var(--space-4);
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    width: 360px;
+    border-radius: var(--radius-lg);
+    background: var(--material-thick);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+
+  .panel-head {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-4) var(--space-2);
+  }
+
+  .day-select {
+    position: relative;
+    display: block;
+  }
+
+  .day-select select {
+    width: 100%;
+    min-height: 34px;
+    padding: 0 32px 0 12px;
+    border: 0;
+    border-radius: 10px;
+    appearance: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--label);
+    background: var(--fill);
+    cursor: pointer;
+  }
+
+  .day-select :global(svg) {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--label-secondary);
+  }
+
+  .panel-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+    border-bottom: 0.5px solid var(--separator);
+  }
+
+  .places {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .place {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    min-height: 44px;
+    padding-block: 8px;
+  }
+
+  .place:hover,
+  .place[aria-current='true'] {
+    background: var(--fill);
+  }
+
+  .emoji {
+    flex: none;
+    width: 24px;
+    font-size: 17px;
+    text-align: center;
+  }
+
+  .name {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .none {
+    padding: var(--space-4);
+  }
+
+  :global(.marker) {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 50%;
+    font-size: 16px;
+    background: var(--bg-elevated);
+    box-shadow:
+      0 2px 8px rgb(0 0 0 / 0.25),
+      0 0 0 2px var(--bg-elevated);
+    cursor: pointer;
+    transition: transform 200ms var(--ease);
+  }
+
+  :global(.marker:hover),
+  :global(.marker[data-active]) {
+    transform: scale(1.18);
+  }
+
+  :global(.maplibregl-popup-content) {
+    padding: 14px 16px !important;
+    border-radius: 16px !important;
+    background: var(--material-thick) !important;
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    color: var(--label);
+    box-shadow: var(--shadow-lg) !important;
+    font-family: var(--font-sans);
+  }
+
+  :global(.maplibregl-popup-tip) {
+    display: none;
+  }
+
+  :global(.maplibregl-popup-close-button) {
+    top: 6px !important;
+    right: 8px !important;
+    font-size: 18px;
+    color: var(--label-tertiary);
+  }
+
+  :global(.popup h3) {
+    margin: 0 18px 6px 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  :global(.popup ul) {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  :global(.popup a) {
+    display: grid;
+    font-size: 13px;
+    color: var(--label);
+  }
+
+  :global(.popup a span:last-child) {
+    color: var(--label-secondary);
+  }
+
+  :global(.maplibregl-ctrl-group) {
+    border-radius: 12px !important;
+    overflow: hidden;
+    box-shadow: var(--shadow-md) !important;
+  }
+
+  @media (max-width: 760px) {
+    .map-shell {
+      height: auto;
+      min-height: 0;
+    }
+
+    .map {
+      position: relative;
+      height: 58dvh;
+    }
+
+    .panel {
+      position: relative;
+      inset: auto;
+      width: auto;
+      margin: calc(-1 * var(--space-6)) var(--space-3) var(--space-6);
+      max-height: none;
+    }
+
+    .places {
+      overflow: visible;
+    }
+  }
+</style>

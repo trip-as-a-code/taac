@@ -1,0 +1,232 @@
+---
+import FilterBar from '@/components/FilterBar.astro'
+import Icon from '@/components/Icon.astro'
+import ItemRow from '@/components/ItemRow.astro'
+import TripLayout from '@/layouts/TripLayout.astro'
+import { tripPage, tripPaths } from '@/lib/paths'
+import { filterTokens, homeOffset, itemById } from '@/lib/trip'
+
+export const getStaticPaths = tripPaths
+
+const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+const { t, date } = i18n
+const items = itemById(trip)
+const offset = homeOffset(trip)
+---
+
+<TripLayout trip={trip} lang={lang} section="itinerary">
+  <div class="toolbar">
+    <FilterBar trip={trip} i18n={i18n} />
+  </div>
+
+  <nav class="day-strip" aria-label={t('filter.day')}>
+    {trip.days.map((day, index) => (
+      <a href={`#${day.date}`} class="day-chip" data-day-link={day.date}>
+        <span class="dow">{date(day.date, { weekday: 'short' })}</span>
+        <span class="dom tabular">{date(day.date, { day: 'numeric' })}</span>
+        <span class="visually-hidden">{t('trip.dayN', { n: index + 1 })}</span>
+      </a>
+    ))}
+  </nav>
+
+  <div class="days">
+    {trip.days.map((day, index) => (
+      <section class="day" id={day.date} data-day-section>
+        <header class="day-header">
+          <h2>
+            <span class="weekday">{date(day.date, { weekday: 'long' })}</span>
+            <span class="tabular">{date(day.date, { day: 'numeric', month: 'long' })}</span>
+          </h2>
+          <span class="badge">{t('trip.dayN', { n: index + 1 })}</span>
+        </header>
+        {day.stays.length > 0 && (
+          <ul class="stays">
+            {day.stays
+              .map((id) => items.get(id)!)
+              .map((stay) => (
+                <li class="stay footnote" data-stay data-filter={filterTokens(trip, stay)}>
+                  <Icon name="lodging" size={14} />
+                  <span lang={trip.locale}>
+                    {t('trip.nightAt', { place: trip.places[stay.places[0]]?.name ?? stay.title })}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        )}
+        {day.items.length > 0 ? (
+          <div class="card list">
+            {day.items.map((id) => (
+              <div class="row-wrap">
+                <ItemRow trip={trip} item={items.get(id)!} i18n={i18n} homeOffset={offset} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p class="free footnote secondary">{t('trip.freeDay')}</p>
+        )}
+      </section>
+    ))}
+  </div>
+  <p class="empty secondary" data-filter-empty hidden>
+    {t('filter.empty')}
+  </p>
+</TripLayout>
+
+<script>
+  import { setupFilters } from '@/scripts/filters'
+  import { todayUTC } from '@/scripts/page'
+
+  document.addEventListener('astro:page-load', () => {
+    setupFilters()
+    // Dim past days and bring today into view while the trip is underway.
+    const today = new Date(todayUTC()).toISOString().slice(0, 10)
+    for (const chip of document.querySelectorAll<HTMLElement>('[data-day-link]'))
+      chip.classList.toggle('past', chip.dataset.dayLink! < today)
+    document.querySelector(`[data-day-link="${today}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  })
+</script>
+
+<style>
+  .toolbar {
+    margin-bottom: var(--space-4);
+  }
+
+  .day-strip {
+    display: flex;
+    gap: 6px;
+    margin: 0 calc(-1 * var(--gutter)) var(--space-6);
+    padding: 2px var(--gutter) var(--space-2);
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .day-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .day-chip {
+    flex: none;
+    display: grid;
+    justify-items: center;
+    gap: 1px;
+    width: 46px;
+    padding: 7px 0;
+    border-radius: 14px;
+    background: var(--bg-grouped);
+    box-shadow: var(--shadow-sm);
+    color: var(--label);
+    scroll-snap-align: center;
+    text-decoration: none;
+    transition: transform 160ms var(--ease);
+  }
+
+  .day-chip:hover {
+    text-decoration: none;
+    transform: translateY(-1px);
+  }
+
+  .day-chip.past {
+    opacity: 0.5;
+  }
+
+  .dow {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--label-secondary);
+  }
+
+  .dom {
+    font-size: 19px;
+    font-weight: 600;
+  }
+
+  .days {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .day {
+    scroll-margin-top: calc(var(--nav-height) + 64px);
+  }
+
+  .day-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .day-header h2 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+    font-size: 22px;
+  }
+
+  .weekday {
+    text-transform: capitalize;
+  }
+
+  .day-header .tabular {
+    color: var(--label-secondary);
+    font-weight: 500;
+  }
+
+  .stays {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+  }
+
+  .stay {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: var(--purple);
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
+  }
+
+  .card.list > .row-wrap + .row-wrap {
+    position: relative;
+    border-top: 0;
+  }
+
+  .row-wrap + .row-wrap::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 128px;
+    right: 0;
+    border-top: 0.5px solid var(--separator);
+  }
+
+  .row-wrap:has([data-item][hidden]) {
+    display: none;
+  }
+
+  .free {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px dashed var(--separator-strong);
+    text-align: center;
+  }
+
+  .empty {
+    padding: var(--space-12) 0;
+    text-align: center;
+  }
+
+  @media (max-width: 560px) {
+    .row-wrap + .row-wrap::before {
+      left: 0;
+    }
+  }
+</style>

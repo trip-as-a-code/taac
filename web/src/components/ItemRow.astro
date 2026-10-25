@@ -1,0 +1,371 @@
+---
+import type { Item, TripExport } from '@taac/core'
+
+import Avatars from '@/components/Avatars.astro'
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+import { daysBetween, filterTokens, kindIcon, kindTint, markdown, memberName, statusTone } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  item: Item
+  i18n: I18n
+  /** Show the date instead of only the time (lists outside the day view). */
+  withDate?: boolean
+  /** The trip's usual UTC offset; others get a label. */
+  homeOffset?: string
+}
+
+const { trip, item, i18n, withDate, homeOffset } = Astro.props
+const { t, money, date } = i18n
+const places = item.places.map((id) => trip.places[id]).filter(Boolean)
+const everyone = item.members.length === trip.members.length
+const members = trip.members.filter((m) => item.members.includes(m.id))
+const group = item.group ? trip.groups.find((g) => g.id === item.group) : undefined
+const endDays = item.local.endDate ? daysBetween(item.local.date, item.local.endDate) : 0
+const base = trip.currency?.base ?? 'EUR'
+const total = item.costs.reduce((sum, c) => sum + (c.baseAmount ?? 0), 0)
+const tone = statusTone[item.booking.status]
+const isStay = item.kind === 'lodging'
+const transport = [item.transport?.carrier, item.transport?.number].filter(Boolean).join(' ')
+const hasDetails =
+  Boolean(item.notes) || item.contacts.length > 0 || item.costs.length > 0 || item.booking.hasReference || item.url
+const offsetLabel = homeOffset && item.local.offset !== homeOffset ? `UTC${item.local.offset}` : undefined
+---
+
+<article
+  class="item"
+  id={`item-${item.id}`}
+  data-item
+  data-filter={filterTokens(trip, item)}
+  data-status={item.booking.status}
+  data-day={item.local.date}
+  style={`--kind:${kindTint[item.kind]}`}
+>
+  <div class="when tabular">
+    {withDate && <span class="date">{date(item.local.date, { day: 'numeric', month: 'short' })}</span>}
+    <span class="time">{item.local.time}</span>
+    {item.local.endTime && !isStay && (
+      <span class="end">
+        {item.local.endTime}
+        {endDays > 0 && <sup>{t('item.nextDay', { n: endDays })}</sup>}
+      </span>
+    )}
+    {offsetLabel && (
+      <span class="offset" title={t('item.localTime', { offset: item.local.offset })}>
+        {offsetLabel}
+      </span>
+    )}
+  </div>
+  <div class="glyph" aria-hidden="true">
+    <Icon name={kindIcon[item.kind]} size={18} />
+  </div>
+  <details class="main" open={false} data-expandable={hasDetails ? '' : undefined}>
+    <summary>
+      <h3 class="headline" lang={trip.locale}>
+        {item.title}
+      </h3>
+      {places.length > 0 && (
+        <p class="subhead secondary place">
+          <Icon name={item.kind === 'flight' || item.kind === 'train' ? 'arrowRight' : 'pin'} size={14} />
+          <span>{places.map((p) => p.name).join(' → ')}</span>
+        </p>
+      )}
+      <div class="meta">
+        <span class="kind footnote">{t(`kind.${item.kind}`)}</span>
+        {transport && <span class="footnote secondary">{transport}</span>}
+        {isStay && item.local.endDate && (
+          <span class="footnote secondary">
+            {t('item.until', { date: date(item.local.endDate, { day: 'numeric', month: 'short' }) })}
+          </span>
+        )}
+        {tone && (
+          <span class="badge" data-tone={tone}>
+            {t(`status.${item.booking.status}`)}
+          </span>
+        )}
+        {item.booking.status === 'required' && item.booking.deadline && (
+          <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />
+        )}
+        {total > 0 && <span class="footnote secondary tabular cost">{money(total, base)}</span>}
+        {!everyone && (
+          <span class="who" title={members.map((m) => m.name).join(', ')}>
+            {group?.emoji && <span aria-hidden="true">{group.emoji}</span>}
+            <Avatars members={members} size={20} />
+          </span>
+        )}
+      </div>
+    </summary>
+    {hasDetails && (
+      <div class="details">
+        {item.notes && <div class="prose" lang={trip.locale} set:html={markdown(item.notes)} />}
+        <ul class="facts footnote">
+          {item.booking.hasReference && (
+            <li>
+              <Icon name="ticket" size={15} />
+              {t('item.reference')}
+            </li>
+          )}
+          {item.contacts.map((c) => (
+            <li>
+              <Icon name="phone" size={15} />
+              {c.name}
+              {c.role && <span class="secondary">· {c.role}</span>}
+            </li>
+          ))}
+          {item.costs.map((c) => (
+            <li class="tabular">
+              <Icon name="wallet" size={15} />
+              {money(c.amount, c.currency)}
+              {c.currency !== base && c.baseAmount !== null && (
+                <span class="secondary">≈ {money(c.baseAmount, base)}</span>
+              )}
+              <span class="secondary">· {t('item.paidBy', { name: memberName(trip, c.paidBy) })}</span>
+              {c.label && <span class="secondary">· {c.label}</span>}
+            </li>
+          ))}
+        </ul>
+        <div class="links">
+          {item.url && (
+            <a class="button" href={item.url} target="_blank" rel="noopener noreferrer">
+              <Icon name="link" size={15} />
+              {t('item.website')}
+            </a>
+          )}
+          {item.booking.url && item.booking.status === 'required' && (
+            <a class="button button-primary" href={item.booking.url} target="_blank" rel="noopener noreferrer">
+              {t('item.bookingLink')}
+            </a>
+          )}
+          {places
+            .filter((p) => p.url)
+            .map((p) => (
+              <a class="button" href={p.url} target="_blank" rel="noopener noreferrer">
+                <Icon name="pin" size={15} />
+                {p.name}
+              </a>
+            ))}
+        </div>
+      </div>
+    )}
+  </details>
+</article>
+
+<style>
+  .item {
+    display: grid;
+    grid-template-columns: 64px 36px minmax(0, 1fr);
+    gap: 0 var(--space-3);
+    padding: 14px var(--space-4);
+    align-items: start;
+  }
+
+  .when {
+    display: grid;
+    justify-items: end;
+    padding-top: 1px;
+    line-height: 1.25;
+  }
+
+  .date {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--label-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .time {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .end {
+    font-size: 13px;
+    color: var(--label-tertiary);
+  }
+
+  .end sup {
+    font-size: 10px;
+    margin-left: 1px;
+    color: var(--orange);
+    font-weight: 600;
+  }
+
+  .offset {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--label-tertiary);
+    white-space: nowrap;
+  }
+
+  .glyph {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    color: var(--kind);
+    background: color-mix(in srgb, var(--kind) 14%, transparent);
+  }
+
+  .main {
+    min-width: 0;
+  }
+
+  summary {
+    list-style: none;
+    display: grid;
+    gap: 3px;
+    cursor: default;
+    border-radius: 8px;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  [data-expandable] > summary {
+    cursor: pointer;
+  }
+
+  [data-expandable] > summary h3::after {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-left: 8px;
+    border-right: 1.6px solid var(--label-tertiary);
+    border-bottom: 1.6px solid var(--label-tertiary);
+    transform: translateY(-3px) rotate(45deg);
+    transition: transform var(--duration) var(--ease);
+  }
+
+  [data-expandable][open] > summary h3::after {
+    transform: translateY(0) rotate(-135deg);
+  }
+
+  h3 {
+    font-size: 16px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .place {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 14px;
+  }
+
+  .place :global(svg) {
+    flex: none;
+    margin-top: 3px;
+    color: var(--label-tertiary);
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    margin-top: 3px;
+  }
+
+  .kind {
+    font-weight: 600;
+    color: var(--kind);
+  }
+
+  .deadline {
+    color: var(--orange);
+    font-weight: 500;
+  }
+
+  .deadline[data-days^='-'] {
+    color: var(--red);
+  }
+
+  .who {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 14px;
+  }
+
+  .details {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius);
+    background: var(--bg-inset);
+    animation: open 260ms var(--ease-out);
+  }
+
+  @keyframes open {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  .facts {
+    list-style: none;
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .facts:empty {
+    display: none;
+  }
+
+  .facts li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .facts :global(svg) {
+    color: var(--label-tertiary);
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .links:empty {
+    display: none;
+  }
+
+  .links .button {
+    min-height: 32px;
+    font-size: 14px;
+    padding-inline: 12px;
+  }
+
+  @media (max-width: 560px) {
+    .item {
+      grid-template-columns: 50px 32px minmax(0, 1fr);
+      gap: 0 10px;
+      padding-inline: var(--space-3);
+    }
+
+    .glyph {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+    }
+
+    .who {
+      margin-left: 0;
+    }
+  }
+</style>

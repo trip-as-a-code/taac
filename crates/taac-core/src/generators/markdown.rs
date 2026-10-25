@@ -1,0 +1,132 @@
+//! Offline Markdown itinerary (GitHub Flavored Markdown).
+
+use std::fmt::Write;
+
+use crate::budget;
+use crate::export::date_range;
+use crate::loader::Trip;
+use crate::model::BookingStatus;
+use crate::secrets::{self, SecretStore};
+
+pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
+    let mut out = String::new();
+    let name = |id: &str| trip.member(id).map_or(id.to_owned(), |m| m.name.clone());
+    let _ = writeln!(out, "# {}\n", trip.metadata.title);
+    if let Some(summary) = &trip.metadata.summary {
+        let _ = writeln!(out, "{summary}\n");
+    }
+    if let (Some(start), Some(end)) = date_range(trip) {
+        let _ = writeln!(out, "**{start} → {end}** · {}\n", trip.metadata.timezone);
+    }
+    let members: Vec<String> = trip.members.iter().map(|m| m.name.clone()).collect();
+    let _ = writeln!(out, "**Travellers:** {}\n", members.join(", "));
+
+    let open: Vec<_> = trip
+        .itinerary
+        .iter()
+        .filter(|i| {
+            i.booking
+                .as_ref()
+                .is_some_and(|b| b.status == BookingStatus::Required)
+        })
+        .collect();
+    if !open.is_empty() {
+        let _ = writeln!(out, "## To book\n");
+        let mut open = open;
+        open.sort_by_key(|i| i.booking.as_ref().and_then(|b| b.deadline));
+        for item in open {
+            let deadline = item
+                .booking
+                .as_ref()
+                .and_then(|b| b.deadline)
+                .map(|d| format!(" — by {d}"))
+                .unwrap_or_default();
+            let _ = writeln!(out, "- [ ] {}{deadline}", item.title);
+        }
+        out.push('\n');
+    }
+
+    let _ = writeln!(out, "## Itinerary\n");
+    let mut current = None;
+    for item in &trip.itinerary {
+        let date = item.start.date_naive();
+        if current != Some(date) {
+            let _ = writeln!(out, "### {}\n", date.format("%a %-d %b %Y"));
+            current = Some(date);
+        }
+        let time = item.start.format("%H:%M");
+        let until = item
+            .end
+            .map(|e| format!("–{}", e.format("%H:%M")))
+            .unwrap_or_default();
+        let who: Vec<String> = trip.participants(item).into_iter().map(name).collect();
+        let _ = writeln!(
+            out,
+            "- **{time}{until}** {} _({})_",
+            item.title,
+            who.join(", ")
+        );
+        let places: Vec<String> = trip
+            .item_places(item)
+            .into_iter()
+            .map(|(_, p)| p.name.clone())
+            .collect();
+        if !places.is_empty() {
+            let _ = writeln!(out, "  - 📍 {}", places.join(" → "));
+        }
+        if let Some(reference) = item.booking.as_ref().and_then(|b| b.reference.as_ref()) {
+            let _ = writeln!(out, "  - 🎫 {}", secrets::render(reference, reveal));
+        }
+        if let Some(notes) = &item.notes {
+            let _ = writeln!(out, "  - {}", notes.replace('\n', "\n    "));
+        }
+    }
+    out.push('\n');
+
+    let budget = budget::compute(trip);
+    if !budget.lines.is_empty() {
+        let _ = writeln!(out, "## Budget ({})\n", budget.base);
+        let _ = writeln!(
+            out,
+            "| Member | Paid | Share | Balance |\n|---|---:|---:|---:|"
+        );
+        for m in &budget.members {
+            let _ = writeln!(
+                out,
+                "| {} | {:.2} | {:.2} | {:+.2} |",
+                name(&m.member),
+                m.paid.planned,
+                m.share.planned,
+                m.balance
+            );
+        }
+        let _ = writeln!(
+            out,
+            "\n**Total:** {:.2} planned, {:.2} booked\n",
+            budget.total.planned, budget.total.committed
+        );
+        for s in &budget.settlements {
+            let _ = writeln!(
+                out,
+                "- {} → {}: {:.2} {}",
+                name(&s.from),
+                name(&s.to),
+                s.amount,
+                budget.base
+            );
+        }
+        out.push('\n');
+    }
+
+    if !trip.packing.is_empty() {
+        let _ = writeln!(out, "## Packing\n");
+        for category in &trip.packing {
+            let _ = writeln!(out, "### {}\n", category.category);
+            for item in &category.items {
+                let _ = writeln!(out, "- [ ] {}", item.name());
+            }
+            out.push('\n');
+        }
+    }
+    out
+}
