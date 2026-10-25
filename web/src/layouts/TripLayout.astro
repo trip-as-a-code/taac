@@ -3,6 +3,7 @@ import type { TripExport } from '@taac/core'
 
 import Avatars from '@/components/Avatars.astro'
 import Icon, { type IconName } from '@/components/Icon.astro'
+import CurrencyPicker from '@/components/CurrencyPicker.astro'
 import PeopleLens from '@/components/PeopleLens.astro'
 import { useI18n, type Locale } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
@@ -71,7 +72,10 @@ const current = t(`nav.${section}`)
             </a>
           ))}
         </div>
-        <PeopleLens trip={trip} i18n={i18n} />
+        <div class="tools">
+          <PeopleLens trip={trip} i18n={i18n} />
+          <CurrencyPicker trip={trip} i18n={i18n} />
+        </div>
       </div>
     </nav>
     <div class:list={[bare ? 'bare' : 'container content']}>
@@ -143,6 +147,15 @@ const current = t(`nav.${section}`)
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2) var(--space-4);
+  }
+
+  .tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    min-width: 0;
+    max-width: 100%;
   }
 
   .tab-bar {

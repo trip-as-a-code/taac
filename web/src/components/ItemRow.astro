@@ -3,6 +3,7 @@ import type { Item, TripExport } from '@taac/core'
 
 import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
+import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import {
   daysBetween,
@@ -35,8 +36,7 @@ const members = trip.members.filter((m) => item.members.includes(m.id))
 const party = partyLabel(trip, item.party, i18n.t('lens.everyone'), i18n.t('party.and'))
 const emoji = partyEmoji(trip, item.party)
 const endDays = item.local.endDate ? daysBetween(item.local.date, item.local.endDate) : 0
-const base = trip.currency?.base ?? 'EUR'
-const total = item.costs.reduce((sum, c) => sum + (c.baseAmount ?? 0), 0)
+const names = (ids: string[]) => ids.map((id) => memberName(trip, id)).join(', ')
 const tone = statusTone[item.booking.status]
 const isStay = item.kind === 'lodging'
 const transport = [item.transport?.carrier, item.transport?.number].filter(Boolean).join(' ')
@@ -103,7 +103,15 @@ const offsetLabel =
         {item.booking.status === 'required' && item.booking.deadline && (
           <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />
         )}
-        {total > 0 && <span class="footnote secondary tabular cost">{money(total, base)}</span>}
+        {item.costs.map((c) => (
+          <Money
+            amount={c.amount}
+            currency={c.currency}
+            charged={c.charged}
+            lang={i18n.lang}
+            class="footnote secondary cost"
+          />
+        ))}
         {!everyone && (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
             <span class="party-pill">
@@ -136,10 +144,17 @@ const offsetLabel =
             <li class="tabular">
               <Icon name="wallet" size={15} />
               {money(c.amount, c.currency)}
-              {c.currency !== base && c.baseAmount !== null && (
-                <span class="secondary">≈ {money(c.baseAmount, base)}</span>
+              {c.charged && (
+                <span class="secondary">
+                  · {t('item.charged', { amount: money(c.charged.amount, c.charged.currency) })}
+                </span>
               )}
-              <span class="secondary">· {t('item.paidBy', { name: memberName(trip, c.paidBy) })}</span>
+              <span class="secondary">
+                · {c.paidBy.length ? t('item.paidBy', { name: names(c.paidBy) }) : t('item.paidByEach')}
+              </span>
+              {c.who.join() !== item.members.join() && (
+                <span class="secondary">· {t('item.for', { names: names(c.who) })}</span>
+              )}
               {c.label && <span class="secondary">· {c.label}</span>}
             </li>
           ))}

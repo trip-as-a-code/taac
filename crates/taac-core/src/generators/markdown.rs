@@ -115,13 +115,19 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
     }
 
     let budget = budget::compute(trip);
-    if !budget.lines.is_empty() {
-        let _ = writeln!(out, "## Budget ({})\n", budget.base);
+    // Per currency the money moved in: converting would need a rate, and a
+    // file has no "today".
+    for (currency, totals) in &budget.by_currency {
+        let _ = writeln!(out, "## Budget ({currency})\n");
         let _ = writeln!(
             out,
             "| Member | Paid | Share | Balance |\n|---|---:|---:|---:|"
         );
-        for m in &budget.members {
+        for m in totals
+            .members
+            .iter()
+            .filter(|m| !m.paid.planned.is_zero() || !m.share.planned.is_zero())
+        {
             let _ = writeln!(
                 out,
                 "| {} | {:.2} | {:.2} | {:+.2} |",
@@ -134,16 +140,15 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
         let _ = writeln!(
             out,
             "\n**Total:** {:.2} planned, {:.2} booked\n",
-            budget.total.planned, budget.total.committed
+            totals.total.planned, totals.total.committed
         );
-        for s in &budget.settlements {
+        for s in &totals.settlements {
             let _ = writeln!(
                 out,
-                "- {} → {}: {:.2} {}",
+                "- {} → {}: {:.2} {currency}",
                 name(&s.from),
                 name(&s.to),
-                s.amount,
-                budget.base
+                s.amount
             );
         }
         out.push('\n');

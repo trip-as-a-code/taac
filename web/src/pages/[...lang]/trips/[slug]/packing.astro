@@ -1,23 +1,37 @@
 ---
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { memberName, people } from '@/lib/trip'
+import { memberName, partyEmoji, partyLabel, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t } = i18n
 const total = trip.packing.reduce((n, c) => n + c.items.length, 0)
-const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers : trip.members.map((m) => m.id))
+const everyone = trip.members.length
+// Whose item it is, named like everything else: a group, or the people.
+const whose = (members: string[]) => {
+  const party = trip.parties.find((p) => p.members.join() === members.join())?.id ?? members.join('+')
+  return `${partyEmoji(trip, party) ?? ''} ${partyLabel(trip, party, t('lens.everyone'), t('party.and'))}`.trim()
+}
 ---
 
 <TripLayout trip={trip} lang={lang} section="packing">
   {total === 0 ? (
     <p class="card card-pad secondary">{t('packing.none')}</p>
   ) : (
-    <div data-packing={trip.slug} data-template={t('packing.progress')}>
-      <section class="head">
+    <div
+      data-packing={trip.slug}
+      data-template={t('packing.progress')}
+      data-whose={t('packing.whose')}
+      data-names={JSON.stringify(Object.fromEntries(trip.members.map((m) => [m.id, m.name])))}
+    >
+      <p class="pick card card-pad subhead" data-packing-pick>
+        {t('packing.pickPerson')}
+      </p>
+      <section class="head" data-packing-head>
         <div class="progress">
+          <span class="footnote secondary whose" data-packing-whose />
           <span class="title-3 tabular" data-packing-count>
             {t('packing.progress', { done: 0, total })}
           </span>
@@ -37,7 +51,7 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
             </h2>
             <ul class="card list">
               {category.items.map((item) => (
-                <li data-item data-people={tokens(item.for)} data-status="">
+                <li data-item data-people={people(item.members)} data-status="">
                   <label class="row check">
                     <input type="checkbox" data-packing-item={item.id} />
                     <span class="box" aria-hidden="true" />
@@ -45,9 +59,12 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
                       <span class="subhead" lang={trip.locale}>
                         {item.name}
                       </span>
-                      {item.for.length > 0 && (
-                        <span class="footnote secondary">
-                          {t('packing.forOnly', { names: item.for.map((m) => memberName(trip, m)).join(', ') })}
+                      {item.members.length < everyone && (
+                        <span
+                          class="footnote secondary"
+                          title={item.members.map((m) => memberName(trip, m)).join(', ')}
+                        >
+                          {whose(item.members)}
                         </span>
                       )}
                     </span>
@@ -58,6 +75,9 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
           </section>
         ))}
       </div>
+      <p class="empty secondary" data-filter-empty hidden>
+        {t('packing.none')}
+      </p>
       <p class="footnote tertiary hint">{t('packing.hint')}</p>
     </div>
   )}
@@ -65,26 +85,49 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
 
 <script>
   import { setupFilters } from '@/scripts/filters'
+  import { getLens } from '@/scripts/lens'
 
+  /**
+   * Everyone ticks their own list (on this device): with one person in the
+   * lens their boxes are live, otherwise the list is read-only.
+   */
   function setup() {
     const root = document.querySelector<HTMLElement>('[data-packing]')
     if (!root) return
-    const key = `taac:packing:${root.dataset.packing}`
+    const names = JSON.parse(root.dataset.names ?? '{}') as Record<string, string>
     const boxes = [...root.querySelectorAll<HTMLInputElement>('[data-packing-item]')]
+    let person: string | undefined
     let checked: Record<string, boolean> = {}
-    try {
-      checked = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, boolean>
-    } catch {
-      checked = {}
+    const key = () => `taac:packing:${root.dataset.packing}:${person}`
+    const load = () => {
+      try {
+        checked = person ? (JSON.parse(localStorage.getItem(key()) ?? '{}') as Record<string, boolean>) : {}
+      } catch {
+        checked = {}
+      }
     }
     const save = () => {
       try {
-        localStorage.setItem(key, JSON.stringify(checked))
+        if (person) localStorage.setItem(key(), JSON.stringify(checked))
       } catch {
         // Ticks are a convenience; losing them is fine.
       }
     }
     const render = () => {
+      const one = getLens().people.length === 1 ? getLens().people[0] : undefined
+      if (one !== person) {
+        person = one
+        load()
+      }
+      root.querySelector<HTMLElement>('[data-packing-pick]')!.hidden = Boolean(person)
+      root.querySelector<HTMLElement>('[data-packing-head]')!.hidden = !person
+      root.querySelector('[data-packing-whose]')!.textContent = person
+        ? root.dataset.whose!.replace('{name}', names[person] ?? person)
+        : ''
+      for (const box of boxes) {
+        box.disabled = !person
+        box.checked = Boolean(person && checked[box.dataset.packingItem!])
+      }
       const visible = boxes.filter((b) => !b.closest<HTMLElement>('[data-item]')!.hidden)
       const done = visible.filter((b) => b.checked).length
       root.querySelector('[data-packing-count]')!.textContent = root.dataset
@@ -94,7 +137,6 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
         `${visible.length ? (done / visible.length) * 100 : 0}%`
     }
     for (const box of boxes) {
-      box.checked = Boolean(checked[box.dataset.packingItem!])
       box.addEventListener('change', () => {
         checked[box.dataset.packingItem!] = box.checked
         save()
@@ -103,12 +145,10 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
     }
     root.querySelector('[data-packing-reset]')?.addEventListener('click', () => {
       checked = {}
-      for (const box of boxes) box.checked = false
       save()
       render()
     })
-    setupFilters(() => render())
-    render()
+    setupFilters(render)
   }
 
   document.addEventListener('astro:page-load', setup)
@@ -120,6 +160,23 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
     align-items: flex-end;
     justify-content: space-between;
     gap: var(--space-4);
+  }
+
+  .pick {
+    margin-bottom: var(--space-5);
+    color: var(--label-secondary);
+  }
+
+  .whose {
+    font-weight: 600;
+  }
+
+  .check:has(input:disabled) {
+    cursor: default;
+  }
+
+  .check input:disabled + .box {
+    opacity: 0.45;
   }
 
   .progress {
@@ -211,6 +268,11 @@ const tokens = (forMembers: string[]) => people(forMembers.length ? forMembers :
     color: var(--label-tertiary);
     text-decoration: line-through;
     text-decoration-color: var(--separator-strong);
+  }
+
+  .empty {
+    padding: var(--space-10) 0;
+    text-align: center;
   }
 
   .hint {

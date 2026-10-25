@@ -80,7 +80,6 @@ pub struct TripExport {
 #[serde(rename_all = "camelCase")]
 pub struct CurrencyExport {
     pub base: String,
-    pub rates: IndexMap<String, f64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -191,9 +190,12 @@ pub struct CostExport {
     #[serde(with = "rust_decimal::serde::float")]
     pub amount: Decimal,
     pub currency: String,
-    #[serde(with = "rust_decimal::serde::float_option")]
-    pub base_amount: Option<Decimal>,
-    pub paid_by: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub charged: Option<budget::MoneyExport>,
+    /// Member ids who paid, or empty when each paid their own share.
+    pub paid_by: Vec<String>,
+    /// Member ids the cost is for.
+    pub who: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     pub estimate: bool,
@@ -253,8 +255,8 @@ pub struct PackingItemExport {
     /// Stable across reorderings: a hash of category and name.
     pub id: String,
     pub name: String,
-    #[serde(rename = "for")]
-    pub for_members: Vec<String>,
+    /// Member ids who pack it.
+    pub members: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -345,7 +347,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     },
                     booking_export,
                 ),
-                costs: cost_exports(trip, &item.costs),
+                costs: cost_exports(trip, &item.costs, &trip.participants(item)),
                 contacts: item
                     .contacts
                     .iter()
@@ -386,7 +388,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 priority: idea.priority,
                 duration: idea.duration,
                 booking: idea.booking.as_ref().map(booking_export),
-                costs: cost_exports(trip, &idea.costs),
+                costs: cost_exports(trip, &idea.costs, &trip.who(idea.who.as_deref())),
                 notes: idea.notes.clone(),
                 url: idea.url.clone(),
                 tags: idea.tags.clone(),
@@ -416,14 +418,6 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         end_date,
         currency: trip.currency.as_ref().map(|c| CurrencyExport {
             base: c.base.clone(),
-            rates: c
-                .rates
-                .iter()
-                .map(|(k, v)| {
-                    use rust_decimal::prelude::ToPrimitive;
-                    (k.clone(), v.to_f64().unwrap_or_default())
-                })
-                .collect(),
         }),
         members: trip.members.clone(),
         groups: trip.groups.clone(),
@@ -459,14 +453,11 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     .map(|item| PackingItemExport {
                         id: stable_id(&format!("{}\u{0}{}", category.category, item.name())),
                         name: item.name().to_owned(),
-                        for_members: if item.for_members().is_empty() {
-                            Vec::new()
-                        } else {
-                            trip.who(Some(item.for_members()))
-                                .into_iter()
-                                .map(str::to_owned)
-                                .collect()
-                        },
+                        members: trip
+                            .who(item.who().or(category.who.as_deref()))
+                            .into_iter()
+                            .map(str::to_owned)
+                            .collect(),
                     })
                     .collect(),
             })
@@ -544,18 +535,28 @@ fn booking_export(b: &Booking) -> BookingExport {
     }
 }
 
-fn cost_exports(trip: &Trip, costs: &[Cost]) -> Vec<CostExport> {
+fn cost_exports(trip: &Trip, costs: &[Cost], participants: &[&str]) -> Vec<CostExport> {
     costs
         .iter()
         .map(|c| CostExport {
             amount: c.amount,
             currency: c.currency.clone(),
-            base_amount: trip
-                .currency
-                .as_ref()
-                .and_then(|cur| cur.to_base(c.amount, &c.currency))
-                .map(budget::round),
-            paid_by: c.paid_by.clone(),
+            charged: c.charged.as_ref().map(|m| budget::MoneyExport {
+                amount: m.amount,
+                currency: m.currency.clone(),
+            }),
+            paid_by: trip
+                .who(Some(&c.paid_by.ids()))
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            who: c
+                .who
+                .as_deref()
+                .map_or_else(|| participants.to_vec(), |w| trip.who(Some(w)))
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
             label: c.label.clone(),
             estimate: c.estimate,
         })

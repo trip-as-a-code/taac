@@ -92,17 +92,6 @@ impl Validator<'_> {
         if tz.parse::<chrono_tz::Tz>().is_err() {
             self.error("timezone", None, format!("unknown IANA time zone `{tz}`"));
         }
-        if let Some(currency) = &self.trip.currency {
-            for (code, rate) in &currency.rates {
-                if *rate <= Decimal::ZERO {
-                    self.error(
-                        "currency.rate",
-                        None,
-                        format!("rate for {code} must be > 0"),
-                    );
-                }
-            }
-        }
     }
 
     fn people(&mut self) {
@@ -248,7 +237,12 @@ impl Validator<'_> {
                     "`${...}` in notes is published as-is; move confidential values to `booking.reference` or `contacts`".into(),
                 );
             }
-            self.costs(&item.id, &item.costs, &trip.participants(item));
+            self.costs(
+                &item.id,
+                &item.costs,
+                &trip.participants(item),
+                crate::budget::is_committed(item),
+            );
         }
     }
 
@@ -352,7 +346,7 @@ impl Validator<'_> {
             }
             self.who(&idea.id, idea.who.as_deref());
             let participants = trip.who(idea.who.as_deref());
-            self.costs(&idea.id, &idea.costs, &participants);
+            self.costs(&idea.id, &idea.costs, &participants, false);
         }
     }
 
@@ -425,39 +419,70 @@ impl Validator<'_> {
         }
     }
 
-    fn costs(&mut self, owner: &str, costs: &[crate::model::Cost], participants: &[&str]) {
+    fn costs(
+        &mut self,
+        owner: &str,
+        costs: &[crate::model::Cost],
+        participants: &[&str],
+        booked: bool,
+    ) {
         let trip = self.trip;
         let id = Some(owner);
         for cost in costs {
             if cost.amount < Decimal::ZERO {
                 self.error("cost.amount", id, "negative amount".into());
             }
-            match &trip.currency {
-                None => self.error(
+            if trip.currency.is_none() {
+                self.error(
                     "cost.currency",
                     id,
                     "costs need a trip-level `currency`".into(),
-                ),
-                Some(c) if c.to_base(Decimal::ONE, &cost.currency).is_none() => self.error(
-                    "cost.currency",
-                    id,
-                    format!("no rate from {} to {}", cost.currency, c.base),
-                ),
-                Some(_) => {}
+                );
             }
-            if trip.member(&cost.paid_by).is_none() {
+            let payers = cost.paid_by.ids();
+            if !cost.paid_by.is_each() {
+                self.who(owner, Some(&payers));
+            }
+            self.who(owner, cost.who.as_deref());
+            // A booking is a fact: record what it actually cost the payer.
+            let payer_currency = match payers.as_slice() {
+                [one] => trip.member(one).and_then(|m| m.currency.clone()),
+                _ => None,
+            }
+            .unwrap_or_else(|| trip.base_currency().to_owned());
+            if booked && cost.charged.is_none() && cost.currency != payer_currency {
                 self.error(
-                    "cost.paidBy",
+                    "cost.charged",
                     id,
-                    format!("unknown payer `{}`", cost.paid_by),
+                    format!(
+                        "booked, priced in {} — add `charged:` with what was actually paid in {payer_currency}",
+                        cost.currency
+                    ),
+                );
+            }
+            if let Some(charged) = cost.charged.as_ref().filter(|c| c.amount < Decimal::ZERO) {
+                self.error(
+                    "cost.charged",
+                    id,
+                    format!("negative charged amount {}", charged.amount),
+                );
+            }
+            let beneficiaries = cost
+                .who
+                .as_deref()
+                .map_or_else(|| participants.to_vec(), |w| trip.who(Some(w)));
+            if let [payer] = payers.as_slice()
+                && cost.split == Split::Equal
+                && !beneficiaries.contains(&payer.as_str())
+                && trip.member(payer).is_some()
+            {
+                self.warn(
+                    "cost.payer",
+                    id,
+                    format!("`{payer}` pays but does not take part"),
                 );
             }
             match &cost.split {
-                Split::Equal if !participants.contains(&cost.paid_by.as_str()) => self.warn(
-                    "cost.payer",
-                    id,
-                    format!("`{}` pays but does not take part", cost.paid_by),
-                ),
                 Split::Shares(map) | Split::Exact(map) => {
                     for member in map.keys() {
                         if trip.member(member).is_none() {
@@ -488,8 +513,6 @@ impl Validator<'_> {
         }
     }
 
-    /// Two timed commitments for the same person at once. Lodging only
-    /// clashes with lodging; notes never clash.
     /// Two timed commitments for the same person at once. Lodging only
     /// clashes with lodging, and only on nights both are actually slept in.
     fn overlaps(&mut self) {
@@ -541,8 +564,17 @@ impl Validator<'_> {
 
     fn packing(&mut self) {
         for category in &self.trip.packing {
+            for member in category.who.iter().flatten() {
+                if self.trip.member(member).is_none() && self.trip.group(member).is_none() {
+                    self.error(
+                        "packing.member",
+                        None,
+                        format!("`{}` is for unknown `{member}`", category.category),
+                    );
+                }
+            }
             for item in &category.items {
-                for member in item.for_members() {
+                for member in item.who().into_iter().flatten() {
                     if self.trip.member(member).is_none() && self.trip.group(member).is_none() {
                         self.error(
                             "packing.member",
@@ -572,7 +604,7 @@ mod tests {
 apiVersion: taac/v1alpha3
 kind: Trip
 metadata: {{ title: T, timezone: Asia/Tokyo }}
-currency: {{ base: EUR, rates: {{ JPY: 0.006 }} }}
+currency: {{ base: EUR }}
 members: [{{ id: a, name: A }}, {{ id: b, name: B }}]
 groups: [{{ id: duo, name: Duo, members: [a, b] }}]
 places:
@@ -607,14 +639,14 @@ itinerary:
     fn flags_references_time_and_money() {
         let d = check(
             "  - { id: x, kind: activity, title: X, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T09:00:00+09:00, places: [nowhere], who: [zed],
-        costs: [{ amount: 5, currency: USD, paidBy: a, split: { exact: { a: 1 } } }] }",
+        booking: { status: booked }, costs: [{ amount: 5, currency: USD, paidBy: a, split: { exact: { a: 1 } } }] }",
         );
         let codes = codes(&d);
         for code in [
             "item.time",
             "item.place",
             "who.unknown",
-            "cost.currency",
+            "cost.charged",
             "cost.split",
         ] {
             assert!(codes.contains(&code), "{code} missing in {codes:?}");

@@ -1,83 +1,112 @@
-// Budget figures for whoever the people lens selects: totals, currencies and
-// categories are the selected people's shares; cards and transfers narrow to them.
+// The budget in the viewer's display currency, for whoever the people lens
+// selects. Lines carry fractions (who bears, who paid), so any selection and
+// any currency can be computed here without the server.
 
-import { inLens, lensShare, type Lens } from '@/scripts/lens'
+import type { CostLine } from '@taac/core'
 
-interface BudgetData {
+import { inLens, type Lens } from '@/scripts/lens'
+import { value } from '@/scripts/money'
+
+export interface BudgetData {
   base: string
-  lines: {
-    shares: Record<string, number>
-    baseAmount: number
-    amount: number
-    currency: string
-    committed: boolean
-    kind: string
-  }[]
-  ideas: { members: string[]; amount: number }[]
+  lines: CostLine[]
+  ideas: CostLine[]
 }
 
-const WHOLE = ['JPY', 'KRW', 'VND', 'ISK', 'HUF']
-
-function money(amount: number, currency: string, whole = false): string {
-  const fractional = !WHOLE.includes(currency) && !whole
-  return new Intl.NumberFormat(document.documentElement.lang, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: fractional ? 2 : 0,
-    minimumFractionDigits: fractional && amount % 1 !== 0 ? 2 : 0,
-  }).format(amount)
+export interface Computed {
+  planned: number
+  committed: number
+  possible: number
+  /** Some amounts were converted at today's rate rather than charged. */
+  estimated: boolean
+  /** Same, among booked costs only. */
+  committedEstimated: boolean
+  /** Lines without a rate into the display currency, left out. */
+  missing: number
+  byKind: Map<string, number>
+  /** What moved in each currency (charged, else quoted), for the selection. */
+  byCurrency: Map<string, number>
+  members: Map<string, { paid: number; share: number }>
+  settlements: { from: string; to: string; amount: number }[]
+  /** Per line, in display currency: the whole line and the selection's part. */
+  lines: ({ total: number; mine: number; exact: boolean } | null)[]
 }
 
-export function setupBudget(lens: Lens) {
-  const raw = document.getElementById('budget-data')?.textContent
-  if (!raw) return
-  const data = JSON.parse(raw) as BudgetData
-  const selected = lens.people
-  const lines = data.lines.filter((l) => inLens(Object.keys(l.shares), lens))
-  const share = (l: BudgetData['lines'][number]) => (selected.length ? lensShare(l.shares, lens) : l.baseAmount)
+const priced = (l: CostLine) => ({ amount: l.amount, currency: l.currency, charged: l.charged })
 
-  const planned = lines.reduce((sum, l) => sum + share(l), 0)
-  const committed = lines.filter((l) => l.committed).reduce((sum, l) => sum + share(l), 0)
-  const possible = data.ideas
-    .filter((i) => inLens(i.members, lens))
-    .reduce((sum, i) => {
-      const mine = selected.length ? i.members.filter((m) => selected.includes(m)).length / i.members.length : 1
-      return sum + i.amount * mine
-    }, 0)
-  const set = (selector: string, text: string) => {
-    const el = document.querySelector(selector)
-    if (el) el.textContent = text
-  }
-  set('[data-total="planned"]', money(planned, data.base))
-  set('[data-total="committed"]', money(committed, data.base))
-  set('[data-total="possible"]', money(possible, data.base))
+/** The fraction of a line the lens owns: everyone's when nobody is selected. */
+export function owned(fractions: Record<string, number>, lens: Lens): number {
+  if (!lens.people.length) return 1
+  return lens.people.reduce((sum, p) => sum + (fractions[p] ?? 0), 0)
+}
 
-  for (const el of document.querySelectorAll<HTMLElement>('[data-currency]')) {
-    const code = el.dataset.currency!
-    const amount = lines
-      .filter((l) => l.currency === code && l.baseAmount > 0)
-      .reduce((sum, l) => sum + (l.amount * share(l)) / l.baseAmount, 0)
-    el.hidden = amount < 0.005
-    el.firstElementChild!.textContent = money(amount, code)
+export function computeBudget(data: BudgetData, lens: Lens, members: string[]): Computed {
+  const result: Computed = {
+    planned: 0,
+    committed: 0,
+    possible: 0,
+    estimated: false,
+    committedEstimated: false,
+    missing: 0,
+    byKind: new Map(),
+    byCurrency: new Map(),
+    members: new Map(members.map((m) => [m, { paid: 0, share: 0 }])),
+    settlements: [],
+    lines: [],
   }
+  for (const line of data.lines) {
+    const shown = value(priced(line))
+    if (!shown) {
+      result.missing++
+      result.lines.push(null)
+      continue
+    }
+    for (const [m, f] of Object.entries(line.shares)) result.members.get(m)!.share += shown.amount * f
+    for (const [m, f] of Object.entries(line.paid)) result.members.get(m)!.paid += shown.amount * f
+    const visible = inLens(Object.keys(line.shares), lens)
+    const mine = visible ? shown.amount * owned(line.shares, lens) : 0
+    result.lines.push({ total: shown.amount, mine, exact: shown.exact })
+    if (!visible) continue
+    result.estimated ||= !shown.exact
+    result.planned += mine
+    if (line.committed) {
+      result.committed += mine
+      result.committedEstimated ||= !shown.exact
+    }
+    result.byKind.set(line.kind, (result.byKind.get(line.kind) ?? 0) + mine)
+    const moved = line.settledAmount * owned(line.shares, lens)
+    result.byCurrency.set(line.settledCurrency, (result.byCurrency.get(line.settledCurrency) ?? 0) + moved)
+  }
+  for (const idea of data.ideas) {
+    const shown = value(priced(idea))
+    if (shown && inLens(Object.keys(idea.shares), lens)) result.possible += shown.amount * owned(idea.shares, lens)
+  }
+  result.settlements = settle(result.members)
+  return result
+}
 
-  const byKind = new Map<string, number>()
-  for (const l of lines) byKind.set(l.kind, (byKind.get(l.kind) ?? 0) + share(l))
-  for (const bar of document.querySelectorAll<HTMLElement>('[data-kind-bar]')) {
-    const amount = byKind.get(bar.dataset.kindBar!) ?? 0
-    bar.style.flex = String(amount)
-    bar.hidden = amount <= 0
+/** Greedy: the largest debtor pays the largest creditor until all are even. */
+function settle(members: Map<string, { paid: number; share: number }>) {
+  const cent = 0.005
+  const creditors: [string, number][] = []
+  const debtors: [string, number][] = []
+  for (const [m, { paid, share }] of members) {
+    const balance = paid - share
+    if (balance > cent) creditors.push([m, balance])
+    else if (balance < -cent) debtors.push([m, -balance])
   }
-  const percent = new Intl.NumberFormat(document.documentElement.lang, { style: 'percent' })
-  for (const row of document.querySelectorAll<HTMLElement>('[data-kind]')) {
-    const amount = byKind.get(row.dataset.kind!) ?? 0
-    row.hidden = amount <= 0
-    row.querySelector('[data-kind-amount]')!.textContent = money(amount, data.base, true)
-    row.querySelector('[data-kind-pct]')!.textContent = ` · ${percent.format(planned ? amount / planned : 0)}`
+  const out: { from: string; to: string; amount: number }[] = []
+  while (creditors.length && debtors.length) {
+    creditors.sort((a, b) => b[1] - a[1])
+    debtors.sort((a, b) => b[1] - a[1])
+    const c = creditors[0]
+    const d = debtors[0]
+    const amount = Math.min(c[1], d[1])
+    out.push({ from: d[0], to: c[0], amount })
+    c[1] -= amount
+    d[1] -= amount
+    if (c[1] <= cent) creditors.shift()
+    if (d[1] <= cent) debtors.shift()
   }
-
-  for (const card of document.querySelectorAll<HTMLElement>('[data-person]'))
-    card.hidden = selected.length > 0 && !selected.includes(card.dataset.person!)
-  for (const row of document.querySelectorAll<HTMLElement>('[data-settle]'))
-    row.hidden = selected.length > 0 && !row.dataset.settle!.split(' ').some((p) => selected.includes(p))
+  return out
 }

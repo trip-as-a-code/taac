@@ -15,6 +15,13 @@ export interface Diagnostic {
 /** One string for every language, or one per language. */
 export type Text = string | Record<string, string>
 
+/** ECB reference rates against EUR, fetched when the site was built. */
+export interface Rates {
+  date: string
+  /** Units of each currency per 1 EUR (EUR itself included). */
+  rates: Record<string, number>
+}
+
 export interface SiteExport {
   apiVersion: 'taac/v1alpha3'
   site: { title: Text; description?: Text; passwordSecret?: string }
@@ -30,6 +37,8 @@ export interface Member {
   name: string
   emoji?: string
   links?: string[]
+  /** ISO 4217 code this person pays with. */
+  currency?: string
 }
 
 export interface Group {
@@ -66,11 +75,20 @@ export interface Base {
   notes?: string
 }
 
+export interface Money {
+  amount: number
+  currency: string
+}
+
 export interface Cost {
   amount: number
   currency: string
-  baseAmount: number | null
-  paidBy: string
+  /** What was actually charged, once booked. */
+  charged?: Money
+  /** Member ids who paid; empty when each paid their own share. */
+  paidBy: string[]
+  /** Member ids the cost is for. */
+  who: string[]
   label?: string
   estimate: boolean
 }
@@ -147,26 +165,37 @@ export interface Amounts {
   committed: number
 }
 
+export interface CostLine {
+  item: string
+  label?: string
+  kind: string
+  amount: number
+  currency: string
+  charged?: Money
+  /** What balances use: `charged` if known, else the price. */
+  settledAmount: number
+  settledCurrency: string
+  committed: boolean
+  estimate: boolean
+  /** Fraction each member bears (sums to 1). */
+  shares: Record<string, number>
+  /** Fraction each member paid (sums to 1). */
+  paid: Record<string, number>
+}
+
 export interface Budget {
+  /** The trip's default display currency. */
   base: string
-  total: Amounts
-  /** Estimated cost of ideas, in the base currency. */
-  possible: number
-  byCurrency: Record<string, Amounts>
-  byKind: Record<string, Amounts>
-  members: { member: string; paid: Amounts; share: Amounts; balance: number }[]
-  settlements: { from: string; to: string; amount: number }[]
-  lines: {
-    item: string
-    label?: string
-    amount: number
-    currency: string
-    baseAmount: number
-    paidBy: string
-    committed: boolean
-    estimate: boolean
-    shares: Record<string, number>
-  }[]
+  lines: CostLine[]
+  ideas: CostLine[]
+  byCurrency: Record<
+    string,
+    {
+      total: Amounts
+      members: { member: string; paid: Amounts; share: Amounts; balance: number }[]
+      settlements: { from: string; to: string; amount: number }[]
+    }
+  >
 }
 
 export interface TripExport {
@@ -180,7 +209,7 @@ export interface TripExport {
   passwordSecret?: string
   startDate?: ISODate
   endDate?: ISODate
-  currency?: { base: string; rates: Record<string, number> }
+  currency?: { base: string }
   members: Member[]
   groups: Group[]
   parties: Party[]
@@ -191,7 +220,7 @@ export interface TripExport {
   ideas: Idea[]
   days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[] }[]
   budget: Budget
-  packing: { category: string; items: { id: string; name: string; for: string[] }[] }[]
+  packing: { category: string; items: { id: string; name: string; members: string[] }[] }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
   artifacts: { ics: string; icsByMember: Record<string, string>; geojson: string; beancount: string; markdown: string }
   diagnostics: Diagnostic[]

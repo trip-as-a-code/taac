@@ -1,0 +1,29 @@
+---
+import type { Money as Charged } from '@taac/core'
+
+import { useI18n, type Locale } from '@/i18n'
+
+interface Props {
+  amount: number
+  currency: string
+  charged?: Charged
+  lang: Locale
+  class?: string
+}
+
+// Server-renders the original price; scripts/money.ts swaps in the viewer's
+// display currency once rates are known.
+const { amount, currency, charged, lang, class: className } = Astro.props
+const original = charged ?? { amount, currency }
+---
+
+<span
+  class:list={['tabular', className]}
+  data-money
+  data-amount={amount}
+  data-currency={currency}
+  data-charged-amount={charged?.amount}
+  data-charged-currency={charged?.currency}
+>
+  {useI18n(lang).money(original.amount, original.currency)}
+</span>

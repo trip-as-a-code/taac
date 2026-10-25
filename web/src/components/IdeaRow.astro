@@ -3,6 +3,7 @@ import type { Idea, TripExport } from '@taac/core'
 
 import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
+import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { kindIcon, kindTint, markdown, partyEmoji, partyHue, partyLabel, people } from '@/lib/trip'
 
@@ -13,14 +14,12 @@ interface Props {
 }
 
 const { trip, idea, i18n } = Astro.props
-const { t, money } = i18n
+const { t } = i18n
 const places = idea.places.map((id) => trip.places[id]).filter(Boolean)
 const members = trip.members.filter((m) => idea.members.includes(m.id))
 const everyone = members.length === trip.members.length
 const party = partyLabel(trip, idea.party, i18n.t('lens.everyone'), i18n.t('party.and'))
 const emoji = partyEmoji(trip, idea.party)
-const base = trip.currency?.base ?? 'EUR'
-const estimate = idea.costs.reduce((sum, c) => sum + (c.baseAmount ?? 0), 0)
 const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
 ---
 
@@ -54,11 +53,15 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
           </span>
         )}
         {idea.duration && <span class="footnote secondary">{t(`ideas.duration.${idea.duration}`)}</span>}
-        {estimate > 0 && (
-          <span class="footnote secondary tabular">
-            {t('ideas.estimate', { amount: money(estimate, base, { maximumFractionDigits: 0 }) })}
-          </span>
-        )}
+        {idea.costs.map((c) => (
+          <Money
+            amount={c.amount}
+            currency={c.currency}
+            charged={c.charged}
+            lang={i18n.lang}
+            class="footnote secondary"
+          />
+        ))}
         {!everyone && (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
             <span class="party-pill">

@@ -1,27 +1,70 @@
-//! Who paid what, who owes whom. Everything is converted to the base
-//! currency; per-currency totals are kept alongside for display.
+//! Who paid what, who owes whom — per currency, with no exchange rates.
+//! A cost settles in the currency actually charged when it is known, else
+//! in the currency it is quoted in. Converting between currencies is the
+//! viewer's business (the website uses live ECB rates).
 
 use indexmap::IndexMap;
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, RoundingStrategy};
 use serde::Serialize;
 
 use crate::loader::Trip;
-use crate::model::{BookingStatus, Item, Split};
+use crate::model::{BookingStatus, Cost, Item, Split};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Budget {
+    /// The trip's default display currency.
     pub base: String,
-    pub total: Amounts,
-    /// Estimated cost of ideas, kept apart from plans.
-    #[serde(with = "rust_decimal::serde::float")]
-    pub possible: Decimal,
-    pub by_currency: IndexMap<String, Amounts>,
-    pub by_kind: IndexMap<String, Amounts>,
-    pub members: Vec<MemberBalance>,
-    /// Transfers that settle every balance, planned spend included.
-    pub settlements: Vec<Settlement>,
     pub lines: Vec<CostLine>,
+    /// Estimated costs of ideas: possible spend, never planned.
+    pub ideas: Vec<CostLine>,
+    /// Totals, balances and settlements in each currency money moved in.
+    pub by_currency: IndexMap<String, CurrencyBudget>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CostLine {
+    /// Item or idea id.
+    pub item: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    pub kind: String,
+    /// The price as quoted.
+    #[serde(with = "rust_decimal::serde::float")]
+    pub amount: Decimal,
+    pub currency: String,
+    /// What was actually charged, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub charged: Option<MoneyExport>,
+    /// The amount balances use: `charged` if known, else the price.
+    #[serde(with = "rust_decimal::serde::float")]
+    pub settled_amount: Decimal,
+    pub settled_currency: String,
+    pub committed: bool,
+    pub estimate: bool,
+    /// Fraction of the cost each member bears (sums to 1).
+    pub shares: IndexMap<String, f64>,
+    /// Fraction of the cost each member paid (sums to 1).
+    pub paid: IndexMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoneyExport {
+    #[serde(with = "rust_decimal::serde::float")]
+    pub amount: Decimal,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrencyBudget {
+    pub total: Amounts,
+    pub members: Vec<MemberBalance>,
+    /// Transfers that settle this currency, planned spend included.
+    pub settlements: Vec<Settlement>,
 }
 
 /// `committed` counts only booked items; `planned` everything not cancelled.
@@ -63,38 +106,6 @@ pub struct Settlement {
     pub amount: Decimal,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CostLine {
-    pub item: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
-    #[serde(with = "rust_decimal::serde::float")]
-    pub amount: Decimal,
-    pub currency: String,
-    #[serde(with = "rust_decimal::serde::float")]
-    pub base_amount: Decimal,
-    pub paid_by: String,
-    pub committed: bool,
-    pub estimate: bool,
-    /// Base-currency share per member.
-    #[serde(serialize_with = "float_map")]
-    pub shares: IndexMap<String, Decimal>,
-}
-
-fn float_map<S: serde::Serializer>(
-    map: &IndexMap<String, Decimal>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    use rust_decimal::prelude::ToPrimitive;
-    use serde::ser::SerializeMap;
-    let mut out = serializer.serialize_map(Some(map.len()))?;
-    for (k, v) in map {
-        out.serialize_entry(k, &v.to_f64().unwrap_or_default())?;
-    }
-    out.end()
-}
-
 pub fn round(amount: Decimal) -> Decimal {
     amount.round_dp_with_strategy(2, RoundingStrategy::MidpointNearestEven)
 }
@@ -129,21 +140,30 @@ pub fn shares(
             map.iter().map(|(m, w)| (m.clone(), *w)).collect()
         }
     };
+    distribute(amount, &weights, paid_by)
+}
+
+/// Divides `amount` by weight, rounding to cents and handing out the
+/// leftover cents first-come, so the parts always add up.
+fn distribute(
+    amount: Decimal,
+    weights: &[(String, Decimal)],
+    fallback: &str,
+) -> IndexMap<String, Decimal> {
     let total_weight: Decimal = weights.iter().map(|(_, w)| *w).sum();
     let mut out = IndexMap::new();
     if total_weight <= Decimal::ZERO {
-        out.insert(paid_by.to_owned(), round(amount));
+        out.insert(fallback.to_owned(), round(amount));
         return out;
     }
     let target = round(amount);
     let mut allocated = Decimal::ZERO;
-    for (member, weight) in &weights {
+    for (member, weight) in weights {
         let share =
             (amount * weight / total_weight).round_dp_with_strategy(2, RoundingStrategy::ToZero);
         allocated += share;
         *out.entry(member.clone()).or_insert(Decimal::ZERO) += share;
     }
-    // Hand leftover cents out one by one, first participants first.
     let cent = Decimal::new(1, 2);
     let mut remainder = target - allocated;
     let members: Vec<String> = out.keys().cloned().collect();
@@ -156,26 +176,105 @@ pub fn shares(
     out
 }
 
+/// One cost's settled amount split into who bears it and who paid it.
+struct Allocation {
+    settled_amount: Decimal,
+    settled_currency: String,
+    shares: IndexMap<String, Decimal>,
+    paid: IndexMap<String, Decimal>,
+}
+
+fn allocate(trip: &Trip, cost: &Cost, participants: &[&str]) -> Allocation {
+    let (settled_amount, settled_currency) = cost.charged.as_ref().map_or_else(
+        || (cost.amount, cost.currency.clone()),
+        |c| (c.amount, c.currency.clone()),
+    );
+    let beneficiaries = cost
+        .who
+        .as_deref()
+        .map_or_else(|| participants.to_vec(), |who| trip.who(Some(who)));
+    let payers: Vec<String> = trip
+        .who(Some(&cost.paid_by.ids()))
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    let first_payer = payers.first().map_or("", String::as_str);
+    let split = match &cost.split {
+        // Exact amounts are quoted prices; applied to the charged amount
+        // they act as weights.
+        Split::Exact(map) => Split::Shares(map.clone()),
+        other => other.clone(),
+    };
+    let personal_owner = if cost.paid_by.is_each() {
+        beneficiaries.first().copied().unwrap_or_default()
+    } else {
+        first_payer
+    };
+    let shares = shares(settled_amount, &split, personal_owner, &beneficiaries);
+    let paid = if cost.paid_by.is_each() {
+        shares.clone()
+    } else {
+        let weights: Vec<(String, Decimal)> =
+            payers.iter().map(|p| (p.clone(), Decimal::ONE)).collect();
+        distribute(settled_amount, &weights, first_payer)
+    };
+    Allocation {
+        settled_amount: round(settled_amount),
+        settled_currency,
+        shares,
+        paid,
+    }
+}
+
+fn fractions(parts: &IndexMap<String, Decimal>, total: Decimal) -> IndexMap<String, f64> {
+    parts
+        .iter()
+        .map(|(m, v)| {
+            let fraction = if total > Decimal::ZERO {
+                *v / total
+            } else {
+                Decimal::ZERO
+            };
+            (m.clone(), fraction.round_dp(8).to_f64().unwrap_or_default())
+        })
+        .collect()
+}
+
+fn line(
+    trip: &Trip,
+    id: &str,
+    kind: &str,
+    cost: &Cost,
+    participants: &[&str],
+    committed: bool,
+) -> (CostLine, Allocation) {
+    let allocation = allocate(trip, cost, participants);
+    let line = CostLine {
+        item: id.to_owned(),
+        label: cost.label.clone(),
+        kind: kind.to_owned(),
+        amount: cost.amount,
+        currency: cost.currency.clone(),
+        charged: cost.charged.as_ref().map(|c| MoneyExport {
+            amount: c.amount,
+            currency: c.currency.clone(),
+        }),
+        settled_amount: allocation.settled_amount,
+        settled_currency: allocation.settled_currency.clone(),
+        committed,
+        estimate: cost.estimate,
+        shares: fractions(&allocation.shares, allocation.settled_amount),
+        paid: fractions(&allocation.paid, allocation.settled_amount),
+    };
+    (line, allocation)
+}
+
 pub fn compute(trip: &Trip) -> Budget {
-    let base = trip.base_currency().to_owned();
     let mut budget = Budget {
-        base: base.clone(),
-        total: Amounts::default(),
-        possible: Decimal::ZERO,
-        by_currency: IndexMap::new(),
-        by_kind: IndexMap::new(),
-        members: trip
-            .members
-            .iter()
-            .map(|m| MemberBalance {
-                member: m.id.clone(),
-                paid: Amounts::default(),
-                share: Amounts::default(),
-                balance: Decimal::ZERO,
-            })
-            .collect(),
-        settlements: Vec::new(),
+        base: trip.base_currency().to_owned(),
         lines: Vec::new(),
+        ideas: Vec::new(),
+        by_currency: IndexMap::new(),
     };
 
     for item in &trip.itinerary {
@@ -185,75 +284,73 @@ pub fn compute(trip: &Trip) -> Budget {
         let committed = is_committed(item);
         let participants = trip.participants(item);
         for cost in &item.costs {
-            let Some(base_amount) = trip
-                .currency
-                .as_ref()
-                .and_then(|c| c.to_base(cost.amount, &cost.currency))
-                .map(round)
-            else {
-                continue;
-            };
-            let split = match &cost.split {
-                // Exact amounts are in the cost's currency; convert per member.
-                Split::Exact(map) => Split::Shares(map.clone()),
-                other => other.clone(),
-            };
-            let shares = shares(base_amount, &split, &cost.paid_by, &participants);
-
-            budget.total.add(base_amount, committed);
-            budget
+            let (line, allocation) = line(
+                trip,
+                &item.id,
+                item.kind.as_str(),
+                cost,
+                &participants,
+                committed,
+            );
+            let currency = budget
                 .by_currency
-                .entry(cost.currency.clone())
-                .or_default()
-                .add(cost.amount, committed);
-            budget
-                .by_kind
-                .entry(item.kind.as_str().to_owned())
-                .or_default()
-                .add(base_amount, committed);
-            for balance in &mut budget.members {
-                if balance.member == cost.paid_by {
-                    balance.paid.add(base_amount, committed);
+                .entry(allocation.settled_currency.clone())
+                .or_insert_with(|| CurrencyBudget {
+                    total: Amounts::default(),
+                    members: trip
+                        .members
+                        .iter()
+                        .map(|m| MemberBalance {
+                            member: m.id.clone(),
+                            paid: Amounts::default(),
+                            share: Amounts::default(),
+                            balance: Decimal::ZERO,
+                        })
+                        .collect(),
+                    settlements: Vec::new(),
+                });
+            currency.total.add(allocation.settled_amount, committed);
+            for balance in &mut currency.members {
+                if let Some(paid) = allocation.paid.get(&balance.member) {
+                    balance.paid.add(*paid, committed);
                 }
-                if let Some(share) = shares.get(&balance.member) {
+                if let Some(share) = allocation.shares.get(&balance.member) {
                     balance.share.add(*share, committed);
                 }
             }
-            budget.lines.push(CostLine {
-                item: item.id.clone(),
-                label: cost.label.clone(),
-                amount: cost.amount,
-                currency: cost.currency.clone(),
-                base_amount,
-                paid_by: cost.paid_by.clone(),
-                committed,
-                estimate: cost.estimate,
-                shares,
-            });
+            budget.lines.push(line);
         }
     }
 
-    budget.possible = trip
-        .ideas
-        .iter()
-        .flat_map(|idea| &idea.costs)
-        .filter_map(|c| {
-            trip.currency
-                .as_ref()
-                .and_then(|cur| cur.to_base(c.amount, &c.currency))
-        })
-        .map(round)
-        .sum();
-
-    for balance in &mut budget.members {
-        balance.balance = balance.paid.planned - balance.share.planned;
+    for idea in &trip.ideas {
+        let participants = trip.who(idea.who.as_deref());
+        for cost in &idea.costs {
+            budget.ideas.push(
+                line(
+                    trip,
+                    &idea.id,
+                    idea.kind.as_str(),
+                    cost,
+                    &participants,
+                    false,
+                )
+                .0,
+            );
+        }
     }
-    budget.settlements = settle(&budget.members);
+
+    for currency in budget.by_currency.values_mut() {
+        for balance in &mut currency.members {
+            balance.balance = balance.paid.planned - balance.share.planned;
+        }
+        currency.settlements = settle(&currency.members);
+    }
     budget
 }
 
 /// Greedy: the largest debtor pays the largest creditor until all are even.
 fn settle(balances: &[MemberBalance]) -> Vec<Settlement> {
+    let cent = Decimal::new(1, 2);
     let mut creditors: Vec<(String, Decimal)> = balances
         .iter()
         .filter(|b| b.balance > Decimal::ZERO)
@@ -272,7 +369,7 @@ fn settle(balances: &[MemberBalance]) -> Vec<Settlement> {
             break;
         };
         let amount = c.1.min(d.1);
-        if amount < Decimal::new(1, 2) {
+        if amount < cent {
             break;
         }
         out.push(Settlement {
@@ -282,8 +379,8 @@ fn settle(balances: &[MemberBalance]) -> Vec<Settlement> {
         });
         c.1 -= amount;
         d.1 -= amount;
-        creditors.retain(|x| x.1 >= Decimal::new(1, 2));
-        debtors.retain(|x| x.1 >= Decimal::new(1, 2));
+        creditors.retain(|x| x.1 >= cent);
+        debtors.retain(|x| x.1 >= cent);
     }
     out
 }
@@ -291,6 +388,7 @@ fn settle(balances: &[MemberBalance]) -> Vec<Settlement> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::loader::{Files, load_standalone_trip};
 
     fn dec(s: &str) -> Decimal {
         s.parse().unwrap()
@@ -324,6 +422,63 @@ mod tests {
         assert_eq!(
             (s[0].from.as_str(), s[0].to.as_str(), s[0].amount),
             ("b", "a", dec("20"))
+        );
+    }
+
+    fn trip(costs: &str) -> Trip {
+        let yaml = format!(
+            r"
+apiVersion: taac/v1alpha3
+kind: Trip
+metadata: {{ title: T, timezone: UTC }}
+currency: {{ base: EUR }}
+members: [{{ id: a, name: A }}, {{ id: b, name: B, currency: USD }}, {{ id: c, name: C }}]
+itinerary:
+  - id: x
+    kind: activity
+    title: X
+    date: 2027-01-01
+    booking: {{ status: booked }}
+    costs:
+{costs}"
+        );
+        let files: Files = [("trip.yaml".to_owned(), yaml)].into();
+        load_standalone_trip(&files, "trip.yaml")
+            .0
+            .unwrap()
+            .trips
+            .remove(0)
+    }
+
+    #[test]
+    fn charged_amount_settles_in_its_own_currency() {
+        let b = compute(&trip(
+            "      - { amount: 30000, currency: JPY, paidBy: b, charged: { amount: 201, currency: USD } }",
+        ));
+        assert_eq!(b.lines[0].settled_currency, "USD");
+        let usd = &b.by_currency["USD"];
+        assert_eq!(usd.total.committed, dec("201"));
+        assert_eq!(usd.settlements.len(), 2);
+        assert!(!b.by_currency.contains_key("JPY"));
+    }
+
+    #[test]
+    fn each_pays_their_own_share_and_owes_nothing() {
+        let b = compute(&trip("      - { amount: 90, currency: EUR, paidBy: each }"));
+        assert!(b.by_currency["EUR"].settlements.is_empty());
+        assert!((b.lines[0].paid["a"] - 1.0 / 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn several_payers_and_a_narrower_who() {
+        let b = compute(&trip(
+            "      - { amount: 100, currency: EUR, paidBy: [a, b], who: [c] }",
+        ));
+        let eur = &b.by_currency["EUR"];
+        let balance = |m: &str| eur.members.iter().find(|x| x.member == m).unwrap().balance;
+        assert_eq!(
+            (balance("a"), balance("b"), balance("c")),
+            (dec("50"), dec("50"), dec("-100"))
         );
     }
 }

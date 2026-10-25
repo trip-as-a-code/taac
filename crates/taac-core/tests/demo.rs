@@ -28,16 +28,19 @@ fn demo_exports_without_diagnostics() {
     assert_eq!(trip.days.len(), 4);
 
     let budget = &trip.budget;
-    let shares: f64 = budget
-        .lines
-        .iter()
-        .flat_map(|l| l.shares.values())
-        .map(|d| d.to_string().parse::<f64>().unwrap())
-        .sum();
-    let total: f64 = budget.total.planned.to_string().parse().unwrap();
-    assert!(
-        (shares - total).abs() < 0.005,
-        "shares {shares} != total {total}"
+    for line in &budget.lines {
+        let shares: f64 = line.shares.values().sum();
+        let paid: f64 = line.paid.values().sum();
+        assert!(
+            (shares - 1.0).abs() < 1e-6 && (paid - 1.0).abs() < 1e-6,
+            "{line:?}"
+        );
+    }
+    // The flight was charged in euros, so it settles in euros.
+    let flight = budget.lines.iter().find(|l| l.item == "outbound").unwrap();
+    assert_eq!(
+        (flight.currency.as_str(), flight.settled_currency.as_str()),
+        ("GBP", "EUR")
     );
 }
 

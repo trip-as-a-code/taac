@@ -1,5 +1,7 @@
 // Per-navigation setup shared by every page (runs on `astro:page-load`).
 
+import { onMoney, renderMoney } from '@/scripts/money'
+
 const LANG_COOKIE = 'taac_lang'
 let once = false
 
@@ -8,8 +10,10 @@ export function setupPage() {
   forgetOfflineCopiesOnLogout()
   trackScroll()
   renderRelativeDates()
+  renderMoney()
   if (!once) {
     once = true
+    onMoney(() => renderMoney())
     registerServiceWorker()
     watchForNewBuild()
   }

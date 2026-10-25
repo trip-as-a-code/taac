@@ -187,17 +187,9 @@
       "type": "object",
       "properties": {
         "base": {
-          "description": "ISO 4217 code every amount is converted to for totals and settlements.",
+          "description": "ISO 4217 code totals and settlements default to. Viewers can switch\nthe website to another currency; conversion uses live ECB rates.",
           "type": "string",
           "pattern": "^[A-Z]{3}$"
-        },
-        "rates": {
-          "description": "Value of one unit of each foreign currency in `base`, e.g. `JPY: 0.0061`.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "number",
-            "format": "double"
-          }
         }
       },
       "additionalProperties": false,
@@ -226,6 +218,14 @@
           "items": {
             "type": "string"
           }
+        },
+        "currency": {
+          "description": "ISO 4217 code of the money this person pays with; defaults to the\ntrip's base currency.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Z]{3}$"
         }
       },
       "additionalProperties": false,
@@ -626,6 +626,7 @@
       "type": "object",
       "properties": {
         "amount": {
+          "description": "The price, in the currency it is quoted in.",
           "type": "number",
           "format": "double"
         },
@@ -633,10 +634,33 @@
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
+        "charged": {
+          "description": "What actually left the payer's account once booked, in their own\ncurrency. Required for booked costs in a foreign currency; until then\nthe website estimates with the current rate.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "paidBy": {
-          "type": "string"
+          "description": "Who paid: a member, a list of members and/or groups sharing the\npayment equally, or `each` — everyone paid their own share.",
+          "$ref": "#/$defs/PaidBy"
+        },
+        "who": {
+          "description": "Who the cost is for; defaults to the item's participants.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "split": {
+          "description": "How it divides among `who`.",
           "$ref": "#/$defs/Split",
           "default": "equal"
         },
@@ -656,6 +680,39 @@
         "amount",
         "currency",
         "paidBy"
+      ]
+    },
+    "Money": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "format": "double"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "amount",
+        "currency"
+      ]
+    },
+    "PaidBy": {
+      "anyOf": [
+        {
+          "description": "One member (or group) id, or `each`.",
+          "type": "string"
+        },
+        {
+          "description": "Members and/or groups who split the payment equally.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       ]
     },
     "Split": {
@@ -866,6 +923,16 @@
         "category": {
           "type": "string"
         },
+        "who": {
+          "description": "Default for the category's items: member and/or group ids; omitted\nmeans everyone packs it.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
         "items": {
           "type": "array",
           "items": {
@@ -890,9 +957,12 @@
             "name": {
               "type": "string"
             },
-            "for": {
-              "description": "Member and/or group ids who pack it; defaults to everyone.",
-              "type": "array",
+            "who": {
+              "description": "Member and/or group ids who pack it; defaults to the category's.",
+              "type": [
+                "array",
+                "null"
+              ],
               "items": {
                 "type": "string"
               }

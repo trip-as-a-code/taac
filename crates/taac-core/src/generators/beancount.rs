@@ -1,17 +1,20 @@
 //! Beancount ledger: payers fund `Assets:Wallet:<Member>`, every
 //! participant's share lands in `Expenses:<Member>:<Kind>`. `*` marks booked
-//! spend, `!` planned. Amounts are in the base currency; the original amount
-//! rides along as metadata.
+//! spend, `!` planned. Each transaction is in the currency the money moved
+//! in (charged, else quoted); Beancount keeps currencies apart, so no rates.
 
 use std::collections::BTreeSet;
 use std::fmt::Write;
 
-use crate::budget::{self, is_committed};
+use indexmap::IndexMap;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
+
+use crate::budget;
 use crate::export::date_range;
 use crate::loader::Trip;
 
 pub fn generate(trip: &Trip) -> String {
-    let base = trip.base_currency();
     let budget = budget::compute(trip);
     let mut out = String::new();
     let _ = writeln!(
@@ -24,25 +27,32 @@ pub fn generate(trip: &Trip) -> String {
         "option \"title\" \"{}\"",
         trip.metadata.title.replace('"', "'")
     );
-    let _ = writeln!(out, "option \"operating_currency\" \"{base}\"\n");
+    let currencies: BTreeSet<&str> = budget
+        .lines
+        .iter()
+        .map(|l| l.settled_currency.as_str())
+        .chain(std::iter::once(budget.base.as_str()))
+        .collect();
+    for currency in &currencies {
+        let _ = writeln!(out, "option \"operating_currency\" \"{currency}\"");
+    }
+    out.push('\n');
 
     let Some(open) = date_range(trip).0 else {
         return out;
     };
     let mut accounts = BTreeSet::new();
     for line in &budget.lines {
-        let kind = trip
-            .itinerary
-            .iter()
-            .find(|i| i.id == line.item)
-            .map_or("Other", |i| kind_account(i.kind.as_str()));
-        accounts.insert(format!("Assets:Wallet:{}", component(&line.paid_by)));
+        let kind = kind_account(&line.kind);
+        for member in line.paid.keys() {
+            accounts.insert(format!("Assets:Wallet:{}", component(member)));
+        }
         for member in line.shares.keys() {
             accounts.insert(format!("Expenses:{}:{kind}", component(member)));
         }
     }
     for account in &accounts {
-        let _ = writeln!(out, "{open} open {account} {base}");
+        let _ = writeln!(out, "{open} open {account}");
     }
     out.push('\n');
 
@@ -50,11 +60,12 @@ pub fn generate(trip: &Trip) -> String {
         let Some(item) = trip.itinerary.iter().find(|i| i.id == line.item) else {
             continue;
         };
-        let flag = if is_committed(item) { '*' } else { '!' };
+        let flag = if line.committed { '*' } else { '!' };
         let narration = line.label.as_ref().map_or_else(
             || item.title.clone(),
             |label| format!("{} — {label}", item.title),
         );
+        let currency = &line.settled_currency;
         let _ = writeln!(
             out,
             "{} {flag} \"{}\"",
@@ -62,30 +73,54 @@ pub fn generate(trip: &Trip) -> String {
             narration.replace('"', "'")
         );
         let _ = writeln!(out, "  item: \"{}\"", item.id);
-        if line.currency != base {
-            let _ = writeln!(out, "  original: \"{} {}\"", line.amount, line.currency);
+        if line.currency != *currency || line.charged.is_some() {
+            let _ = writeln!(out, "  price: \"{} {}\"", line.amount, line.currency);
         }
-        let kind = kind_account(item.kind.as_str());
-        for (member, share) in &line.shares {
+        let kind = kind_account(&line.kind);
+        for (member, amount) in parts(line.settled_amount, &line.shares) {
             let _ = writeln!(
                 out,
-                "  Expenses:{}:{kind}  {share:.2} {base}",
-                component(member)
+                "  Expenses:{}:{kind}  {amount:.2} {currency}",
+                component(&member)
             );
         }
-        let _ = writeln!(
-            out,
-            "  Assets:Wallet:{}  {:.2} {base}\n",
-            component(&line.paid_by),
-            -line.base_amount
-        );
+        for (member, amount) in parts(line.settled_amount, &line.paid) {
+            let _ = writeln!(
+                out,
+                "  Assets:Wallet:{}  {:.2} {currency}",
+                component(&member),
+                -amount
+            );
+        }
+        out.push('\n');
     }
 
-    if !budget.settlements.is_empty() {
-        let _ = writeln!(out, "; Settlement (planned spend included):");
-        for s in &budget.settlements {
-            let _ = writeln!(out, ";   {} → {}: {:.2} {base}", s.from, s.to, s.amount);
+    for (currency, totals) in &budget.by_currency {
+        if totals.settlements.is_empty() {
+            continue;
         }
+        let _ = writeln!(out, "; Settlement in {currency} (planned spend included):");
+        for s in &totals.settlements {
+            let _ = writeln!(out, ";   {} → {}: {:.2} {currency}", s.from, s.to, s.amount);
+        }
+    }
+    out
+}
+
+/// Turns fractions back into cent amounts that add up to `total`.
+fn parts(total: Decimal, fractions: &IndexMap<String, f64>) -> Vec<(String, Decimal)> {
+    let mut out: Vec<(String, Decimal)> = fractions
+        .iter()
+        .map(|(m, f)| {
+            (
+                m.clone(),
+                budget::round(Decimal::from_f64(*f).unwrap_or_default() * total),
+            )
+        })
+        .collect();
+    let drift = budget::round(total) - out.iter().map(|(_, a)| *a).sum::<Decimal>();
+    if let Some(first) = out.first_mut() {
+        first.1 += drift;
     }
     out
 }

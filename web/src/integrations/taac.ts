@@ -2,12 +2,35 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { exportSite, type Diagnostic, type SiteExport } from '@taac/core'
+import { exportSite, type Diagnostic, type Rates, type SiteExport } from '@taac/core'
 import type { AstroIntegration } from 'astro'
 import type { Plugin, ViteDevServer } from 'vite'
 
 const VIRTUAL = 'virtual:taac/site'
 const RESOLVED = '\0' + VIRTUAL
+const RATES = 'virtual:taac/rates'
+const RATES_RESOLVED = '\0' + RATES
+
+/**
+ * ECB reference rates at build time: the fallback until the page fetches
+ * today's through the worker. A build without network still works; prices
+ * then show in their own currency.
+ */
+async function fetchRates(): Promise<Rates | null> {
+  try {
+    const response = await fetch('https://api.frankfurter.dev/v2/rates?base=EUR&providers=ECB', {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!response.ok) return null
+    const rows = (await response.json()) as { date: string; quote: string; rate: number }[]
+    return {
+      date: rows[0]?.date ?? '',
+      rates: { EUR: 1, ...Object.fromEntries(rows.map((r) => [r.quote, r.rate])) },
+    }
+  } catch {
+    return null
+  }
+}
 
 /** The site file to render: `TAAC_SITE`, else the bundled demo. */
 export function sitePath(): string {
@@ -34,6 +57,7 @@ function load(): { site: SiteExport; paths: string[] } {
 /** The data each page imports, as a virtual module so dev reloads it on change. */
 function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
   let server: ViteDevServer | undefined
+  let rates: Promise<Rates | null> | undefined
   let watched = new Set<string>()
   return {
     name: 'taac-data',
@@ -50,9 +74,15 @@ function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
       s.watcher.on('unlink', reload)
     },
     resolveId(id) {
-      return id === VIRTUAL ? RESOLVED : undefined
+      if (id === VIRTUAL) return RESOLVED
+      if (id === RATES) return RATES_RESOLVED
+      return undefined
     },
-    load(id) {
+    async load(id) {
+      if (id === RATES_RESOLVED) {
+        rates ??= fetchRates()
+        return `export default ${JSON.stringify(await rates)}`
+      }
       if (id !== RESOLVED) return
       const { site, paths } = load()
       watched = new Set(paths.map((p) => resolve(p)))

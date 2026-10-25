@@ -2,6 +2,7 @@
 import type { ItemKind } from '@taac/core'
 
 import Icon from '@/components/Icon.astro'
+import Money from '@/components/Money.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { initials, itemById, kindIcon, kindTint, memberHue, memberName, people } from '@/lib/trip'
@@ -9,18 +10,17 @@ import { initials, itemById, kindIcon, kindTint, memberHue, memberName, people }
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
-const { t, money, date, path, number } = i18n
+const { t, date, path } = i18n
 const { budget } = trip
-const base = budget.base
 const items = itemById(trip)
-const kinds = Object.entries(budget.byKind).sort((a, b) => b[1].planned - a[1].planned) as [
-  ItemKind,
-  typeof budget.total,
-][]
-const rates = Object.entries(trip.currency?.rates ?? {})
-const lines = [...budget.lines].sort((a, b) =>
-  (items.get(a.item)?.start ?? '').localeCompare(items.get(b.item)?.start ?? ''),
-)
+const kinds = [...new Set(budget.lines.map((l) => l.kind))] as ItemKind[]
+const currencies = [...new Set(budget.lines.map((l) => l.settledCurrency))]
+const lines = budget.lines
+  .map((line, index) => ({ line, index }))
+  .sort((a, b) => (items.get(a.line.item)?.start ?? '').localeCompare(items.get(b.line.item)?.start ?? ''))
+// Everything with an amount is filled in by scripts/budget.ts in the
+// viewer's currency; the page ships the lines, not the totals.
+const dash = '—'
 ---
 
 <TripLayout trip={trip} lang={lang} section="budget">
@@ -32,22 +32,22 @@ const lines = [...budget.lines].sort((a, b) =>
         <div class="total card card-pad">
           <span class="footnote secondary label">{t('budget.planned')}</span>
           <span class="amount tabular" data-total="planned">
-            {money(budget.total.planned, base)}
+            {dash}
           </span>
           <span class="footnote tertiary">{t('budget.plannedHint')}</span>
         </div>
         <div class="total card card-pad">
           <span class="footnote secondary label">{t('budget.committed')}</span>
           <span class="amount tabular committed" data-total="committed">
-            {money(budget.total.committed, base)}
+            {dash}
           </span>
           <span class="footnote tertiary">{t('budget.committedHint')}</span>
         </div>
-        {budget.possible > 0 && (
+        {budget.ideas.length > 0 && (
           <div class="total card card-pad">
             <span class="footnote secondary label">{t('budget.possible')}</span>
             <span class="amount tabular possible" data-total="possible">
-              {money(budget.possible, base)}
+              {dash}
             </span>
             <span class="footnote tertiary">{t('budget.possibleHint')}</span>
           </div>
@@ -55,58 +55,55 @@ const lines = [...budget.lines].sort((a, b) =>
         <div class="total card card-pad currencies">
           <span class="footnote secondary label">{t('budget.byCurrency')}</span>
           <ul class="list">
-            {Object.entries(budget.byCurrency).map(([code, amounts]) => (
-              <li class="currency tabular" data-currency={code}>
-                <span>{money(amounts.planned, code)}</span>
+            {currencies.map((code) => (
+              <li class="currency tabular" data-moved={code} title={t('budget.inCurrency', { currency: code })}>
+                {dash}
               </li>
             ))}
           </ul>
-          {rates.map(([quote, value]) => (
-            <p class="footnote tertiary rate" data-fx={quote} data-base={base} data-template={t('budget.liveRate')}>
-              {t('budget.rate', { base, value: number(1 / value, { maximumFractionDigits: 2 }), quote })}
-            </p>
-          ))}
         </div>
       </section>
+      <p
+        class="footnote tertiary rates"
+        data-rates-note
+        data-template={t('budget.ratesNote')}
+        data-missing={t('budget.noRates')}
+      />
 
       <section class="section">
         <div class="section-header">
           <h2>{t('budget.perPerson')}</h2>
         </div>
         <div class="people">
-          {budget.members.map((m) => {
-            const member = trip.members.find((x) => x.id === m.member)
-            const tone = Math.abs(m.balance) < 0.01 ? 'even' : m.balance > 0 ? 'owed' : 'owes'
-            return (
-              <article class="person card card-pad" data-tone={tone} data-person={m.member}>
-                <header>
-                  {member && (
-                    <span class="avatar" style={`--hue:${memberHue(member.id)}`}>
-                      {initials(member)}
-                    </span>
-                  )}
-                  <span class="headline">{memberName(trip, m.member)}</span>
-                </header>
-                <dl class="tabular">
-                  <div>
-                    <dt class="footnote secondary">{t('budget.paid')}</dt>
-                    <dd>{money(m.paid.planned, base)}</dd>
-                  </div>
-                  <div>
-                    <dt class="footnote secondary">{t('budget.share')}</dt>
-                    <dd>{money(m.share.planned, base)}</dd>
-                  </div>
-                </dl>
-                <p class="balance subhead">
-                  {tone === 'even'
-                    ? t('budget.even')
-                    : tone === 'owed'
-                      ? t('budget.owed', { amount: money(m.balance, base) })
-                      : t('budget.owes', { amount: money(-m.balance, base) })}
-                </p>
-              </article>
-            )
-          })}
+          {trip.members.map((member) => (
+            <article class="person card card-pad" data-person={member.id}>
+              <header>
+                <span class="avatar" style={`--hue:${memberHue(member.id)}`}>
+                  {initials(member)}
+                </span>
+                <span class="headline">{member.name}</span>
+              </header>
+              <dl class="tabular">
+                <div>
+                  <dt class="footnote secondary">{t('budget.paid')}</dt>
+                  <dd data-person-paid>{dash}</dd>
+                </div>
+                <div>
+                  <dt class="footnote secondary">{t('budget.share')}</dt>
+                  <dd data-person-share>{dash}</dd>
+                </div>
+              </dl>
+              <p
+                class="balance subhead"
+                data-person-balance
+                data-even={t('budget.even')}
+                data-owed={t('budget.owed', { amount: '{amount}' })}
+                data-owes={t('budget.owes', { amount: '{amount}' })}
+              >
+                {dash}
+              </p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -115,20 +112,15 @@ const lines = [...budget.lines].sort((a, b) =>
           <div class="section-header">
             <h2>{t('budget.settleUp')}</h2>
           </div>
-          {budget.settlements.length === 0 ? (
-            <p class="card card-pad secondary">{t('budget.settled')}</p>
-          ) : (
-            <ul class="card list">
-              {budget.settlements.map((s) => (
-                <li class="row settlement" data-settle={`${s.from} ${s.to}`}>
-                  <span class="headline">{memberName(trip, s.from)}</span>
-                  <Icon name="arrowRight" size={16} class="arrow" />
-                  <span class="headline">{memberName(trip, s.to)}</span>
-                  <span class="tabular settle-amount">{money(s.amount, base)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul class="card list" data-settlements data-none={t('budget.settled')} />
+          <template data-settlement-template>
+            <li class="row settlement">
+              <span class="headline" data-from />
+              <Icon name="arrowRight" size={16} class="arrow" />
+              <span class="headline" data-to />
+              <span class="tabular settle-amount" data-amount />
+            </li>
+          </template>
         </section>
 
         <section class="section">
@@ -137,27 +129,20 @@ const lines = [...budget.lines].sort((a, b) =>
           </div>
           <div class="card card-pad kinds">
             <div class="stack" aria-hidden="true">
-              {kinds.map(([kind, amounts]) => (
-                <span
-                  data-kind-bar={kind}
-                  style={`--kind:${kindTint[kind]};flex:${amounts.planned}`}
-                  title={`${t(`kind.${kind}`)} · ${money(amounts.planned, base)}`}
-                />
+              {kinds.map((kind) => (
+                <span data-kind-bar={kind} style={`--kind:${kindTint[kind]}`} title={t(`kind.${kind}`)} />
               ))}
             </div>
             <ul class="legend list">
-              {kinds.map(([kind, amounts]) => (
+              {kinds.map((kind) => (
                 <li style={`--kind:${kindTint[kind]}`} data-kind={kind}>
                   <span class="swatch">
                     <Icon name={kindIcon[kind]} size={14} />
                   </span>
                   <span class="subhead">{t(`kind.${kind}`)}</span>
                   <span class="subhead tabular share">
-                    <span data-kind-amount>{money(amounts.planned, base, { maximumFractionDigits: 0 })}</span>
-                    <span class="tertiary" data-kind-pct>
-                      {' '}
-                      · {number(amounts.planned / budget.total.planned, { style: 'percent' })}
-                    </span>
+                    <span data-kind-amount>{dash}</span>
+                    <span class="tertiary" data-kind-pct />
                   </span>
                 </li>
               ))}
@@ -171,13 +156,14 @@ const lines = [...budget.lines].sort((a, b) =>
           <h2>{t('budget.expenses')}</h2>
         </div>
         <div class="card list expenses">
-          {lines.map((line) => {
+          {lines.map(({ line, index }) => {
             const item = items.get(line.item)
             return (
               <a
                 class="row expense"
                 href={path(`/trips/${trip.slug}/itinerary/#item-${line.item}`)}
                 data-item
+                data-line={index}
                 data-people={people(Object.keys(line.shares))}
                 data-status={line.committed ? 'booked' : 'required'}
                 style={item ? `--kind:${kindTint[item.kind]}` : undefined}
@@ -190,13 +176,24 @@ const lines = [...budget.lines].sort((a, b) =>
                   </span>
                   <span class="footnote secondary">
                     {item && date(item.local.date, { day: 'numeric', month: 'short' })} ·{' '}
-                    {t('item.paidBy', { name: memberName(trip, line.paidBy) })}
+                    {Object.keys(line.paid).length > 0
+                      ? t('item.paidBy', {
+                          name: Object.keys(line.paid)
+                            .map((m) => memberName(trip, m))
+                            .join(', '),
+                        })
+                      : t('item.paidByEach')}
                   </span>
                 </span>
                 <span class="expense-amount tabular">
-                  <span class="subhead">{money(line.baseAmount, base)}</span>
-                  {line.estimate && <span class="footnote tertiary">{t('budget.estimate')}</span>}
-                  {line.currency !== base && <span class="footnote tertiary">{money(line.amount, line.currency)}</span>}
+                  <Money
+                    amount={line.amount}
+                    currency={line.currency}
+                    charged={line.charged}
+                    lang={lang}
+                    class="subhead"
+                  />
+                  <span class="footnote tertiary" data-line-mine />
                 </span>
                 <span
                   class="dot"
@@ -217,56 +214,125 @@ const lines = [...budget.lines].sort((a, b) =>
     type="application/json"
     id="budget-data"
     set:html={JSON.stringify({
-      base,
-      lines: budget.lines.map((l) => ({
-        shares: l.shares,
-        baseAmount: l.baseAmount,
-        amount: l.amount,
-        currency: l.currency,
-        committed: l.committed,
-        kind: items.get(l.item)?.kind ?? 'note',
-      })),
-      ideas: trip.ideas.flatMap((idea) =>
-        idea.costs.map((c) => ({ members: idea.members, amount: c.baseAmount ?? 0 })),
-      ),
+      base: budget.base,
+      lines: budget.lines,
+      ideas: budget.ideas,
+      members: trip.members.map((m) => m.id),
+      names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),
     }).replace(/</g, '\\u003c')}
   />
 </TripLayout>
 
 <script>
-  import { setupBudget } from '@/scripts/budget'
+  import { computeBudget, type BudgetData } from '@/scripts/budget'
   import { setupFilters } from '@/scripts/filters'
+  import { getLens } from '@/scripts/lens'
+  import { displayCurrency, format, onMoney, ratesDate } from '@/scripts/money'
 
-  /** Live ECB rate next to the trip's own, through the worker's cached proxy. */
-  async function liveRates() {
-    const els = [...document.querySelectorAll<HTMLElement>('[data-fx]')]
-    if (!els.length) return
-    const base = els[0].dataset.base!
-    const quotes = els.map((el) => el.dataset.fx).join(',')
-    try {
-      const response = await fetch(`/api/fx?base=${base}&quotes=${quotes}`)
-      if (!response.ok) return
-      const { rates } = (await response.json()) as { rates: Record<string, number> }
-      const format = new Intl.NumberFormat(document.documentElement.lang, { maximumFractionDigits: 2 })
-      for (const el of els) {
-        const rate = rates[el.dataset.fx!]
-        if (!rate) continue
-        const live = document.createElement('p')
-        live.className = 'footnote rate live'
-        live.textContent = el.dataset
-          .template!.replace('{base}', base)
-          .replace('{value}', format.format(rate))
-          .replace('{quote}', el.dataset.fx!)
-        el.after(live)
+  type Data = BudgetData & { members: string[]; names: Record<string, string> }
+
+  function render() {
+    const raw = document.getElementById('budget-data')?.textContent
+    if (!raw) return
+    const data = JSON.parse(raw) as Data
+    const lens = getLens()
+    const result = computeBudget(data, lens, data.members)
+    const show = (amount: number) => format(amount)
+    const set = (selector: string, text: string) => {
+      const el = document.querySelector(selector)
+      if (el) el.textContent = text
+    }
+    const approx = result.estimated ? '≈ ' : ''
+    set('[data-total="planned"]', approx + show(result.planned))
+    set('[data-total="committed"]', (result.committedEstimated ? '≈ ' : '') + show(result.committed))
+    set('[data-total="possible"]', '≈ ' + show(result.possible))
+
+    for (const el of document.querySelectorAll<HTMLElement>('[data-moved]')) {
+      const amount = result.byCurrency.get(el.dataset.moved!) ?? 0
+      el.hidden = amount < 0.005
+      el.textContent = format(amount, el.dataset.moved!)
+    }
+    const note = document.querySelector<HTMLElement>('[data-rates-note]')
+    if (note) {
+      const date = ratesDate()
+      note.textContent =
+        result.missing || !date
+          ? note.dataset.missing!
+          : note.dataset.template!.replace(
+              '{date}',
+              new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: 'long', timeZone: 'UTC' }).format(
+                new Date(`${date}T00:00:00Z`),
+              ),
+            )
+    }
+
+    for (const card of document.querySelectorAll<HTMLElement>('[data-person]')) {
+      const id = card.dataset.person!
+      const m = result.members.get(id)!
+      card.hidden = (lens.people.length > 0 && !lens.people.includes(id)) || (m.paid < 0.005 && m.share < 0.005)
+      card.querySelector('[data-person-paid]')!.textContent = approx + show(m.paid)
+      card.querySelector('[data-person-share]')!.textContent = approx + show(m.share)
+      const balance = m.paid - m.share
+      const tone = Math.abs(balance) < 0.005 ? 'even' : balance > 0 ? 'owed' : 'owes'
+      card.dataset.tone = tone
+      const el = card.querySelector<HTMLElement>('[data-person-balance]')!
+      el.textContent =
+        tone === 'even' ? el.dataset.even! : el.dataset[tone]!.replace('{amount}', approx + show(Math.abs(balance)))
+    }
+
+    const list = document.querySelector<HTMLElement>('[data-settlements]')
+    const template = document.querySelector<HTMLTemplateElement>('[data-settlement-template]')
+    if (list && template) {
+      list.replaceChildren()
+      const transfers = result.settlements.filter(
+        (s) => !lens.people.length || lens.people.includes(s.from) || lens.people.includes(s.to),
+      )
+      if (!transfers.length) {
+        const row = document.createElement('li')
+        row.className = 'row secondary'
+        row.textContent = list.dataset.none!
+        list.append(row)
       }
-    } catch {
-      // No worker (plain dev server) or offline: the trip's own rate stands.
+      for (const s of transfers) {
+        const row = template.content.cloneNode(true) as DocumentFragment
+        row.querySelector('[data-from]')!.textContent = data.names[s.from] ?? s.from
+        row.querySelector('[data-to]')!.textContent = data.names[s.to] ?? s.to
+        row.querySelector('[data-amount]')!.textContent = approx + show(s.amount)
+        list.append(row)
+      }
+    }
+
+    const percent = new Intl.NumberFormat(document.documentElement.lang, { style: 'percent' })
+    for (const bar of document.querySelectorAll<HTMLElement>('[data-kind-bar]')) {
+      const amount = result.byKind.get(bar.dataset.kindBar!) ?? 0
+      bar.style.flex = String(amount)
+      bar.hidden = amount <= 0
+    }
+    for (const row of document.querySelectorAll<HTMLElement>('[data-kind]')) {
+      const amount = result.byKind.get(row.dataset.kind!) ?? 0
+      row.hidden = amount <= 0
+      row.querySelector('[data-kind-amount]')!.textContent = format(amount, displayCurrency(), {
+        maximumFractionDigits: 0,
+      })
+      row.querySelector('[data-kind-pct]')!.textContent =
+        ` · ${percent.format(result.planned ? amount / result.planned : 0)}`
+    }
+
+    // With people selected, each expense also shows their part of it.
+    for (const row of document.querySelectorAll<HTMLElement>('[data-line]')) {
+      const line = result.lines[Number(row.dataset.line)]
+      const el = row.querySelector<HTMLElement>('[data-line-mine]')!
+      el.textContent =
+        line && lens.people.length && line.mine && Math.abs(line.mine - line.total) > 0.005 ? show(line.mine) : ''
     }
   }
 
+  let off: (() => void) | undefined
+
   document.addEventListener('astro:page-load', () => {
-    setupFilters((state) => setupBudget(state.lens))
-    void liveRates()
+    off?.()
+    off = onMoney(render)
+    setupFilters(render)
   })
 </script>
 
@@ -319,13 +385,9 @@ const lines = [...budget.lines].sort((a, b) =>
     font-weight: 600;
   }
 
-  .rate {
-    margin-top: 2px;
-  }
-
-  :global(.rate.live) {
-    color: var(--tint);
-    font-weight: 500;
+  .rates {
+    margin-top: var(--space-3);
+    padding-inline: var(--space-1);
   }
 
   .people {
