@@ -161,7 +161,7 @@ export interface Item {
   /** Overall booking state; a summary when there are several reservations. */
   booking: Booking
   /** Reservations when there are several, each with its people. */
-  bookings?: (Booking & { members: string[] })[]
+  bookings?: (Booking & { members: string[]; costs: Cost[] })[]
   /** Every cost, its reservations' included. */
   costs: Cost[]
   contacts: { name: string; role?: string; hasPhone: boolean; hasEmail: boolean }[]

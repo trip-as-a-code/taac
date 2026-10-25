@@ -115,8 +115,19 @@ const offsetLabel =
               const whose =
                 `${partyEmoji(trip, id) ?? ''} ${partyLabel(trip, id, t('lens.everyone'), t('party.and'))}`.trim()
               return (
-                <span class="badge" data-tone={statusTone[b.status]} title={names(b.members)}>
-                  {whose} · {t(`status.${b.status}`)}
+                <span class="reservation">
+                  <span class="badge" data-tone={statusTone[b.status]} title={names(b.members)}>
+                    {whose} · {t(`status.${b.status}`)}
+                  </span>
+                  {b.costs.map((c) => (
+                    <Money
+                      amount={c.amount}
+                      currency={c.currency}
+                      charged={c.charged}
+                      lang={i18n.lang}
+                      class="footnote secondary cost"
+                    />
+                  ))}
                 </span>
               )
             })
@@ -143,15 +154,17 @@ const offsetLabel =
             </span>
           )
         })}
-        {item.costs.map((c) => (
-          <Money
-            amount={c.amount}
-            currency={c.currency}
-            charged={c.charged}
-            lang={i18n.lang}
-            class="footnote secondary cost"
-          />
-        ))}
+        {/* With several reservations each shows its own cost. */}
+        {!item.bookings &&
+          item.costs.map((c) => (
+            <Money
+              amount={c.amount}
+              currency={c.currency}
+              charged={c.charged}
+              lang={i18n.lang}
+              class="footnote secondary cost"
+            />
+          ))}
         {everyone ? (
           !unassigned && (
             <span class="who" title={members.map((m) => m.name).join(', ')}>
@@ -484,6 +497,13 @@ const offsetLabel =
     border-radius: 10px;
     color: var(--label);
     background: color-mix(in srgb, var(--orange) 10%, transparent);
+  }
+
+  .reservation {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
   }
 
   .facts {

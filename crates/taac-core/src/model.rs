@@ -400,7 +400,7 @@ pub struct Item {
     /// `booking`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bookings: Vec<Reservation>,
-    /// Costs that belong to no reservation (or to the single `booking`).
+    /// What it costs. With `bookings`, costs go in each reservation instead.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<Cost>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -428,8 +428,8 @@ pub struct Part<'a> {
 }
 
 impl Item {
-    /// Its reservations with their people and costs. Costs outside any
-    /// reservation form a last part without a booking.
+    /// Its reservations with their people and costs (loading rejects plan
+    /// costs next to `bookings`).
     pub fn parts(&self) -> Vec<Part<'_>> {
         if self.bookings.is_empty() {
             return vec![Part {
@@ -438,23 +438,14 @@ impl Item {
                 costs: &self.costs,
             }];
         }
-        let mut parts: Vec<Part<'_>> = self
-            .bookings
+        self.bookings
             .iter()
             .map(|r| Part {
                 who: r.who.as_deref(),
                 booking: Some(r.booking()),
                 costs: &r.costs,
             })
-            .collect();
-        if !self.costs.is_empty() {
-            parts.push(Part {
-                who: None,
-                booking: None,
-                costs: &self.costs,
-            });
-        }
-        parts
+            .collect()
     }
 
     /// Every confirmation number, with whom it covers when there are

@@ -457,7 +457,7 @@
           }
         },
         "costs": {
-          "description": "Costs that belong to no reservation (or to the single `booking`).",
+          "description": "What it costs. With `bookings`, costs go in each reservation instead.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/Cost"

@@ -444,6 +444,19 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         }
         trip.declared_bases.extend(doc.bases);
         for item in &doc.itinerary {
+            if !item.bookings.is_empty() && !item.costs.is_empty() {
+                diagnostics.push(
+                    Diagnostic::error(
+                        "item.costs",
+                        format!(
+                            "`{}` has `bookings`: each cost goes in its reservation, not on the plan",
+                            item.title
+                        ),
+                    )
+                    .in_file(file.clone())
+                    .in_trip(&slug),
+                );
+            }
             if item.booking.is_some() && !item.bookings.is_empty() {
                 diagnostics.push(
                     Diagnostic::error(
@@ -918,11 +931,16 @@ metadata: { title: T, timezone: UTC }
 members: [{ name: A }]
 itinerary:
   - { kind: activity, title: X, date: 2027-01-01, booking: { status: required }, bookings: [{ status: required }] }
+  - { kind: activity, title: Y, date: 2027-01-01, bookings: [{ status: required }], costs: [{ amount: 1, currency: EUR }] }
 ";
         let fs = files(&[("trip.yaml", trip_yaml)]);
         let (_, diagnostics) = load_standalone_trip(&fs, "trip.yaml");
         assert!(
             diagnostics.iter().any(|d| d.code == "item.bookings"),
+            "{diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().any(|d| d.code == "item.costs"),
             "{diagnostics:?}"
         );
     }

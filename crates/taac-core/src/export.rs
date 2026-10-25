@@ -237,6 +237,7 @@ pub struct ReservationExport {
     pub members: Vec<String>,
     #[serde(flatten)]
     pub booking: BookingExport,
+    pub costs: Vec<CostExport>,
 }
 
 #[derive(Debug, Serialize)]
@@ -442,6 +443,13 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                                 .map(str::to_owned)
                                 .collect(),
                             booking: booking_export(&r.booking()),
+                            costs: cost_exports(
+                                trip,
+                                &r.costs,
+                                &r.who
+                                    .as_deref()
+                                    .map_or_else(|| trip.participants(item), |w| trip.who(Some(w))),
+                            ),
                         })
                         .collect()
                 },
