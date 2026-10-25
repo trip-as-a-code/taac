@@ -461,15 +461,14 @@ mod tests {
     fn trip(costs: &str) -> Trip {
         let yaml = format!(
             r"
-apiVersion: taac/v1alpha3
+apiVersion: taac/v1alpha4
 kind: Trip
 metadata: {{ title: T, timezone: UTC }}
 currency: {{ base: EUR }}
-members: [{{ id: a, name: A }}, {{ id: b, name: B, currency: USD }}, {{ id: c, name: C }}]
+members: [{{ name: A }}, {{ name: B, currency: USD }}, {{ name: C }}]
 itinerary:
-  - id: x
-    kind: activity
-    title: X
+  - kind: activity
+    title: x
     date: 2027-01-01
     booking: {{ status: booked }}
     costs:

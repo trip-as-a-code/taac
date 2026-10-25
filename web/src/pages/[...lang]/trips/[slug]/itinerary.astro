@@ -7,6 +7,7 @@ import { itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import {
   baseById,
+  anchor,
   daysBetween,
   homeOffset,
   ideasByArea,
@@ -147,7 +148,7 @@ const offset = homeOffset(trip)
                 >
                   {day.items.length === 0 && <span class="secondary">{t('trip.openDay')}</span>}
                   {ideas.length > 0 && (
-                    <a href={path(`/trips/${trip.slug}/ideas/#area-${base.place}`)}>
+                    <a href={path(`/trips/${trip.slug}/ideas/#area-${anchor(base.place)}`)}>
                       <Icon name="sparkle" size={14} />
                       {t('trip.ideasHere', { n: ideas.length, place: trip.places[base.place]?.name ?? base.title })}
                     </a>

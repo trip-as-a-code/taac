@@ -110,7 +110,7 @@ impl Validator<'_> {
                 self.error(
                     "member.duplicate",
                     None,
-                    format!("member `{}` declared twice", member.id),
+                    format!("two members are called `{}`", member.name),
                 );
             }
         }
@@ -127,7 +127,7 @@ impl Validator<'_> {
                 self.error(
                     "group.duplicate",
                     None,
-                    format!("group `{}` declared twice", group.id),
+                    format!("two groups are called `{}`", group.name),
                 );
             }
             if group.id == EVERYONE {
@@ -141,7 +141,7 @@ impl Validator<'_> {
                 self.error(
                     "group.id",
                     None,
-                    format!("group `{}` clashes with a member id", group.id),
+                    format!("group `{}` has the same name as a member", group.name),
                 );
             }
             for member in &group.members {
@@ -174,16 +174,8 @@ impl Validator<'_> {
 
     fn items(&mut self) {
         let trip = self.trip;
-        let mut ids = HashSet::new();
         for item in &trip.itinerary {
             let id = Some(item.id.as_str());
-            if !ids.insert(item.id.as_str()) {
-                self.error(
-                    "item.duplicate",
-                    id,
-                    format!("item id `{}` used twice", item.id),
-                );
-            }
             let fixed = matches!(item.kind, ItemKind::Lodging) || item.kind.is_transport();
             match (item.start, item.date) {
                 (Some(_), Some(_)) => {
@@ -301,16 +293,8 @@ impl Validator<'_> {
 
     fn bases(&mut self) {
         let trip = self.trip;
-        let mut ids = HashSet::new();
         for base in &trip.declared_bases {
             let id = Some(base.id.as_str());
-            if !ids.insert(base.id.as_str()) {
-                self.error(
-                    "base.duplicate",
-                    id,
-                    format!("base id `{}` used twice", base.id),
-                );
-            }
             if !trip.places.contains_key(&base.place) {
                 self.error("base.place", id, format!("unknown place `{}`", base.place));
             }
@@ -344,13 +328,8 @@ impl Validator<'_> {
 
     fn ideas(&mut self) {
         let trip = self.trip;
-        let items: HashSet<&str> = trip.itinerary.iter().map(|i| i.id.as_str()).collect();
-        let mut ids = HashSet::new();
         for idea in &trip.ideas {
             let id = Some(idea.id.as_str());
-            if !ids.insert(idea.id.as_str()) || items.contains(idea.id.as_str()) {
-                self.error("idea.duplicate", id, format!("id `{}` used twice", idea.id));
-            }
             if let Some(area) = idea
                 .area
                 .as_deref()
@@ -376,13 +355,18 @@ impl Validator<'_> {
     fn blockers(&mut self) {
         let trip = self.trip;
         let mut ids = HashSet::new();
+        let mut titles = HashSet::new();
         for blocker in &trip.blockers {
             let id = Some(blocker.id.as_str());
-            if !ids.insert(blocker.id.as_str()) {
+            ids.insert(blocker.id.as_str());
+            if !titles.insert(blocker.title.to_lowercase()) {
                 self.error(
                     "blocker.duplicate",
                     id,
-                    format!("blocker id `{}` used twice", blocker.id),
+                    format!(
+                        "two blockers are called `{}`; plans name them in `overrides`",
+                        blocker.title
+                    ),
                 );
             }
             self.who(&blocker.id, blocker.who.as_deref());
@@ -834,17 +818,17 @@ mod tests {
     fn check_with(extra: &str, itinerary: &str) -> Vec<Diagnostic> {
         let trip = format!(
             r"
-apiVersion: taac/v1alpha3
+apiVersion: taac/v1alpha4
 kind: Trip
 metadata: {{ title: T, timezone: Asia/Tokyo }}
 currency: {{ base: EUR }}
-members: [{{ id: a, name: A }}, {{ id: b, name: B }}]
-groups: [{{ id: duo, name: Duo, members: [a, b] }}]
+members: [{{ name: A }}, {{ name: B }}]
+groups: [{{ name: Duo, members: [a, b] }}]
 places:
-  tokyo: {{ name: Tokyo, geo: [35.68, 139.76], radius: 25000 }}
-  kyoto: {{ name: Kyoto, geo: [35.01, 135.77], radius: 12000 }}
-  flat: {{ name: Flat, geo: [35.70, 139.80] }}
-  ryokan: {{ name: Ryokan, geo: [35.00, 135.76] }}
+  tokyo: {{ geo: [35.68, 139.76], radius: 25000 }}
+  kyoto: {{ geo: [35.01, 135.77], radius: 12000 }}
+  flat: {{ geo: [35.70, 139.80] }}
+  ryokan: {{ geo: [35.00, 135.76] }}
 {extra}
 itinerary:
 {itinerary}"
@@ -862,7 +846,7 @@ itinerary:
     #[test]
     fn clean_trip_has_no_diagnostics() {
         let d = check(
-            "  - { id: x, kind: activity, title: X, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00, who: [duo],
+            "  - { kind: activity, title: x, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00, who: [duo],
         costs: [{ amount: 1000, currency: JPY, paidBy: a }] }",
         );
         assert!(d.is_empty(), "{d:?}");
@@ -871,7 +855,7 @@ itinerary:
     #[test]
     fn flags_references_time_and_money() {
         let d = check(
-            "  - { id: x, kind: activity, title: X, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T09:00:00+09:00, places: [nowhere], who: [zed],
+            "  - { kind: activity, title: x, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T09:00:00+09:00, places: [nowhere], who: [zed],
         booking: { status: booked }, costs: [{ amount: 5, currency: USD, paidBy: a, split: { exact: { a: 1 } } }] }",
         );
         let codes = codes(&d);
@@ -889,9 +873,9 @@ itinerary:
     #[test]
     fn overlaps_respect_participants() {
         let d = check(
-            "  - { id: x, kind: activity, title: X, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [a] }
-  - { id: y, kind: activity, title: Y, start: 2027-01-01T11:00:00+09:00, end: 2027-01-01T13:00:00+09:00, who: [b] }
-  - { id: z, kind: activity, title: Z, start: 2027-01-01T11:30:00+09:00, end: 2027-01-01T12:30:00+09:00, who: [a] }",
+            "  - { kind: activity, title: x, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [a] }
+  - { kind: activity, title: y, start: 2027-01-01T11:00:00+09:00, end: 2027-01-01T13:00:00+09:00, who: [b] }
+  - { kind: activity, title: z, start: 2027-01-01T11:30:00+09:00, end: 2027-01-01T12:30:00+09:00, who: [a] }",
         );
         assert_eq!(codes(&d), ["item.overlap"]);
         assert_eq!(d[0].item.as_deref(), Some("z"));
@@ -900,10 +884,10 @@ itinerary:
     #[test]
     fn loose_items_need_a_day_and_no_fixed_kinds() {
         let d = check(
-            "  - { id: x, kind: activity, title: X, date: 2027-01-01, part: afternoon }
-  - { id: y, kind: lodging, title: Y, date: 2027-01-01 }
-  - { id: z, kind: activity, title: Z, date: 2027-01-01, start: 2027-01-01T10:00:00+09:00 }
-  - { id: w, kind: activity, title: W }",
+            "  - { kind: activity, title: x, date: 2027-01-01, part: afternoon }
+  - { kind: lodging, title: y, date: 2027-01-01 }
+  - { kind: activity, title: z, date: 2027-01-01, start: 2027-01-01T10:00:00+09:00 }
+  - { kind: activity, title: w}",
         );
         let items: Vec<_> = d
             .iter()
@@ -919,11 +903,11 @@ itinerary:
     fn bases_must_not_overlap_per_person() {
         let d = check_with(
             "bases:
-  - { id: t, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-03 }
-  - { id: k, title: Kyoto, place: kyoto, from: 2027-01-03, to: 2027-01-04, who: [a] }
+  - { title: t, place: tokyo, from: 2027-01-01, to: 2027-01-03 }
+  - { title: k, place: kyoto, from: 2027-01-03, to: 2027-01-04, who: [a] }
 ideas:
-  - { id: i, title: I, area: osaka }",
-            "  - { id: x, kind: activity, title: X, date: 2027-01-01 }",
+  - { title: i, area: osaka }",
+            "  - { kind: activity, title: x, date: 2027-01-01 }",
         );
         let codes = codes(&d);
         assert!(codes.contains(&"base.overlap"), "{codes:?}");
@@ -934,11 +918,11 @@ ideas:
     fn a_flat_kept_while_travelling_is_not_an_overlap() {
         let d = check_with(
             "bases:
-  - { id: t1, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-02 }
-  - { id: k, title: Kyoto, place: kyoto, from: 2027-01-03, to: 2027-01-03 }
-  - { id: t2, title: Tokyo, place: tokyo, from: 2027-01-04, to: 2027-01-05 }",
-            "  - { id: flat, kind: lodging, title: Flat, start: 2027-01-01T15:00:00+09:00, end: 2027-01-06T10:00:00+09:00, places: [flat], who: [everyone] }
-  - { id: ryokan, kind: lodging, title: Ryokan, start: 2027-01-03T15:00:00+09:00, end: 2027-01-04T10:00:00+09:00, places: [ryokan], who: [everyone] }",
+  - { title: t1, place: tokyo, from: 2027-01-01, to: 2027-01-02 }
+  - { title: k, place: kyoto, from: 2027-01-03, to: 2027-01-03 }
+  - { title: t2, place: tokyo, from: 2027-01-04, to: 2027-01-05 }",
+            "  - { kind: lodging, title: flat, start: 2027-01-01T15:00:00+09:00, end: 2027-01-06T10:00:00+09:00, places: [flat], who: [everyone] }
+  - { kind: lodging, title: ryokan, start: 2027-01-03T15:00:00+09:00, end: 2027-01-04T10:00:00+09:00, places: [ryokan], who: [everyone] }",
         );
         assert!(d.is_empty(), "{d:?}");
     }
@@ -947,8 +931,8 @@ ideas:
     fn nights_without_a_base_are_flagged() {
         let d = check_with(
             "bases:
-  - { id: t, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-01 }",
-            "  - { id: x, kind: activity, title: X, date: 2027-01-03 }",
+  - { title: t, place: tokyo, from: 2027-01-01, to: 2027-01-01 }",
+            "  - { kind: activity, title: x, date: 2027-01-03 }",
         );
         let missing: Vec<_> = d.iter().filter(|d| d.code == "base.missing").collect();
         assert_eq!(missing.len(), 2, "{d:?}");
@@ -959,12 +943,12 @@ ideas:
     fn plans_for_people_who_are_not_there() {
         let d = check_with(
             "bases:
-  - { id: t, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-03, who: [a] }
-  - { id: k, title: Kyoto, place: kyoto, from: 2027-01-02, to: 2027-01-03, who: [b] }",
-            "  - { id: early, kind: note, title: E, date: 2027-01-01 }
-  - { id: split, kind: activity, title: S, date: 2027-01-02, places: [tokyo] }
-  - { id: late, kind: activity, title: L, date: 2027-01-09, who: [a], places: [tokyo] }
-  - { id: fine, kind: activity, title: F, date: 2027-01-02, who: [b], places: [kyoto] }",
+  - { title: t, place: tokyo, from: 2027-01-01, to: 2027-01-03, who: [a] }
+  - { title: k, place: kyoto, from: 2027-01-02, to: 2027-01-03, who: [b] }",
+            "  - { kind: note, title: early, date: 2027-01-01 }
+  - { kind: activity, title: split, date: 2027-01-02, places: [tokyo] }
+  - { kind: activity, title: late, date: 2027-01-09, who: [a], places: [tokyo] }
+  - { kind: activity, title: fine, date: 2027-01-02, who: [b], places: [kyoto] }",
         );
         let at = |item: &str| {
             d.iter()
@@ -985,9 +969,9 @@ ideas:
     #[test]
     fn who_must_be_said_and_everyone_says_it() {
         let d = check(
-            "  - { id: quiet, kind: activity, title: Q, date: 2027-01-01 }
-  - { id: said, kind: activity, title: S, date: 2027-01-01, who: [everyone] }
-  - { id: both, kind: activity, title: B, date: 2027-01-01, who: [everyone, a] }",
+            "  - { kind: activity, title: quiet, date: 2027-01-01 }
+  - { kind: activity, title: said, date: 2027-01-01, who: [everyone] }
+  - { kind: activity, title: both, date: 2027-01-01, who: [everyone, a] }",
         );
         let at = |item: &str| {
             d.iter()
@@ -1003,10 +987,10 @@ ideas:
     #[test]
     fn bookings_with_loose_ends() {
         let d = check(
-            "  - { id: hotel, kind: lodging, title: H, start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, booking: { status: booked } }
-  - { id: out, kind: flight, title: O, start: 2027-01-01T08:00:00+09:00, end: 2027-01-01T09:00:00+09:00, places: [tokyo, kyoto],
+            "  - { kind: lodging, title: hotel, start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, booking: { status: booked } }
+  - { kind: flight, title: out, start: 2027-01-01T08:00:00+09:00, end: 2027-01-01T09:00:00+09:00, places: [tokyo, kyoto],
       booking: { status: booked, reference: { secret: PNR } }, costs: [{ amount: 9, currency: EUR, paidBy: a, estimate: true }] }
-  - { id: back, kind: flight, title: B, start: 2027-01-02T08:00:00+09:00, end: 2027-01-02T09:00:00+09:00, places: [kyoto, tokyo],
+  - { kind: flight, title: back, start: 2027-01-02T08:00:00+09:00, end: 2027-01-02T09:00:00+09:00, places: [kyoto, tokyo],
       who: [everyone], booking: { status: booked, reference: { secret: PNR } } }",
         );
         let codes = codes(&d);
@@ -1028,9 +1012,9 @@ ideas:
     #[test]
     fn who_mixes_members_and_groups() {
         let d = check(
-            "  - { id: x, kind: activity, title: X, date: 2027-01-01, who: [duo, a] }
-  - { id: y, kind: activity, title: Y, date: 2027-01-01, who: [nobody] }
-  - { id: z, kind: activity, title: Z, date: 2027-01-01, who: [] }",
+            "  - { kind: activity, title: x, date: 2027-01-01, who: [duo, a] }
+  - { kind: activity, title: y, date: 2027-01-01, who: [nobody] }
+  - { kind: activity, title: z, date: 2027-01-01, who: [] }",
         );
         assert_eq!(
             codes(&d),
@@ -1044,17 +1028,16 @@ ideas:
         // 09:00–17:00 Helsinki (+02:00) is 16:00–24:00 in Tokyo.
         let d = check_with(
             "blockers:
-  - id: work
-    title: Work
+  - title: work
     who: [a]
     periods: [{ from: 2027-01-04, to: 2027-01-08 }]
     days: [mon, tue, wed, thu, fri]
     time: { start: '09:00', end: '17:00', timezone: Europe/Helsinki }",
-            "  - { id: dinner, kind: meal, title: D, start: 2027-01-05T18:00:00+09:00, end: 2027-01-05T20:00:00+09:00 }
-  - { id: lunch, kind: meal, title: L, start: 2027-01-05T12:00:00+09:00, end: 2027-01-05T13:00:00+09:00 }
-  - { id: train, kind: train, title: T, start: 2027-01-06T17:00:00+09:00, end: 2027-01-06T19:00:00+09:00, places: [tokyo, kyoto], overrides: [work] }
-  - { id: weekend, kind: meal, title: W, start: 2027-01-09T18:00:00+09:00, end: 2027-01-09T20:00:00+09:00 }
-  - { id: other, kind: meal, title: O, start: 2027-01-05T18:00:00+09:00, end: 2027-01-05T19:00:00+09:00, who: [b] }",
+            "  - { kind: meal, title: dinner, start: 2027-01-05T18:00:00+09:00, end: 2027-01-05T20:00:00+09:00 }
+  - { kind: meal, title: lunch, start: 2027-01-05T12:00:00+09:00, end: 2027-01-05T13:00:00+09:00 }
+  - { kind: train, title: train, start: 2027-01-06T17:00:00+09:00, end: 2027-01-06T19:00:00+09:00, places: [tokyo, kyoto], overrides: [work] }
+  - { kind: meal, title: weekend, start: 2027-01-09T18:00:00+09:00, end: 2027-01-09T20:00:00+09:00 }
+  - { kind: meal, title: other, start: 2027-01-05T18:00:00+09:00, end: 2027-01-05T19:00:00+09:00, who: [b] }",
         );
         let conflicts: Vec<_> = d
             .iter()

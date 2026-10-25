@@ -134,8 +134,8 @@ fn run(cli: Cli) -> Result<ExitCode> {
         Command::Schema { out } => {
             fs::create_dir_all(&out)?;
             for (name, schema) in [
-                ("trip.v1alpha3.json", taac_core::schema::trip()),
-                ("site.v1alpha3.json", taac_core::schema::site()),
+                ("trip.v1alpha4.json", taac_core::schema::trip()),
+                ("site.v1alpha4.json", taac_core::schema::site()),
             ] {
                 let mut json = serde_json::to_string_pretty(&schema)?;
                 json.push('\n');

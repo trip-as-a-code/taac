@@ -42,7 +42,7 @@
     "ApiVersion": {
       "type": "string",
       "enum": [
-        "taac/v1alpha3"
+        "taac/v1alpha4"
       ]
     },
     "SiteKind": {

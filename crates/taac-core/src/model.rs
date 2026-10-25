@@ -1,4 +1,4 @@
-//! The `taac/v1alpha3` document model. Every type here is both the serde
+//! The `taac/v1alpha4` document model. Every type here is both the serde
 //! representation of the YAML and the source of the published JSON Schema.
 
 use chrono::{DateTime, FixedOffset, NaiveDate};
@@ -7,15 +7,17 @@ use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const API_VERSION: &str = "taac/v1alpha3";
+pub const API_VERSION: &str = "taac/v1alpha4";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 pub enum ApiVersion {
-    #[serde(rename = "taac/v1alpha3")]
-    V1Alpha3,
+    #[serde(rename = "taac/v1alpha4")]
+    V1Alpha4,
 }
 
-/// One YAML file of a trip. A trip is a single `kind: Trip` file, or a
+/// One YAML file of a trip. Nothing in it needs an id: people, groups and
+/// blockers are referred to by name or title, places by their key (which is
+/// their name). A trip is a single `kind: Trip` file, or a
 /// directory holding one `kind: Trip` file plus any number of `kind: TripPart`
 /// files whose bases, places, itinerary, ideas, packing and overlays are
 /// merged into it.
@@ -38,7 +40,7 @@ pub struct TripFile {
     /// Where people are, day by day, whether or not anything is planned.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bases: Vec<Base>,
-    /// Reusable places, referenced from items by key.
+    /// Reusable places by name; plans, bases and ideas refer to them by it.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub places: IndexMap<String, Place>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -105,8 +107,11 @@ pub struct CurrencyConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Member {
-    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    /// Derived from the name; used in URLs and feeds.
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
     pub id: String,
+    /// How everyone else refers to this person (`who`, `paidBy`, groups).
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub emoji: Option<String>,
@@ -122,19 +127,25 @@ pub struct Member {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Group {
-    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
     pub id: String,
+    /// Usable in `who` and `paidBy` like a person's name.
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub emoji: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Member names.
     pub members: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Place {
+    /// Only for places written inline in a plan; under `places:` the key is
+    /// the name.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
     /// `[latitude, longitude]`, WGS 84.
     pub geo: [f64; 2],
@@ -158,10 +169,11 @@ pub struct Place {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Base {
-    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
     pub id: String,
     pub title: String,
-    /// Key of an area in `places`.
+    /// Name of an area in `places`.
     pub place: String,
     /// First night here.
     #[schemars(with = "String", extend("format" = "date"))]
@@ -169,7 +181,7 @@ pub struct Base {
     /// Last night here (inclusive).
     #[schemars(with = "String", extend("format" = "date"))]
     pub to: NaiveDate,
-    /// Member and/or group ids, or `everyone`; omitted means everyone.
+    /// Names of members and/or groups, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     /// Markdown.
@@ -181,18 +193,19 @@ pub struct Base {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Idea {
-    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
     pub id: String,
     pub title: String,
     #[serde(default = "default_idea_kind")]
     pub kind: ItemKind,
-    /// Key of the area (in `places`) the idea belongs to; days spent in a base
+    /// Name of the area (in `places`) the idea belongs to; days spent in a base
     /// on that area surface it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub area: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
-    /// Member and/or group ids, or `everyone`; omitted means everyone.
+    /// Names of members and/or groups, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     #[serde(default)]
@@ -264,10 +277,12 @@ impl DayPart {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Blocker {
-    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
     pub id: String,
+    /// Plans name it in `overrides`.
     pub title: String,
-    /// Member and/or group ids, or `everyone`; omitted means everyone.
+    /// Names of members and/or groups, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     /// Inclusive date ranges, in the blocker's time zone.
@@ -337,7 +352,7 @@ impl Weekday {
     }
 }
 
-/// A key into `places`, or a place declared inline.
+/// A place's name from `places`, or a place declared inline.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(untagged)]
 pub enum PlaceRef {
@@ -348,7 +363,8 @@ pub enum PlaceRef {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Item {
-    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
     pub id: String,
     pub kind: ItemKind,
     pub title: String,
@@ -370,7 +386,7 @@ pub struct Item {
     /// Ordered stops: origin → destination for transport, venues otherwise.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceRef>,
-    /// Member and/or group ids, or `everyone`; omitted means everyone.
+    /// Names of members and/or groups, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -388,7 +404,7 @@ pub struct Item {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
-    /// Blocker ids this plan may run through, e.g. a train with good
+    /// Titles of blockers this plan may run through, e.g. a train with good
     /// Wi-Fi during work hours.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub overrides: Vec<String>,
@@ -567,9 +583,9 @@ pub struct Money {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(untagged)]
 pub enum PaidBy {
-    /// One member (or group) id, or `each`.
+    /// One member's (or group's) name, or `each`.
     One(String),
-    /// Members and/or groups who split the payment equally.
+    /// Members' and/or groups' names; they split the payment equally.
     Many(Vec<String>),
 }
 
@@ -607,12 +623,12 @@ pub enum Split {
 enum SplitRepr {
     Keyword(SplitKeyword),
     Shares {
-        /// Proportional weights per member.
+        /// Proportional weights by member name.
         #[schemars(with = "IndexMap<String, f64>")]
         shares: IndexMap<String, Decimal>,
     },
     Exact {
-        /// Exact amounts per member, in the cost's currency; must sum to it.
+        /// Exact amounts by member name, in the cost's currency; must sum to it.
         #[schemars(with = "IndexMap<String, f64>")]
         exact: IndexMap<String, Decimal>,
     },
@@ -653,8 +669,8 @@ impl From<Split> for SplitRepr {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PackingCategory {
     pub category: String,
-    /// Default for the category's items: member and/or group ids; omitted
-    /// means everyone packs it.
+    /// Default for the category's items: names of members and/or groups;
+    /// omitted means everyone packs it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
     pub items: Vec<PackingItem>,
@@ -666,7 +682,7 @@ pub enum PackingItem {
     Name(String),
     Detailed {
         name: String,
-        /// Member and/or group ids who pack it; defaults to the category's.
+        /// Names of members and/or groups who pack it; defaults to the category's.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         who: Option<Vec<String>>,
         /// What it costs to get before packing; counts in the budget. `who`

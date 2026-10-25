@@ -1,5 +1,5 @@
-# yaml-language-server: $schema=../../../schema/trip.v1alpha3.json
-apiVersion: taac/v1alpha3
+# yaml-language-server: $schema=../../../schema/trip.v1alpha4.json
+apiVersion: taac/v1alpha4
 kind: Trip
 metadata:
   title: Lisbon Long Weekend
@@ -11,46 +11,44 @@ metadata:
 currency:
   base: EUR
 members:
-  - { id: alex, name: Alex }
-  - { id: sam, name: Sam }
-  - { id: robin, name: Robin, currency: USD } # pays in dollars
+  - { name: Alex }
+  - { name: Sam }
+  - { name: Robin, currency: USD } # pays in dollars
 groups:
-  - id: early
-    name: Early birds
+  - name: Early birds
     emoji: 🌅
-    members: [alex, sam]
+    members: [Alex, Sam]
 bases:
-  - { id: lisbon, title: Lisbon, place: lisbon, from: 2027-05-14, to: 2027-05-16 }
+  - { title: Lisbon, place: Lisbon, from: 2027-05-14, to: 2027-05-16 }
+# Plans, bases and ideas refer to places by these names.
 places:
-  lisbon: { name: Lisbon, geo: [38.7223, -9.1393], category: city, radius: 12000 }
-  lis: { name: Lisbon Airport (LIS), geo: [38.7742, -9.1342], category: airport }
-  lgw: { name: London Gatwick (LGW), geo: [51.1537, -0.1821], category: airport }
-  hotel: { name: Casa do Bairro, geo: [38.7105, -9.1466], category: hotel, address: 'Rua da Rosa 12, Lisboa' }
-  castle: { name: Castelo de São Jorge, geo: [38.7139, -9.1335], category: historic, url: https://castelodesaojorge.pt }
-  belem: { name: Pastéis de Belém, geo: [38.6975, -9.2032], category: food }
-  jeronimos: { name: Jerónimos Monastery, geo: [38.6979, -9.2068], category: historic }
-  sintra: { name: Pena Palace, geo: [38.7876, -9.3906], category: historic }
-  miradouro: { name: Miradouro da Senhora do Monte, geo: [38.7194, -9.1327], category: viewpoint }
+  Lisbon: { geo: [38.7223, -9.1393], category: city, radius: 12000 }
+  Lisbon Airport (LIS): { geo: [38.7742, -9.1342], category: airport }
+  London Gatwick (LGW): { geo: [51.1537, -0.1821], category: airport }
+  Casa do Bairro: { geo: [38.7105, -9.1466], category: hotel, address: 'Rua da Rosa 12, Lisboa' }
+  Castelo de São Jorge: { geo: [38.7139, -9.1335], category: historic, url: https://castelodesaojorge.pt }
+  Pastéis de Belém: { geo: [38.6975, -9.2032], category: food }
+  Jerónimos Monastery: { geo: [38.6979, -9.2068], category: historic }
+  Pena Palace: { geo: [38.7876, -9.3906], category: historic }
+  Miradouro da Senhora do Monte: { geo: [38.7194, -9.1327], category: viewpoint }
 itinerary:
-  - id: outbound
-    kind: flight
+  - kind: flight
     title: London → Lisbon
     who: [everyone]
     start: 2027-05-14T07:05:00+01:00
     end: 2027-05-14T09:50:00+01:00
-    places: [lgw, lis]
+    places: [London Gatwick (LGW), Lisbon Airport (LIS)]
     transport: { carrier: TAP Air Portugal, number: TP1337 }
     booking: { status: booked, provider: TAP, reference: { secret: DEMO_PNR } }
     costs:
       # Priced in pounds, charged to Alex's card in euros.
-      - { amount: 138, currency: GBP, paidBy: alex, label: 3 tickets, charged: { amount: 161.46, currency: EUR } }
-  - id: hotel
-    kind: lodging
+      - { amount: 138, currency: GBP, paidBy: Alex, label: 3 tickets, charged: { amount: 161.46, currency: EUR } }
+  - kind: lodging
     title: Casa do Bairro
     who: [everyone]
     start: 2027-05-14T15:00:00+01:00
     end: 2027-05-17T11:00:00+01:00
-    places: [hotel]
+    places: [Casa do Bairro]
     booking:
       {
         status: booked,
@@ -62,78 +60,71 @@ itinerary:
       - { amount: 486, currency: EUR, paidBy: each } # everyone paid their own third
     contacts:
       - { name: Front desk, role: hotel, phone: { secret: DEMO_HOTEL_PHONE } }
-  - id: tram-28
-    kind: activity
+  - kind: activity
     title: Tram 28 and the castle
     who: [everyone]
     start: 2027-05-14T12:00:00+01:00
     end: 2027-05-14T16:00:00+01:00
-    places: [castle]
+    places: [Castelo de São Jorge]
     booking: { status: required, deadline: 2027-05-01, url: https://castelodesaojorge.pt }
     costs:
-      - { amount: 45, currency: EUR, paidBy: robin }
+      - { amount: 45, currency: EUR, paidBy: Robin }
     notes: Buy castle tickets online to **skip the queue**. Tram 28 boards at Martim Moniz.
-  - id: sunset
-    kind: activity
+  - kind: activity
     title: Sunset at the miradouro
     date: 2027-05-14
     part: evening
-    places: [miradouro]
-    who: [alex, robin]
-  - id: sintra
-    kind: activity
+    places: [Miradouro da Senhora do Monte]
+    who: [Alex, Robin]
+  - kind: activity
     title: Day trip to Sintra
     start: 2027-05-15T08:30:00+01:00
     end: 2027-05-15T17:00:00+01:00
-    who: [early]
-    places: [sintra]
+    who: [Early birds]
+    places: [Pena Palace]
     booking: { status: required, deadline: 2027-04-20 }
     costs:
-      - { amount: 64, currency: EUR, paidBy: alex }
-  - id: belem
-    kind: meal
+      - { amount: 64, currency: EUR, paidBy: Alex }
+  - kind: meal
     title: Pastéis de nata in Belém
     who: [everyone]
     start: 2027-05-16T10:00:00+01:00
     end: 2027-05-16T11:00:00+01:00
-    places: [belem, jeronimos]
+    places: [Pastéis de Belém, Jerónimos Monastery]
     costs:
-      - { amount: 18.6, currency: EUR, paidBy: robin, split: { shares: { alex: 1, sam: 1, robin: 2 } } }
-  - id: inbound
-    kind: flight
+      - { amount: 18.6, currency: EUR, paidBy: Robin, split: { shares: { Alex: 1, Sam: 1, Robin: 2 } } }
+  - kind: flight
     title: Lisbon → London
     who: [everyone]
     start: 2027-05-17T18:40:00+01:00
     end: 2027-05-17T21:15:00+01:00
-    places: [lis, lgw]
+    places: [Lisbon Airport (LIS), London Gatwick (LGW)]
     transport: { carrier: TAP Air Portugal, number: TP1338 }
     booking: { status: booked, reference: { secret: DEMO_PNR } }
 ideas:
-  - id: lx-factory
-    title: LX Factory market
-    area: lisbon
+  - title: LX Factory market
+    area: Lisbon
     places: [{ name: LX Factory, geo: [38.7036, -9.1784], category: shopping }]
     duration: halfDay
     notes: Sunday market; bookshop in an old printing hall.
-  - id: fado
-    title: Fado night in Alfama
-    area: lisbon
+  - title: Fado night in Alfama
+    area: Lisbon
     priority: must
     duration: hour
     costs:
-      - { amount: 60, currency: EUR, paidBy: sam, estimate: true }
+      - { amount: 60, currency: EUR, paidBy: Sam, estimate: true }
 packing:
   - category: Essentials
     items:
       - Passport
       - Euros (cards work almost everywhere)
-      - { name: Camera, who: [sam] }
+      - { name: Camera, who: [Sam] }
       - name: Travel adapter
-        who: [alex]
-        costs: [{ amount: 15, currency: EUR, paidBy: alex }]
+        who: [Alex]
+        costs: [{ amount: 15, currency: EUR, paidBy: Alex }]
       - name: Waterproof phone pouch
         bought: true
-        costs: [{ amount: 24, currency: EUR, paidBy: sam, label: 3-pack }]
+        costs: [{ amount: 24, currency: EUR, paidBy: Sam, label: 3-pack }]
   - category: Clothes
     items:
       - Comfortable walking shoes — the hills are steep

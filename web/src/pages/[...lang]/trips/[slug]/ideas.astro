@@ -5,7 +5,7 @@ import IdeaRow from '@/components/IdeaRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { ideaFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { ideasByArea, people } from '@/lib/trip'
+import { anchor, ideasByArea, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -41,7 +41,7 @@ const visits = (area: string) =>
       {areas.map(([area, ideas]) => {
         const place = area ? trip.places[area] : undefined
         return (
-          <section class="section area" id={`area-${area || 'anywhere'}`} data-day-section>
+          <section class="section area" id={`area-${area ? anchor(area) : 'anywhere'}`} data-day-section>
             <div class="section-header">
               <h2 lang={trip.locale}>{place?.name ?? t('ideas.anywhere')}</h2>
               <span class="footnote secondary">{plural('ideas.count', ideas.length)}</span>
