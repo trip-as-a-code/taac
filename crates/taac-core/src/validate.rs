@@ -33,9 +33,33 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.people();
     v.places();
     v.items();
+    v.bases();
+    v.ideas();
     v.overlaps();
+    v.nights();
     v.packing();
     v.out
+}
+
+/// A night `member` would sleep in both lodgings.
+fn shared_night(
+    trip: &Trip,
+    bases: &[crate::loader::ResolvedBase],
+    a: &crate::model::Item,
+    b: &crate::model::Item,
+    member: &str,
+) -> bool {
+    let (Some((start, end)), Some(_)) = (a.span(), b.span()) else {
+        return false;
+    };
+    let mut night = start.date_naive();
+    while night < end.date_naive() {
+        if trip.sleeps_at(bases, a, member, night) && trip.sleeps_at(bases, b, member, night) {
+            return true;
+        }
+        night = night.succ_opt().unwrap_or(end.date_naive());
+    }
+    false
 }
 
 /// `(item, is_lodging, start, end)`
@@ -155,11 +179,33 @@ impl Validator<'_> {
                     format!("item id `{}` used twice", item.id),
                 );
             }
-            if let Some(end) = item.end {
-                if end < item.start {
+            let fixed = matches!(item.kind, ItemKind::Lodging) || item.kind.is_transport();
+            match (item.start, item.date) {
+                (Some(_), Some(_)) => {
+                    self.error("item.when", id, "set `start` or `date`, not both".into());
+                }
+                (None, None) => self.error("item.when", id, "needs a `start` or a `date`".into()),
+                (None, Some(_)) if fixed => self.error(
+                    "item.when",
+                    id,
+                    format!(
+                        "{} items need an exact `start` and `end`",
+                        item.kind.as_str()
+                    ),
+                ),
+                (None, Some(_)) if item.end.is_some() => {
+                    self.error("item.when", id, "`end` needs a `start`".into());
+                }
+                _ => {}
+            }
+            if item.part.is_some() && item.start.is_some() {
+                self.error("item.when", id, "`part` is for `date`-only items".into());
+            }
+            if let (Some(start), Some(end)) = (item.start, item.end) {
+                if end < start {
                     self.error("item.time", id, "ends before it starts".into());
                 }
-            } else if matches!(item.kind, ItemKind::Lodging) || item.kind.is_transport() {
+            } else if item.start.is_some() && fixed {
                 self.error(
                     "item.end",
                     id,
@@ -182,26 +228,12 @@ impl Validator<'_> {
                     "transport items should list origin and destination".into(),
                 );
             }
-            if item.members.is_some() && item.group.is_some() {
-                self.error(
-                    "item.participants",
-                    id,
-                    "set `members` or `group`, not both".into(),
-                );
-            }
-            for member in item.members.iter().flatten() {
-                if trip.member(member).is_none() {
-                    self.error("item.member", id, format!("unknown member `{member}`"));
-                }
-            }
-            if let Some(group) = item.group.as_deref().filter(|g| trip.group(g).is_none()) {
-                self.error("item.group", id, format!("unknown group `{group}`"));
-            }
+            self.who(&item.id, item.members.as_deref(), item.group.as_deref());
             if item
                 .booking
                 .as_ref()
                 .and_then(|b| b.deadline)
-                .is_some_and(|deadline| deadline > item.start.date_naive())
+                .is_some_and(|deadline| deadline > item.day())
             {
                 self.warn(
                     "booking.deadline",
@@ -216,15 +248,184 @@ impl Validator<'_> {
                     "`${...}` in notes is published as-is; move confidential values to `booking.reference` or `contacts`".into(),
                 );
             }
-            self.costs(item);
+            self.costs(&item.id, &item.costs, &trip.participants(item));
         }
     }
 
-    fn costs(&mut self, item: &crate::model::Item) {
+    fn who(&mut self, id: &str, members: Option<&[String]>, group: Option<&str>) {
         let trip = self.trip;
-        let id = Some(item.id.as_str());
-        let participants = trip.participants(item);
-        for cost in &item.costs {
+        if members.is_some() && group.is_some() {
+            self.error(
+                "participants",
+                Some(id),
+                "set `members` or `group`, not both".into(),
+            );
+        }
+        for member in members.into_iter().flatten() {
+            if trip.member(member).is_none() {
+                self.error(
+                    "participants.member",
+                    Some(id),
+                    format!("unknown member `{member}`"),
+                );
+            }
+        }
+        if let Some(group) = group.filter(|g| trip.group(g).is_none()) {
+            self.error(
+                "participants.group",
+                Some(id),
+                format!("unknown group `{group}`"),
+            );
+        }
+    }
+
+    fn bases(&mut self) {
+        let trip = self.trip;
+        let mut ids = HashSet::new();
+        for base in &trip.declared_bases {
+            let id = Some(base.id.as_str());
+            if !ids.insert(base.id.as_str()) {
+                self.error(
+                    "base.duplicate",
+                    id,
+                    format!("base id `{}` used twice", base.id),
+                );
+            }
+            if !trip.places.contains_key(&base.place) {
+                self.error("base.place", id, format!("unknown place `{}`", base.place));
+            }
+            if base.to < base.from {
+                self.error("base.dates", id, "`to` is before `from`".into());
+            }
+            self.who(&base.id, base.members.as_deref(), base.group.as_deref());
+        }
+        let bases = trip.bases();
+        for (i, a) in bases.iter().enumerate() {
+            for b in &bases[i + 1..] {
+                if a.derived || b.from > a.to || a.from > b.to {
+                    continue;
+                }
+                let shared: Vec<&str> = a
+                    .members
+                    .iter()
+                    .filter(|m| b.members.contains(m))
+                    .map(String::as_str)
+                    .collect();
+                if !shared.is_empty() {
+                    self.error(
+                        "base.overlap",
+                        Some(&b.id),
+                        format!("overlaps base `{}` for {}", a.id, shared.join(", ")),
+                    );
+                }
+            }
+        }
+    }
+
+    fn ideas(&mut self) {
+        let trip = self.trip;
+        let items: HashSet<&str> = trip.itinerary.iter().map(|i| i.id.as_str()).collect();
+        let mut ids = HashSet::new();
+        for idea in &trip.ideas {
+            let id = Some(idea.id.as_str());
+            if !ids.insert(idea.id.as_str()) || items.contains(idea.id.as_str()) {
+                self.error("idea.duplicate", id, format!("id `{}` used twice", idea.id));
+            }
+            if let Some(area) = idea
+                .area
+                .as_deref()
+                .filter(|a| !trip.places.contains_key(*a))
+            {
+                self.error("idea.area", id, format!("unknown place `{area}`"));
+            }
+            for place in &idea.places {
+                match place {
+                    PlaceRef::Key(key) if !trip.places.contains_key(key) => {
+                        self.error("idea.place", id, format!("unknown place `{key}`"));
+                    }
+                    PlaceRef::Inline(p) => self.geo(&p.name, p.geo, id),
+                    PlaceRef::Key(_) => {}
+                }
+            }
+            self.who(&idea.id, idea.members.as_deref(), idea.group.as_deref());
+            let participants = trip.who(idea.members.as_deref(), idea.group.as_deref());
+            self.costs(&idea.id, &idea.costs, &participants);
+        }
+    }
+
+    /// With declared bases, every night of someone's trip should be accounted
+    /// for: a base, a bed, or an overnight journey.
+    fn nights(&mut self) {
+        let trip = self.trip;
+        if trip.declared_bases.is_empty() {
+            return;
+        }
+        let bases = trip.bases();
+        for member in &trip.members {
+            let mine: Vec<_> = trip
+                .itinerary
+                .iter()
+                .filter(|i| trip.participants(i).contains(&member.id.as_str()))
+                .collect();
+            let first = mine
+                .iter()
+                .map(|i| i.day())
+                .chain(
+                    bases
+                        .iter()
+                        .filter(|b| b.members.contains(&member.id))
+                        .map(|b| b.from),
+                )
+                .min();
+            let last = mine
+                .iter()
+                .map(|i| i.span().map_or(i.day(), |(_, end)| end.date_naive()))
+                .chain(
+                    bases
+                        .iter()
+                        .filter(|b| b.members.contains(&member.id))
+                        .map(|b| b.to.succ_opt().unwrap_or(b.to)),
+                )
+                .max();
+            let (Some(first), Some(last)) = (first, last) else {
+                continue;
+            };
+            let mut missing = Vec::new();
+            let mut night = first;
+            while night < last {
+                let covered = bases
+                    .iter()
+                    .any(|b| b.from <= night && night <= b.to && b.members.contains(&member.id))
+                    || mine.iter().any(|i| {
+                        i.span().is_some_and(|(start, end)| {
+                            (i.kind == ItemKind::Lodging || i.kind.is_transport())
+                                && start.date_naive() <= night
+                                && night < end.date_naive()
+                        })
+                    });
+                if !covered {
+                    missing.push(night.to_string());
+                }
+                night = night.succ_opt().unwrap_or(last);
+            }
+            if !missing.is_empty() {
+                self.warn(
+                    "base.missing",
+                    None,
+                    format!(
+                        "no base, lodging or overnight journey for {} on {}",
+                        member.id,
+                        missing.join(", ")
+                    ),
+                );
+            }
+        }
+    }
+
+    fn costs(&mut self, owner: &str, costs: &[crate::model::Cost], participants: &[&str]) {
+        let trip = self.trip;
+        let id = Some(owner);
+        for cost in costs {
             if cost.amount < Decimal::ZERO {
                 self.error("cost.amount", id, "negative amount".into());
             }
@@ -286,20 +487,23 @@ impl Validator<'_> {
 
     /// Two timed commitments for the same person at once. Lodging only
     /// clashes with lodging; notes never clash.
+    /// Two timed commitments for the same person at once. Lodging only
+    /// clashes with lodging, and only on nights both are actually slept in.
     fn overlaps(&mut self) {
         let trip = self.trip;
-        let mut by_member: HashMap<&str, Vec<Span<'_>>> = HashMap::new();
+        let bases = trip.bases();
+        let mut by_member: HashMap<&str, Vec<(&crate::model::Item, Span<'_>)>> = HashMap::new();
         for item in &trip.itinerary {
-            let Some(end) = item.end else { continue };
-            if item.kind == ItemKind::Note {
+            let Some((start, end)) = item.span() else {
+                continue;
+            };
+            if item.kind == ItemKind::Note || item.end.is_none() {
                 continue;
             }
             for member in trip.participants(item) {
                 by_member.entry(member).or_default().push((
-                    item.id.as_str(),
-                    item.kind == ItemKind::Lodging,
-                    item.start,
-                    end,
+                    item,
+                    (item.id.as_str(), item.kind == ItemKind::Lodging, start, end),
                 ));
             }
         }
@@ -307,15 +511,19 @@ impl Validator<'_> {
         let mut members: Vec<_> = by_member.into_iter().collect();
         members.sort_by_key(|(m, _)| *m);
         for (member, mut spans) in members {
-            spans.sort_by_key(|s| s.2);
-            for (i, a) in spans.iter().enumerate() {
-                for b in &spans[i + 1..] {
+            spans.sort_by_key(|(_, s)| s.2);
+            for (i, (item_a, a)) in spans.iter().enumerate() {
+                for (item_b, b) in &spans[i + 1..] {
                     if b.2 >= a.3 {
                         break;
                     }
-                    if a.1 == b.1 {
-                        overlaps.entry((a.0, b.0)).or_default().push(member);
+                    if a.1 != b.1 {
+                        continue;
                     }
+                    if a.1 && !shared_night(trip, &bases, item_a, item_b, member) {
+                        continue;
+                    }
+                    overlaps.entry((a.0, b.0)).or_default().push(member);
                 }
             }
         }
@@ -352,14 +560,24 @@ mod tests {
     use super::*;
 
     fn check(itinerary: &str) -> Vec<Diagnostic> {
+        check_with("", itinerary)
+    }
+
+    fn check_with(extra: &str, itinerary: &str) -> Vec<Diagnostic> {
         let trip = format!(
             r"
-apiVersion: taac/v1alpha1
+apiVersion: taac/v1alpha2
 kind: Trip
 metadata: {{ title: T, timezone: Asia/Tokyo }}
 currency: {{ base: EUR, rates: {{ JPY: 0.006 }} }}
 members: [{{ id: a, name: A }}, {{ id: b, name: B }}]
 groups: [{{ id: duo, name: Duo, members: [a, b] }}]
+places:
+  tokyo: {{ name: Tokyo, geo: [35.68, 139.76], radius: 25000 }}
+  kyoto: {{ name: Kyoto, geo: [35.01, 135.77], radius: 12000 }}
+  flat: {{ name: Flat, geo: [35.70, 139.80] }}
+  ryokan: {{ name: Ryokan, geo: [35.00, 135.76] }}
+{extra}
 itinerary:
 {itinerary}"
         );
@@ -392,7 +610,7 @@ itinerary:
         for code in [
             "item.time",
             "item.place",
-            "item.member",
+            "participants.member",
             "cost.currency",
             "cost.split",
         ] {
@@ -409,5 +627,62 @@ itinerary:
         );
         assert_eq!(codes(&d), ["item.overlap"]);
         assert_eq!(d[0].item.as_deref(), Some("z"));
+    }
+
+    #[test]
+    fn loose_items_need_a_day_and_no_fixed_kinds() {
+        let d = check(
+            "  - { id: x, kind: activity, title: X, date: 2027-01-01, part: afternoon }
+  - { id: y, kind: lodging, title: Y, date: 2027-01-01 }
+  - { id: z, kind: activity, title: Z, date: 2027-01-01, start: 2027-01-01T10:00:00+09:00 }
+  - { id: w, kind: activity, title: W }",
+        );
+        let items: Vec<_> = d
+            .iter()
+            .filter(|d| d.code == "item.when")
+            .filter_map(|d| d.item.as_deref())
+            .collect();
+        let mut items = items;
+        items.sort_unstable();
+        assert_eq!(items, ["w", "y", "z"], "{d:?}");
+    }
+
+    #[test]
+    fn bases_must_not_overlap_per_person() {
+        let d = check_with(
+            "bases:
+  - { id: t, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-03 }
+  - { id: k, title: Kyoto, place: kyoto, from: 2027-01-03, to: 2027-01-04, members: [a] }
+ideas:
+  - { id: i, title: I, area: osaka }",
+            "  - { id: x, kind: activity, title: X, date: 2027-01-01 }",
+        );
+        let codes = codes(&d);
+        assert!(codes.contains(&"base.overlap"), "{codes:?}");
+        assert!(codes.contains(&"idea.area"), "{codes:?}");
+    }
+
+    #[test]
+    fn a_flat_kept_while_travelling_is_not_an_overlap() {
+        let d = check_with(
+            "bases:
+  - { id: t1, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-02 }
+  - { id: k, title: Kyoto, place: kyoto, from: 2027-01-03, to: 2027-01-03 }
+  - { id: t2, title: Tokyo, place: tokyo, from: 2027-01-04, to: 2027-01-05 }",
+            "  - { id: flat, kind: lodging, title: Flat, start: 2027-01-01T15:00:00+09:00, end: 2027-01-06T10:00:00+09:00, places: [flat] }
+  - { id: ryokan, kind: lodging, title: Ryokan, start: 2027-01-03T15:00:00+09:00, end: 2027-01-04T10:00:00+09:00, places: [ryokan] }",
+        );
+        assert!(d.is_empty(), "{d:?}");
+    }
+
+    #[test]
+    fn nights_without_a_base_are_flagged() {
+        let d = check_with(
+            "bases:
+  - { id: t, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-01 }",
+            "  - { id: x, kind: activity, title: X, date: 2027-01-03 }",
+        );
+        assert_eq!(codes(&d), ["base.missing", "base.missing"], "{d:?}");
+        assert!(d[0].message.contains("2027-01-02"));
     }
 }

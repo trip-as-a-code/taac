@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "taac Trip",
-  "description": "One YAML file of a trip. A trip is a single `kind: Trip` file, or a\ndirectory holding one `kind: Trip` file plus any number of `kind: TripPart`\nfiles whose places, itinerary, packing and overlays are merged into it.",
+  "description": "One YAML file of a trip. A trip is a single `kind: Trip` file, or a\ndirectory holding one `kind: Trip` file plus any number of `kind: TripPart`\nfiles whose bases, places, itinerary, ideas, packing and overlays are\nmerged into it.",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -44,6 +44,13 @@
         "$ref": "#/$defs/Group"
       }
     },
+    "bases": {
+      "description": "Where people are, day by day, whether or not anything is planned.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Base"
+      }
+    },
     "places": {
       "description": "Reusable places, referenced from items by key.",
       "type": "object",
@@ -55,6 +62,13 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/Item"
+      }
+    },
+    "ideas": {
+      "description": "Unscheduled things to pick from on the spot.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Idea"
       }
     },
     "packing": {
@@ -83,7 +97,7 @@
     "ApiVersion": {
       "type": "string",
       "enum": [
-        "taac/v1alpha1"
+        "taac/v1alpha2"
       ]
     },
     "TripKind": {
@@ -256,6 +270,63 @@
         "members"
       ]
     },
+    "Base": {
+      "description": "A stretch of days spent in one area, by everyone or some of the members.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "place": {
+          "description": "Key of an area in `places`.",
+          "type": "string"
+        },
+        "from": {
+          "description": "First night here.",
+          "type": "string",
+          "format": "date"
+        },
+        "to": {
+          "description": "Last night here (inclusive).",
+          "type": "string",
+          "format": "date"
+        },
+        "members": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "description": "Markdown.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "place",
+        "from",
+        "to"
+      ]
+    },
     "Place": {
       "type": "object",
       "properties": {
@@ -290,6 +361,15 @@
             "string",
             "null"
           ]
+        },
+        "radius": {
+          "description": "Makes the place an area (a city, a valley) of this many metres around\n`geo`; bases and ideas use areas.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 1
         }
       },
       "additionalProperties": false,
@@ -312,8 +392,11 @@
           "type": "string"
         },
         "start": {
-          "description": "RFC 3339 with the local offset of where it happens.",
-          "type": "string",
+          "description": "RFC 3339 with the local offset of where it happens. Set this, or\n`date` for plans without a fixed time.",
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "end": {
@@ -322,6 +405,25 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "date": {
+          "description": "A day without a time; not for lodging or transport.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "part": {
+          "description": "Rough time of day for a `date`-only item.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DayPart"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "places": {
           "description": "Ordered stops: origin → destination for transport, venues otherwise.",
@@ -402,8 +504,7 @@
       "required": [
         "id",
         "kind",
-        "title",
-        "start"
+        "title"
       ]
     },
     "ItemKind": {
@@ -418,6 +519,14 @@
         "activity",
         "meal",
         "note"
+      ]
+    },
+    "DayPart": {
+      "type": "string",
+      "enum": [
+        "morning",
+        "afternoon",
+        "evening"
       ]
     },
     "PlaceRef": {
@@ -547,6 +656,10 @@
             "string",
             "null"
           ]
+        },
+        "estimate": {
+          "description": "A guess rather than a quote.",
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -646,6 +759,121 @@
       "additionalProperties": false,
       "required": [
         "name"
+      ]
+    },
+    "Idea": {
+      "description": "Something worth doing, without a date: decided on the spot.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ItemKind",
+          "default": "activity"
+        },
+        "area": {
+          "description": "Key of the area (in `places`) the idea belongs to; days spent in a base\non that area surface it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlaceRef"
+          }
+        },
+        "members": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority",
+          "default": "maybe"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IdeaDuration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "booking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Booking"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costs": {
+          "description": "Usually `estimate: true`; counted as possible spend only.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cost"
+          }
+        },
+        "notes": {
+          "description": "Markdown.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "Priority": {
+      "type": "string",
+      "enum": [
+        "must",
+        "maybe"
+      ]
+    },
+    "IdeaDuration": {
+      "type": "string",
+      "enum": [
+        "hour",
+        "halfDay",
+        "day"
       ]
     },
     "PackingCategory": {

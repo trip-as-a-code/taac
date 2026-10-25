@@ -19,12 +19,35 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
     line(format!("X-WR-CALNAME:{}", escape(&trip.metadata.title)));
     line(format!("X-WR-TIMEZONE:{}", trip.metadata.timezone));
 
+    for base in trip.bases().iter().filter(|b| !b.derived) {
+        let who: Vec<&str> = base
+            .members
+            .iter()
+            .map(|id| trip.member(id).map_or(id.as_str(), |m| m.name.as_str()))
+            .collect();
+        line("BEGIN:VEVENT".into());
+        line(format!("UID:base.{}.{}@taac", base.id, trip.slug));
+        line(format!("DTSTAMP:{}", base.from.format("%Y%m%dT000000Z")));
+        line(format!("DTSTART;VALUE=DATE:{}", base.from.format("%Y%m%d")));
+        // All-day DTEND is exclusive: the morning after the last night.
+        let end = base
+            .to
+            .succ_opt()
+            .and_then(|d| d.succ_opt())
+            .unwrap_or(base.to);
+        line(format!("DTEND;VALUE=DATE:{}", end.format("%Y%m%d")));
+        line(format!("SUMMARY:📍 {}", escape(&base.title)));
+        line(format!("LOCATION:{}", escape(&base.place.name)));
+        line(format!("DESCRIPTION:{}", escape(&who.join(", "))));
+        line("TRANSP:TRANSPARENT".into());
+        line("END:VEVENT".into());
+    }
+
     for item in &trip.itinerary {
         if item.kind == ItemKind::Note {
             continue;
         }
         let places = trip.item_places(item);
-        let end = item.end.unwrap_or(item.start);
         let status = match item.booking.as_ref().map(|b| b.status) {
             Some(BookingStatus::Booked | BookingStatus::NotRequired) | None => "CONFIRMED",
             Some(BookingStatus::Required) => "TENTATIVE",
@@ -67,9 +90,19 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
 
         line("BEGIN:VEVENT".into());
         line(format!("UID:{}.{}@taac", item.id, trip.slug));
-        line(format!("DTSTAMP:{}", stamp(item.start.with_timezone(&Utc))));
-        line(format!("DTSTART:{}", stamp(item.start.with_timezone(&Utc))));
-        line(format!("DTEND:{}", stamp(end.with_timezone(&Utc))));
+        if let Some((start, end)) = item.span() {
+            line(format!("DTSTAMP:{}", stamp(start.with_timezone(&Utc))));
+            line(format!("DTSTART:{}", stamp(start.with_timezone(&Utc))));
+            line(format!("DTEND:{}", stamp(end.with_timezone(&Utc))));
+        } else {
+            let day = item.day();
+            line(format!("DTSTAMP:{}", day.format("%Y%m%dT000000Z")));
+            line(format!("DTSTART;VALUE=DATE:{}", day.format("%Y%m%d")));
+            line(format!(
+                "DTEND;VALUE=DATE:{}",
+                day.succ_opt().unwrap_or(day).format("%Y%m%d")
+            ));
+        }
         line(format!("SUMMARY:{}", escape(&item.title)));
         if let Some((_, place)) = places.first() {
             line(format!("LOCATION:{}", escape(&place.name)));

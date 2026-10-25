@@ -3,7 +3,7 @@ import { ClientRouter } from 'astro:transitions'
 
 import NavBar from '@/components/NavBar.astro'
 import UpdateToast from '@/components/UpdateToast.astro'
-import { localeFromParam, type Locale } from '@/i18n'
+import { localeFromParam, localized, type Locale } from '@/i18n'
 import { buildId, site } from '@/lib/build'
 import '@/styles/global.css'
 
@@ -20,7 +20,8 @@ interface Props {
 }
 
 const { lang = localeFromParam(undefined), title, description, navTitle, back, wide } = Astro.props
-const pageTitle = title ? `${title} · ${site.site.title}` : site.site.title
+const siteTitle = localized(site.site.title, lang)
+const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
 ---
 
 <!doctype html>
@@ -92,6 +93,9 @@ const pageTitle = title ? `${title} · ${site.site.title}` : site.site.title
   }
 
   main {
+    /* Horizontal scrollers (day strip, route) must never widen the page;
+       clip, unlike hidden, keeps sticky headers working. */
+    overflow-x: clip;
     padding-bottom: calc(var(--space-16) + env(safe-area-inset-bottom));
   }
 

@@ -75,3 +75,13 @@ describe('manifest', () => {
     expect(requiredScopes('/trips/japan/', empty)).toEqual([])
   })
 })
+
+describe('localized titles', () => {
+  it('accepts per-language titles and falls back to English', async () => {
+    const { normalise, localizedText } = await import('./access')
+    const manifest = normalise({ title: { en: 'Trips', ru: 'Поездки' } })
+    expect(localizedText(manifest.title, 'ru')).toBe('Поездки')
+    expect(localizedText(manifest.title, 'de')).toBe('Trips')
+    expect(localizedText(normalise({ title: 'Plain' }).title, 'ru')).toBe('Plain')
+  })
+})

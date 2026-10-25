@@ -3,7 +3,7 @@ import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { filterTokens, kindTint, placeEmoji } from '@/lib/trip'
+import { filterTokens, kindTint, memberTokens, placeEmoji } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -18,23 +18,53 @@ for (const item of trip.items) {
     used.get(id)!.items.push(item.id)
   }
 }
-const itemInfo = Object.fromEntries(
-  trip.items.map((item) => [
+for (const idea of trip.ideas) {
+  for (const id of idea.places) {
+    if (!used.has(id)) used.set(id, { id, items: [] })
+    used.get(id)!.items.push(idea.id)
+  }
+}
+const itemInfo = Object.fromEntries([
+  ...trip.items.map((item) => [
     item.id,
     {
       title: item.title,
       kind: item.kind,
       date: item.local.date,
-      when: `${date(item.local.date, { day: 'numeric', month: 'short' })} · ${item.local.time}`,
+      when: `${date(item.local.date, { day: 'numeric', month: 'short' })} · ${item.local.time ?? t(`part.${item.local.part ?? 'anytime'}`)}`,
       tokens: filterTokens(trip, item),
       href: path(`/trips/${trip.slug}/itinerary/#item-${item.id}`),
     },
   ]),
-)
+  ...trip.ideas.map((idea) => [
+    idea.id,
+    {
+      title: idea.title,
+      kind: idea.kind,
+      date: null,
+      when: `${idea.priority === 'must' ? '★ ' : ''}${t('nav.ideas')}`,
+      tokens: filterTokens(trip, idea),
+      href: path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`),
+    },
+  ]),
+])
+const ideaIds = new Set(trip.ideas.map((i) => i.id))
 const places = [...used.values()].map(({ id, items }) => {
   const place = trip.places[id]
-  return { id, name: place.name, geo: place.geo, emoji: placeEmoji(place.category), items }
+  const idea = items.every((i) => ideaIds.has(i))
+  return { id, name: place.name, geo: place.geo, emoji: placeEmoji(place.category), items, idea }
 })
+const areas = trip.basesDerived
+  ? []
+  : trip.bases.map((b) => ({
+      id: b.id,
+      title: b.title,
+      center: [trip.places[b.place].geo[1], trip.places[b.place].geo[0]],
+      radius: trip.places[b.place].radius ?? 30_000,
+      from: b.from,
+      to: b.to,
+      tokens: memberTokens(trip, b.members),
+    }))
 const routes = trip.items
   .filter((i) => ['flight', 'train', 'bus', 'ferry', 'transfer'].includes(i.kind) && i.places.length > 1)
   .map((i) => ({
@@ -44,7 +74,7 @@ const routes = trip.items
     coords: i.places.map((id) => [trip.places[id].geo[1], trip.places[id].geo[0]]),
   }))
 const overlays = trip.overlays.map((o) => ({ name: o.name, data: o.data }))
-const data = { places, routes, items: itemInfo, overlays }
+const data = { places, routes, items: itemInfo, overlays, areas }
 ---
 
 <TripLayout trip={trip} lang={lang} section="map" bare>
@@ -226,6 +256,13 @@ const data = { places, routes, items: itemInfo, overlays }
       0 0 0 2px var(--bg-elevated);
     cursor: pointer;
     transition: transform 200ms var(--ease);
+  }
+
+  :global(.marker[data-idea]) {
+    background: var(--material-thick);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+    outline: 2px dashed var(--purple);
+    outline-offset: -1px;
   }
 
   :global(.marker:hover),

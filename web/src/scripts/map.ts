@@ -8,9 +8,21 @@ import type { GeoJSONSource, LngLatBoundsLike, Map as MapLibre, Marker, Popup } 
 import { setupFilters, type FilterState } from '@/scripts/filters'
 
 interface MapData {
-  places: { id: string; name: string; geo: [number, number]; emoji: string; items: string[] }[]
+  places: { id: string; name: string; geo: [number, number]; emoji: string; items: string[]; idea: boolean }[]
   routes: { item: string; flight: boolean; color: string; coords: [number, number][] }[]
-  items: Record<string, { title: string; kind: string; date: string; when: string; tokens: string; href: string }>
+  items: Record<
+    string,
+    { title: string; kind: string; date: string | null; when: string; tokens: string; href: string }
+  >
+  areas: {
+    id: string
+    title: string
+    center: [number, number]
+    radius: number
+    from: string
+    to: string
+    tokens: string
+  }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
 }
 
@@ -66,6 +78,26 @@ export async function setupMap() {
         paint: { 'line-color': '#8e8e93', 'line-width': 1.5, 'line-opacity': 0.55, 'line-dasharray': [3, 2] },
       })
     }
+    if (!instance.getSource('areas')) {
+      instance.addSource('areas', { type: 'geojson', data: areaData(data, state) })
+      instance.addLayer({
+        id: 'areas-fill',
+        type: 'fill',
+        source: 'areas',
+        paint: { 'fill-color': resolveColor('var(--blue)'), 'fill-opacity': 0.07 },
+      })
+      instance.addLayer({
+        id: 'areas-line',
+        type: 'line',
+        source: 'areas',
+        paint: {
+          'line-color': resolveColor('var(--blue)'),
+          'line-opacity': 0.45,
+          'line-width': 1.5,
+          'line-dasharray': [2, 2],
+        },
+      })
+    }
     if (!instance.getSource('routes')) {
       instance.addSource('routes', { type: 'geojson', data: routeData(data, visibleItems()) })
       instance.addLayer({
@@ -115,6 +147,7 @@ export async function setupMap() {
     element.type = 'button'
     element.className = 'marker'
     element.textContent = place.emoji
+    if (place.idea) element.dataset.idea = ''
     element.setAttribute('aria-label', place.name)
     element.addEventListener('click', (event) => {
       event.stopPropagation()
@@ -133,6 +166,7 @@ export async function setupMap() {
     document.querySelector('[data-place-count]')!.textContent = String(shown.length)
     document.querySelector<HTMLElement>('[data-no-places]')!.hidden = shown.length > 0
     ;(instance.getSource('routes') as GeoJSONSource | undefined)?.setData(routeData(data, [...allowed]))
+    ;(instance.getSource('areas') as GeoJSONSource | undefined)?.setData(areaData(data, state))
     popup?.remove()
     if (fit && shown.length)
       instance.fitBounds(bounds(shown.map((p) => p.geo)), { padding: padding(), maxZoom: 14, duration: 700 })
@@ -148,6 +182,35 @@ export async function setupMap() {
   })
   document.querySelector('[data-fit]')?.addEventListener('click', () => apply(true))
   instance.once('load', () => apply(false))
+}
+
+/** Base areas as 64-gon circles, filtered by who and day. */
+function areaData(data: MapData, state: { who: string; day: string }): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: data.areas
+      .filter(
+        (a) =>
+          (!state.who || a.tokens.split(' ').includes(state.who)) &&
+          (!state.day || (a.from <= state.day && state.day <= a.to)),
+      )
+      .map((a) => ({
+        type: 'Feature',
+        properties: { title: a.title },
+        geometry: { type: 'Polygon', coordinates: [circle(a.center, a.radius)] },
+      })),
+  }
+}
+
+function circle([lon, lat]: [number, number], radius: number): [number, number][] {
+  const points: [number, number][] = []
+  const dLat = radius / 111_320
+  const dLon = radius / (111_320 * Math.cos((lat * Math.PI) / 180))
+  for (let i = 0; i <= 64; i++) {
+    const angle = (i / 64) * 2 * Math.PI
+    points.push([lon + dLon * Math.cos(angle), lat + dLat * Math.sin(angle)])
+  }
+  return points
 }
 
 function routeData(data: MapData, items: string[]): FeatureCollection {

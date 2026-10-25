@@ -9,6 +9,12 @@ export const localeNames: Record<Locale, string> = { en: 'English', ru: 'Рус�
 
 const catalogs: Record<Locale, Messages> = { en: en as Messages, ru }
 
+/** Picks a `Text` for a language: exact, then English, then the first. */
+export function localized(text: string | Record<string, string> | undefined, lang: string): string {
+  if (text === undefined || typeof text === 'string') return text ?? ''
+  return text[lang] ?? text.en ?? Object.values(text)[0] ?? ''
+}
+
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (locales as readonly string[]).includes(value)
 }

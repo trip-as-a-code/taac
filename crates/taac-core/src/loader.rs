@@ -8,9 +8,11 @@ use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 
 use crate::diagnostics::Diagnostic;
+use chrono::NaiveDate;
+
 use crate::model::{
-    Access, CurrencyConfig, Group, Item, Member, PackingCategory, Place, PlaceRef, SiteFile,
-    SiteKind, SiteMetadata, TripFile, TripKind, TripMetadata,
+    Access, Base, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory, Place,
+    PlaceRef, SiteFile, SiteKind, SiteMetadata, TripFile, TripKind, TripMetadata,
 };
 
 pub type Files = BTreeMap<String, String>;
@@ -33,11 +35,33 @@ pub struct Trip {
     pub members: Vec<Member>,
     pub groups: Vec<Group>,
     pub places: IndexMap<String, Place>,
+    /// As declared; see [`Trip::bases`] for the resolved list.
+    pub declared_bases: Vec<Base>,
     pub itinerary: Vec<Item>,
+    pub ideas: Vec<Idea>,
     pub packing: Vec<PackingCategory>,
     pub overlays: Vec<LoadedOverlay>,
     pub access: Option<Access>,
 }
+
+/// A base with its place and participants resolved. Trips without declared
+/// bases get one per lodging (`derived`).
+#[derive(Debug, Clone)]
+pub struct ResolvedBase {
+    pub id: String,
+    pub title: String,
+    pub place_id: String,
+    pub place: Place,
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    pub members: Vec<String>,
+    pub group: Option<String>,
+    pub notes: Option<String>,
+    pub derived: bool,
+}
+
+/// Areas without a radius still cover a city's worth of ground.
+const DEFAULT_AREA_RADIUS_M: f64 = 30_000.0;
 
 #[derive(Debug, Clone)]
 pub struct LoadedOverlay {
@@ -56,10 +80,18 @@ impl Trip {
 
     /// Effective participants: explicit `members`, else the group's, else everyone.
     pub fn participants<'a>(&'a self, item: &'a Item) -> Vec<&'a str> {
-        if let Some(members) = &item.members {
+        self.who(item.members.as_deref(), item.group.as_deref())
+    }
+
+    pub fn who<'a>(
+        &'a self,
+        members: Option<&'a [String]>,
+        group: Option<&'a str>,
+    ) -> Vec<&'a str> {
+        if let Some(members) = members {
             return members.iter().map(String::as_str).collect();
         }
-        if let Some(group) = item.group.as_deref().and_then(|g| self.group(g)) {
+        if let Some(group) = group.and_then(|g| self.group(g)) {
             return group.members.iter().map(String::as_str).collect();
         }
         self.members.iter().map(|m| m.id.as_str()).collect()
@@ -67,16 +99,127 @@ impl Trip {
 
     /// Places of an item with stable ids; inline places get `<item>~<n>`.
     pub fn item_places<'a>(&'a self, item: &'a Item) -> Vec<(String, &'a Place)> {
-        item.places
+        self.resolve_places(&item.id, &item.places)
+    }
+
+    pub fn idea_places<'a>(&'a self, idea: &'a Idea) -> Vec<(String, &'a Place)> {
+        self.resolve_places(&idea.id, &idea.places)
+    }
+
+    fn resolve_places<'a>(
+        &'a self,
+        owner: &str,
+        places: &'a [PlaceRef],
+    ) -> Vec<(String, &'a Place)> {
+        places
             .iter()
             .enumerate()
             .filter_map(|(index, place)| match place {
                 PlaceRef::Key(key) => self.places.get(key).map(|p| (key.clone(), p)),
-                PlaceRef::Inline(p) => Some((format!("{}~{index}", item.id), p)),
+                PlaceRef::Inline(p) => Some((format!("{owner}~{index}"), p)),
             })
             .collect()
     }
 
+    /// Declared bases, or one per lodging when none are declared.
+    pub fn bases(&self) -> Vec<ResolvedBase> {
+        if !self.declared_bases.is_empty() {
+            return self
+                .declared_bases
+                .iter()
+                .filter_map(|b| {
+                    let place = self.places.get(&b.place)?;
+                    Some(ResolvedBase {
+                        id: b.id.clone(),
+                        title: b.title.clone(),
+                        place_id: b.place.clone(),
+                        place: place.clone(),
+                        from: b.from,
+                        to: b.to,
+                        members: self
+                            .who(b.members.as_deref(), b.group.as_deref())
+                            .into_iter()
+                            .map(str::to_owned)
+                            .collect(),
+                        group: b.group.clone(),
+                        notes: b.notes.clone(),
+                        derived: false,
+                    })
+                })
+                .collect();
+        }
+        self.itinerary
+            .iter()
+            .filter(|i| i.kind == ItemKind::Lodging)
+            .filter_map(|item| {
+                let (start, end) = item.span()?;
+                let (place_id, place) = self.item_places(item).into_iter().next()?;
+                let to = end.date_naive().pred_opt()?;
+                Some(ResolvedBase {
+                    id: item.id.clone(),
+                    title: place.name.clone(),
+                    place_id,
+                    place: place.clone(),
+                    from: start.date_naive(),
+                    to: to.max(start.date_naive()),
+                    members: self
+                        .participants(item)
+                        .into_iter()
+                        .map(str::to_owned)
+                        .collect(),
+                    group: item.group.clone(),
+                    notes: None,
+                    derived: true,
+                })
+            })
+            .collect()
+    }
+
+    /// Whether `member` sleeps at this lodging on the night of `date`: inside
+    /// its dates, and — when bases are declared — inside that night's base area.
+    /// A flat kept on while travelling elsewhere doesn't count.
+    pub fn sleeps_at(
+        &self,
+        bases: &[ResolvedBase],
+        item: &Item,
+        member: &str,
+        date: NaiveDate,
+    ) -> bool {
+        let Some((start, end)) = item.span() else {
+            return false;
+        };
+        if !(start.date_naive() <= date && date < end.date_naive()) {
+            return false;
+        }
+        if self.declared_bases.is_empty() {
+            return true;
+        }
+        let Some(base) = bases
+            .iter()
+            .find(|b| b.from <= date && date <= b.to && b.members.iter().any(|m| m == member))
+        else {
+            return true;
+        };
+        self.item_places(item)
+            .first()
+            .is_none_or(|(_, place)| within(place, &base.place))
+    }
+}
+
+/// `place` lies inside `area` (its radius, or a city-sized default).
+pub fn within(place: &Place, area: &Place) -> bool {
+    let radius = area.radius.map_or(DEFAULT_AREA_RADIUS_M, f64::from);
+    distance_m(place.geo, area.geo) <= radius
+}
+
+pub fn distance_m([lat1, lon1]: [f64; 2], [lat2, lon2]: [f64; 2]) -> f64 {
+    let rad = std::f64::consts::PI / 180.0;
+    let a = ((lat2 - lat1) * rad / 2.0).sin().powi(2)
+        + (lat1 * rad).cos() * (lat2 * rad).cos() * ((lon2 - lon1) * rad / 2.0).sin().powi(2);
+    12_742_000.0 * a.sqrt().asin()
+}
+
+impl Trip {
     pub fn base_currency(&self) -> &str {
         self.currency.as_ref().map_or("EUR", |c| c.base.as_str())
     }
@@ -121,8 +264,8 @@ pub fn load_standalone_trip(files: &Files, path: &str) -> (Option<Site>, Vec<Dia
     let mut diagnostics = Vec::new();
     let site = load_trip(files, path, &mut diagnostics).map(|trip| Site {
         metadata: SiteMetadata {
-            title: trip.metadata.title.clone(),
-            description: trip.metadata.summary.clone(),
+            title: trip.metadata.title.clone().into(),
+            description: trip.metadata.summary.clone().map(Into::into),
         },
         access: None,
         trips: vec![trip],
@@ -209,7 +352,9 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         members: Vec::new(),
         groups: Vec::new(),
         places: IndexMap::new(),
+        declared_bases: Vec::new(),
         itinerary: Vec::new(),
+        ideas: Vec::new(),
         packing: Vec::new(),
         overlays: Vec::new(),
         access: None,
@@ -238,7 +383,9 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
             }
             trip.places.insert(key, place);
         }
+        trip.declared_bases.extend(doc.bases);
         trip.itinerary.extend(doc.itinerary);
+        trip.ideas.extend(doc.ideas);
         trip.packing.extend(doc.packing);
         for overlay in doc.map.unwrap_or_default().overlays {
             let overlay_path = join(&dir, &overlay.file);
@@ -261,7 +408,8 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         }
     }
 
-    trip.itinerary.sort_by_key(|item| item.start);
+    trip.itinerary.sort_by_key(Item::sort_key);
+    trip.declared_bases.sort_by_key(|b| b.from);
     Some(trip)
 }
 
@@ -333,7 +481,7 @@ mod tests {
     use super::*;
 
     const TRIP: &str = r"
-apiVersion: taac/v1alpha1
+apiVersion: taac/v1alpha2
 kind: Trip
 metadata:
   title: Test
@@ -355,7 +503,7 @@ itinerary:
 ";
 
     const PART: &str = r"
-apiVersion: taac/v1alpha1
+apiVersion: taac/v1alpha2
 kind: TripPart
 places:
   park: { name: Park, geo: [38.72, -9.15] }

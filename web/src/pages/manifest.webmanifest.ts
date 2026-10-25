@@ -1,13 +1,14 @@
 import type { APIRoute } from 'astro'
 
+import { localized } from '@/i18n'
 import { site } from '@/lib/build'
 
 export const GET: APIRoute = () =>
   new Response(
     JSON.stringify({
-      name: site.site.title,
-      short_name: site.site.title,
-      description: site.site.description,
+      name: localized(site.site.title, 'en'),
+      short_name: localized(site.site.title, 'en'),
+      description: localized(site.site.description, 'en'),
       start_url: '/',
       scope: '/',
       display: 'standalone',

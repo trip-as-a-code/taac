@@ -45,6 +45,13 @@ const lines = [...budget.lines].sort((a, b) =>
           <span class="amount tabular committed">{money(budget.total.committed, base)}</span>
           <span class="footnote tertiary">{t('budget.committedHint')}</span>
         </div>
+        {budget.possible > 0 && (
+          <div class="total card card-pad">
+            <span class="footnote secondary label">{t('budget.possible')}</span>
+            <span class="amount tabular possible">{money(budget.possible, base)}</span>
+            <span class="footnote tertiary">{t('budget.possibleHint')}</span>
+          </div>
+        )}
         <div class="total card card-pad currencies">
           <span class="footnote secondary label">{t('budget.byCurrency')}</span>
           <ul class="list">
@@ -188,6 +195,7 @@ const lines = [...budget.lines].sort((a, b) =>
                 </span>
                 <span class="expense-amount tabular">
                   <span class="subhead">{money(line.baseAmount, base)}</span>
+                  {line.estimate && <span class="footnote tertiary">{t('budget.estimate')}</span>}
                   {line.currency !== base && <span class="footnote tertiary">{money(line.amount, line.currency)}</span>}
                 </span>
                 <span
@@ -246,7 +254,7 @@ const lines = [...budget.lines].sort((a, b) =>
 <style>
   .totals {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
     gap: var(--space-4);
   }
 
@@ -272,6 +280,10 @@ const lines = [...budget.lines].sort((a, b) =>
 
   .committed {
     color: var(--green);
+  }
+
+  .possible {
+    color: var(--purple);
   }
 
   .currencies .list {

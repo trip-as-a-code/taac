@@ -79,6 +79,7 @@ export function taac(): AstroIntegration {
       'astro:build:done': ({ dir, logger }) => {
         const site = latest ?? load().site
         const access = {
+          // The login page localizes the site title itself.
           title: site.site.title,
           site: site.site.passwordSecret ? { secret: site.site.passwordSecret } : null,
           trips: Object.fromEntries(

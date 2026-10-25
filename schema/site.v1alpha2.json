@@ -42,7 +42,7 @@
     "ApiVersion": {
       "type": "string",
       "enum": [
-        "taac/v1alpha1"
+        "taac/v1alpha2"
       ]
     },
     "SiteKind": {
@@ -55,18 +55,36 @@
       "type": "object",
       "properties": {
         "title": {
-          "type": "string"
+          "$ref": "#/$defs/Text"
         },
         "description": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Text"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
       "additionalProperties": false,
       "required": [
         "title"
+      ]
+    },
+    "Text": {
+      "description": "Text shown in the interface: one string for every language, or one per\nlanguage (`{ en: …, ru: … }`), falling back to English, then the first.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       ]
     },
     "SiteTrip": {

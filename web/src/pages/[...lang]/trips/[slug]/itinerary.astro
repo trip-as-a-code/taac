@@ -4,12 +4,14 @@ import Icon from '@/components/Icon.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { filterTokens, homeOffset, itemById } from '@/lib/trip'
+import { baseById, daysBetween, groupFor, homeOffset, ideasByArea, itemById, memberTokens } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
-const { t, date } = i18n
+const { t, date, path } = i18n
+const bases = baseById(trip)
+const areaIdeas = ideasByArea(trip)
 const items = itemById(trip)
 const offset = homeOffset(trip)
 ---
@@ -39,21 +41,43 @@ const offset = homeOffset(trip)
           </h2>
           <span class="badge">{t('trip.dayN', { n: index + 1 })}</span>
         </header>
-        {day.stays.length > 0 && (
-          <ul class="stays">
-            {day.stays
-              .map((id) => items.get(id)!)
-              .map((stay) => (
-                <li class="stay footnote" data-stay data-filter={filterTokens(trip, stay)}>
+        {(day.bases.length > 0 || day.stays.length > 0) && (
+          <ul class="presence">
+            {day.bases
+              .filter(() => !trip.basesDerived)
+              .map((p) => {
+                const base = bases.get(p.id)!
+                const group = groupFor(trip, p.members)
+                const n = daysBetween(base.from, day.date) + 1
+                return (
+                  <li class="base subhead" data-presence data-filter={memberTokens(trip, p.members)}>
+                    <Icon name="pin" size={15} />
+                    <span class="base-title" lang={trip.locale}>
+                      {base.title}
+                    </span>
+                    {base.nights > 1 && (
+                      <span class="footnote secondary">{t('trip.baseDay', { n, total: base.nights })}</span>
+                    )}
+                    {group?.emoji && p.members.length < trip.members.length && (
+                      <span title={group.name}>{group.emoji}</span>
+                    )}
+                  </li>
+                )
+              })}
+            {day.stays.map((p) => {
+              const stay = items.get(p.id)!
+              return (
+                <li class="stay footnote" data-presence data-filter={memberTokens(trip, p.members)}>
                   <Icon name="lodging" size={14} />
                   <span lang={trip.locale}>
                     {t('trip.nightAt', { place: trip.places[stay.places[0]]?.name ?? stay.title })}
                   </span>
                 </li>
-              ))}
+              )
+            })}
           </ul>
         )}
-        {day.items.length > 0 ? (
+        {day.items.length > 0 && (
           <div class="card list">
             {day.items.map((id) => (
               <div class="row-wrap">
@@ -61,9 +85,29 @@ const offset = homeOffset(trip)
               </div>
             ))}
           </div>
-        ) : (
-          <p class="free footnote secondary">{t('trip.freeDay')}</p>
         )}
+        {day.bases.length > 0 && !trip.basesDerived
+          ? day.bases.map((p) => {
+              const base = bases.get(p.id)!
+              const ideas = areaIdeas.get(base.place) ?? []
+              return (
+                <div
+                  class="open footnote"
+                  data-presence
+                  data-filter={memberTokens(trip, p.members)}
+                  data-open-day={day.items.length === 0 ? '' : undefined}
+                >
+                  {day.items.length === 0 && <span class="secondary">{t('trip.openDay')}</span>}
+                  {ideas.length > 0 && (
+                    <a href={path(`/trips/${trip.slug}/ideas/#area-${base.place}`)}>
+                      <Icon name="sparkle" size={14} />
+                      {t('trip.ideasHere', { n: ideas.length, place: trip.places[base.place]?.name ?? base.title })}
+                    </a>
+                  )}
+                </div>
+              )
+            })
+          : day.items.length === 0 && <p class="free footnote secondary">{t('trip.freeDay')}</p>}
       </section>
     ))}
   </div>
@@ -175,13 +219,51 @@ const offset = homeOffset(trip)
     font-weight: 500;
   }
 
-  .stays {
+  .presence {
     list-style: none;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin: 0 0 var(--space-3);
     padding: 0;
+  }
+
+  .base {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px 4px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    color: var(--tint);
+    background: var(--tint-soft);
+  }
+
+  .base .footnote {
+    font-weight: 500;
+  }
+
+  .open {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    border: 1px dashed var(--separator-strong);
+  }
+
+  .open:not([data-open-day]) {
+    border: 0;
+    padding: 0 var(--space-4);
+  }
+
+  .open a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 500;
   }
 
   .stay {

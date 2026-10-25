@@ -4,8 +4,11 @@
  * site password, which a trip's.
  */
 
+/** One string for every language, or one per language. */
+export type Text = string | Record<string, string>
+
 export interface AccessManifest {
-  title: string
+  title: Text
   site: { secret: string } | null
   trips: Record<string, { secret: string; title: string }>
   locales: string[]
@@ -43,12 +46,25 @@ export function normalise(raw: unknown): AccessManifest {
   const value = (raw ?? {}) as Partial<AccessManifest>
   const locales = Array.isArray(value.locales) && value.locales.length ? value.locales : EMPTY_MANIFEST.locales
   return {
-    title: typeof value.title === 'string' ? value.title : EMPTY_MANIFEST.title,
+    title: isText(value.title) ? value.title : EMPTY_MANIFEST.title,
     site: value.site && typeof value.site.secret === 'string' ? { secret: value.site.secret } : null,
     trips: value.trips && typeof value.trips === 'object' ? value.trips : {},
     locales,
     defaultLocale: typeof value.defaultLocale === 'string' ? value.defaultLocale : (locales[0] ?? 'en'),
   }
+}
+
+function isText(value: unknown): value is Text {
+  return (
+    typeof value === 'string' ||
+    (typeof value === 'object' && value !== null && Object.values(value).every((v) => typeof v === 'string'))
+  )
+}
+
+/** Exact language, then English, then whatever there is. */
+export function localizedText(text: Text, lang: string): string {
+  if (typeof text === 'string') return text
+  return text[lang] ?? text.en ?? Object.values(text)[0] ?? ''
 }
 
 export function isProtected(manifest: AccessManifest): boolean {

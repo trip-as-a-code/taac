@@ -20,7 +20,7 @@ pub fn generate(trip: &Trip) -> String {
             "id": item.id,
             "title": item.title,
             "kind": item.kind.as_str(),
-            "start": item.start.to_rfc3339(),
+            "start": item.start.map_or_else(|| item.day().to_string(), |s| s.to_rfc3339()),
             "status": status,
         });
         for (id, place) in &places {
@@ -45,6 +45,33 @@ pub fn generate(trip: &Trip) -> String {
                 },
             }));
         }
+    }
+
+    for idea in &trip.ideas {
+        let reference = json!({ "id": idea.id, "title": idea.title, "kind": "idea", "priority": idea.priority });
+        for (id, place) in trip.idea_places(idea) {
+            points
+                .entry(id)
+                .or_insert_with(|| (place, Vec::new()))
+                .1
+                .push(reference.clone());
+        }
+    }
+
+    for base in trip.bases() {
+        features.push(json!({
+            "type": "Feature",
+            "id": format!("base:{}", base.id),
+            "geometry": { "type": "Point", "coordinates": lon_lat(&base.place) },
+            "properties": {
+                "kind": "base",
+                "title": base.title,
+                "from": base.from,
+                "to": base.to,
+                "members": base.members,
+                "radius": base.place.radius,
+            },
+        }));
     }
 
     for (id, (place, items)) in points {
