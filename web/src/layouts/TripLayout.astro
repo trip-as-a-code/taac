@@ -25,9 +25,11 @@ const { t, plural, dateRange, path } = i18n
 const base = `/trips/${trip.slug}`
 const sections: { id: Section; icon: IconName; href: string }[] = [
   { id: 'overview', icon: 'overview', href: path(`${base}/`) },
-  { id: 'itinerary', icon: 'itinerary', href: path(`${base}/itinerary/`) },
-  // Always there, even before the first idea: it explains what ideas are.
+  // The planning pipeline: ideas become plans, plans get booked, and the
+  // budget adds it all up last. The map sits with the plans it shows.
+  // Ideas are always there, even before the first one: the page explains them.
   { id: 'ideas', icon: 'sparkle', href: path(`${base}/ideas/`) },
+  { id: 'itinerary', icon: 'itinerary', href: path(`${base}/itinerary/`) },
   { id: 'map', icon: 'map', href: path(`${base}/map/`) },
   { id: 'bookings', icon: 'bookings', href: path(`${base}/bookings/`) },
   // Some things get bought before they can be packed: the budget comes last.
