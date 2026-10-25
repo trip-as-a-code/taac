@@ -47,7 +47,8 @@ const pathname = Astro.url.pathname
           </a>
         ))}
       </nav>
-      <form class="logout" method="post" action="/api/logout">
+      {/* A real navigation: the view-transition router would replay the POST via fetch. */}
+      <form class="logout" method="post" action="/api/logout" data-astro-reload>
         <button class="nav-icon-button" type="submit" title={t('nav.logout')}>
           <Icon name="logout" size={19} />
           <span class="visually-hidden">{t('nav.logout')}</span>
