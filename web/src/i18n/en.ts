@@ -140,6 +140,8 @@ export const en = {
   'issues.lede': 'Things in the plan that look wrong. Fix them in the trip files.',
   'issues.count': { one: '{n} issue', other: '{n} issues' },
   'issues.show': 'Show affected plans',
+  'issues.showAll': 'Show all {n}',
+  'issues.inList': 'See it in the issues list',
   'issues.none': 'No issues found.',
 
   'kind.flight': 'Flight',
@@ -242,7 +244,9 @@ export const en = {
   'packing.toBuy': 'To buy',
 
   'map.places': 'Places',
-  'map.fit': 'Show everything',
+  'map.fit': 'Whole trip',
+  'map.showAll': 'Show all',
+  'map.outside': { one: '{n} more place is off the map', other: '{n} more places are off the map' },
   'map.noPlaces': 'No places match.',
   'map.layers': 'Layers',
 

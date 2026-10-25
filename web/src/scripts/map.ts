@@ -15,7 +15,18 @@ interface MapData {
   routes: { item: string; flight: boolean; color: string; coords: [number, number][] }[]
   items: Record<
     string,
-    { title: string; kind: string; date: string | null; when: string; people: string[]; facts: Facts; href: string }
+    {
+      title: string
+      kind: string
+      date: string | null
+      when: string
+      people: string[]
+      facts: Facts
+      href: string
+      /** Kinds of issue the validator found; their entry in the overview's list. */
+      issues?: number
+      issuesHref?: string
+    }
   >
   areas: {
     id: string
@@ -127,6 +138,7 @@ export async function setupMap() {
   offTheme?.()
   offTheme = onTheme((theme) => instance.setStyle(STYLES[theme]))
 
+  const issuesLabel = container.dataset.issues ?? ''
   const markers = new Map<string, Marker>()
   let popup: Popup | undefined
   const listButtons = new Map(
@@ -140,7 +152,12 @@ export async function setupMap() {
     const list = place.items
       .filter((i) => allowed.has(i))
       .map((i) => data.items[i])
-      .map((i) => `<li><a href="${i.href}"><span>${escape(i.title)}</span><span>${escape(i.when)}</span></a></li>`)
+      .map((i) => {
+        const issues = i.issues
+          ? `<a class="popup-issues" href="${i.issuesHref}" title="${escape(issuesLabel)}">⚠︎ ${i.issues}</a>`
+          : ''
+        return `<li><a href="${i.href}"><span>${escape(i.title)}</span><span>${escape(i.when)}</span></a>${issues}</li>`
+      })
       .join('')
     popup?.remove()
     popup = new maplibregl.Popup({ offset: 20, maxWidth: '300px', focusAfterOpen: false })
@@ -167,20 +184,53 @@ export async function setupMap() {
   }
   for (const [id, button] of listButtons) button.addEventListener('click', () => open(id, true))
 
+  // The list names what is on the map right now; the rest is a tap away.
+  let shown: MapData['places'] = []
+  const listVisible = () => {
+    const view = instance.getBounds()
+    let inside = 0
+    const shownIds = new Set(shown.map((p) => p.id))
+    for (const [id, button] of listButtons) {
+      const place = data.places.find((p) => p.id === id)!
+      const visible = shownIds.has(id) && view.contains([place.geo[1], place.geo[0]])
+      button.parentElement!.hidden = !visible
+      if (visible) inside++
+    }
+    document.querySelector('[data-place-count]')!.textContent = String(inside)
+    document.querySelector<HTMLElement>('[data-no-places]')!.hidden = shown.length > 0
+    const outside = document.querySelector<HTMLElement>('[data-outside]')
+    const text = outside?.querySelector<HTMLElement>('[data-outside-text]')
+    if (outside && text) {
+      const rest = shown.length - inside
+      outside.hidden = rest <= 0
+      text.textContent = plural(text.dataset.template!, rest)
+    }
+  }
+  instance.on('moveend', listVisible)
+
   const apply = (fit: boolean) => {
     const allowed = new Set(visibleItems())
     showCount(allowed.size, Object.keys(data.items).length)
-    const shown = data.places.filter((p) => p.items.some((i) => allowed.has(i)))
+    shown = data.places.filter((p) => p.items.some((i) => allowed.has(i)))
     const shownIds = new Set(shown.map((p) => p.id))
     for (const [id, marker] of markers) marker.getElement().hidden = !shownIds.has(id)
-    for (const [id, button] of listButtons) button.parentElement!.hidden = !shownIds.has(id)
-    document.querySelector('[data-place-count]')!.textContent = String(shown.length)
-    document.querySelector<HTMLElement>('[data-no-places]')!.hidden = shown.length > 0
+    // Places whose plans in view have issues say how many kinds.
+    for (const [id, button] of listButtons) {
+      const place = data.places.find((p) => p.id === id)!
+      const issues = place.items.filter((i) => allowed.has(i)).reduce((n, i) => n + (data.items[i].issues ?? 0), 0)
+      const badge = button.querySelector<HTMLElement>('[data-place-issues]')!
+      badge.hidden = issues === 0
+      badge.textContent = `⚠︎ ${issues}`
+      badge.title = issuesLabel
+    }
+    listVisible()
     ;(instance.getSource('routes') as GeoJSONSource | undefined)?.setData(routeData(data, [...allowed]))
     ;(instance.getSource('areas') as GeoJSONSource | undefined)?.setData(areaData(data, state))
     popup?.remove()
+    // The trip's own area: a flight home from far away doesn't zoom the map
+    // out to the whole world.
     if (fit && shown.length)
-      instance.fitBounds(bounds(shown.map((p) => p.geo)), { padding: padding(), maxZoom: 14, duration: 700 })
+      instance.fitBounds(bounds(core(shown.map((p) => p.geo))), { padding: padding(), maxZoom: 14, duration: 700 })
   }
 
   setupFilters((filters) => {
@@ -193,6 +243,14 @@ export async function setupMap() {
     apply(true)
   })
   document.querySelector('[data-fit]')?.addEventListener('click', () => apply(true))
+  // First the trip's area; once that is all in view, the far-off rest too.
+  document.querySelector('[data-show-all]')?.addEventListener('click', () => {
+    if (!shown.length) return
+    const view = instance.getBounds()
+    const area = core(shown.map((p) => p.geo))
+    const target = area.every((g) => view.contains([g[1], g[0]])) ? shown.map((p) => p.geo) : area
+    instance.fitBounds(bounds(target), { padding: padding(), maxZoom: 14, duration: 700 })
+  })
   instance.once('load', () => apply(false))
 }
 
@@ -274,4 +332,11 @@ function padding() {
 
 function escape(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+}
+
+/** `{ one, few, many, other }` forms joined by `|` in a data attribute. */
+function plural(template: string, n: number): string {
+  const forms = JSON.parse(template) as Record<string, string>
+  const form = new Intl.PluralRules(document.documentElement.lang).select(n)
+  return (forms[form] ?? forms.other).replace('{n}', String(n))
 }

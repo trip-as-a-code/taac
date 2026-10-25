@@ -43,7 +43,11 @@ const tone = statusTone[item.booking.status]
 const isStay = item.kind === 'lodging'
 const transport = [item.transport?.carrier, item.transport?.number].filter(Boolean).join(' ')
 // Blocker clashes already have their own badge.
-const issues = issuesOf(trip, item.id).filter((d) => d.code !== 'blocker.conflict')
+// One entry per kind of issue, as in the overview's list, which has the
+// details; the card says what (or how many) and links there.
+const issues = [...new Map(issuesOf(trip, item.id).map((d) => [d.code, d])).values()]
+const worst = issues.some((d) => d.severity === 'error') ? 'error' : 'warning'
+const issuesHref = i18n.path(`/trips/${trip.slug}/#issue-${item.id}`)
 // No `who` means everyone, but nobody chose that: the issue says so instead.
 const unassigned = issues.some((d) => d.code === 'item.unassigned')
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
@@ -186,24 +190,28 @@ const offsetLabel =
       </div>
       <Debts trip={trip} id={item.id} i18n={i18n} />
       {issues.length > 0 && (
-        <ul class="issues footnote">
-          {issues.map((d) => (
-            <li data-severity={d.severity} title={d.message}>
-              <span aria-hidden="true">⚠︎</span>
-              {issueLabel(d.code)}
-            </li>
-          ))}
-        </ul>
+        <p class="issues footnote" data-severity={worst}>
+          <span aria-hidden="true">⚠︎</span>
+          <span class="ellipsis">
+            {issues.length === 1 ? issueLabel(issues[0].code) : i18n.plural('issues.count', issues.length)}
+          </span>
+        </p>
       )}
     </summary>
     {hasDetails && (
       <div class="details">
         {issues.length > 0 && (
-          <ul class="issue-details footnote" lang="en">
-            {issues.map((d) => (
-              <li data-severity={d.severity}>{d.message}</li>
-            ))}
-          </ul>
+          <div class="issue-details footnote">
+            {/* One issue is already named on the card. */}
+            {issues.length > 1 && (
+              <ul>
+                {issues.map((d) => (
+                  <li data-severity={d.severity}>{issueLabel(d.code)}</li>
+                ))}
+              </ul>
+            )}
+            <a href={issuesHref}>{t('issues.inList')} →</a>
+          </div>
         )}
         {item.notes && <div class="prose" lang={trip.locale} set:html={markdown(item.notes)} />}
         <ul class="facts footnote">
@@ -511,43 +519,38 @@ const offsetLabel =
   }
 
   .issues {
-    list-style: none;
     display: flex;
-    flex-wrap: wrap;
-    gap: 2px 12px;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
     margin: 2px 0 0;
-    padding: 0;
     font-weight: 600;
     color: var(--orange);
   }
 
-  .issues li {
-    display: inline-flex;
-    gap: 4px;
-  }
-
-  .issues [data-severity='error'],
+  .issues[data-severity='error'],
   .issue-details [data-severity='error'] {
     color: var(--red);
   }
 
   .issue-details {
     display: grid;
-    gap: 4px;
-    margin: 0;
-    padding: 10px 12px 10px 28px;
+    gap: 6px;
+    padding: 10px 12px;
     border-radius: 10px;
     color: var(--label);
     background: color-mix(in srgb, var(--orange) 10%, transparent);
   }
 
-  .reservation {
-    display: inline-flex;
-    min-width: 0;
-    max-width: 100%;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
+  .issue-details ul {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding-left: 16px;
+  }
+
+  .issue-details a {
+    font-weight: 600;
   }
 
   .facts {
