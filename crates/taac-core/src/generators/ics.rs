@@ -47,6 +47,27 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
         line("END:VEVENT".into());
     }
 
+    for blocker in &trip.blockers {
+        let members = trip.who(blocker.who.as_deref());
+        if !includes(&members) {
+            continue;
+        }
+        for (n, occurrence) in crate::blockers::occurrences(trip, blocker)
+            .iter()
+            .enumerate()
+        {
+            line("BEGIN:VEVENT".into());
+            line(format!("UID:blocker.{}.{n}.{}@taac", blocker.id, trip.slug));
+            line(format!("DTSTAMP:{}", stamp(occurrence.start)));
+            line(format!("DTSTART:{}", stamp(occurrence.start)));
+            line(format!("DTEND:{}", stamp(occurrence.end)));
+            line(format!("SUMMARY:⛔ {}", escape(&blocker.title)));
+            line(format!("DESCRIPTION:{}", escape(&members.join(", "))));
+            line("TRANSP:OPAQUE".into());
+            line("END:VEVENT".into());
+        }
+    }
+
     for item in &trip.itinerary {
         if item.kind == ItemKind::Note || !includes(&trip.participants(item)) {
             continue;

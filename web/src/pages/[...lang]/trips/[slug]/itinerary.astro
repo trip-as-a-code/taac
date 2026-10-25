@@ -51,6 +51,31 @@ const offset = homeOffset(trip)
           </h2>
           <span class="badge">{t('trip.dayN', { n: index + 1 })}</span>
         </header>
+        {day.blockers.length > 0 && (
+          <ul class="presence">
+            {day.blockers.map((b) => {
+              const blocker = trip.blockers.find((x) => x.id === b.id)!
+              const who = b.members.map((m) => trip.members.find((x) => x.id === m)?.name ?? m).join(', ')
+              const source = blocker.time?.timezone
+                ? t('blocker.source', {
+                    start: blocker.time.start,
+                    end: blocker.time.end,
+                    zone: blocker.time.timezone.split('/').pop()!.replace(/_/g, ' '),
+                  })
+                : undefined
+              return (
+                <li class="blocker footnote" data-presence data-people={people(b.members)} title={source}>
+                  <span aria-hidden="true">⛔</span>
+                  <span class="blocker-title">{blocker.title}</span>
+                  <span class="tabular">
+                    {b.wholeDay ? t('blocker.allDay') : t('blocker.window', { start: b.start, end: b.end })}
+                  </span>
+                  <span class="secondary">· {who}</span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         {(day.bases.length > 0 || day.stays.length > 0) && (
           <ul class="presence">
             {day.bases
@@ -304,6 +329,25 @@ const offset = homeOffset(trip)
     align-items: center;
     gap: 5px;
     font-weight: 500;
+  }
+
+  .blocker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px 4px 10px;
+    border-radius: 999px;
+    color: var(--label);
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--red) 9%, transparent) 0 6px,
+      color-mix(in srgb, var(--red) 4%, transparent) 6px 12px
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 22%, transparent);
+  }
+
+  .blocker-title {
+    font-weight: 600;
   }
 
   .stay {

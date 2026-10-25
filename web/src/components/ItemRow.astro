@@ -103,6 +103,21 @@ const offsetLabel =
         {item.booking.status === 'required' && item.booking.deadline && (
           <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />
         )}
+        {item.conflicts.map((c) => {
+          const blocker = trip.blockers.find((b) => b.id === c.blocker)
+          const title = blocker?.title ?? c.blocker
+          return (
+            <span
+              class="badge"
+              data-tone={c.overridden ? 'blue' : blocker?.strict ? 'red' : 'orange'}
+              data-people={people(c.members)}
+              data-conflict
+              title={names(c.members)}
+            >
+              {c.overridden ? t('blocker.allowed', { title }) : `⛔ ${t('blocker.during', { title })}`}
+            </span>
+          )
+        })}
         {item.costs.map((c) => (
           <Money
             amount={c.amount}

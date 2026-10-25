@@ -35,6 +35,7 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.items();
     v.bases();
     v.ideas();
+    v.blockers();
     v.overlaps();
     v.nights();
     v.packing();
@@ -347,6 +348,78 @@ impl Validator<'_> {
             self.who(&idea.id, idea.who.as_deref());
             let participants = trip.who(idea.who.as_deref());
             self.costs(&idea.id, &idea.costs, &participants, false);
+        }
+    }
+
+    fn blockers(&mut self) {
+        let trip = self.trip;
+        let mut ids = HashSet::new();
+        for blocker in &trip.blockers {
+            let id = Some(blocker.id.as_str());
+            if !ids.insert(blocker.id.as_str()) {
+                self.error(
+                    "blocker.duplicate",
+                    id,
+                    format!("blocker id `{}` used twice", blocker.id),
+                );
+            }
+            self.who(&blocker.id, blocker.who.as_deref());
+            if blocker.periods.is_empty() {
+                self.error("blocker.periods", id, "needs at least one period".into());
+            }
+            for period in blocker.periods.iter().filter(|p| p.to < p.from) {
+                self.error(
+                    "blocker.periods",
+                    id,
+                    format!(
+                        "period ends ({}) before it starts ({})",
+                        period.to, period.from
+                    ),
+                );
+            }
+            if let Some(time) = &blocker.time {
+                for value in [&time.start, &time.end] {
+                    if crate::blockers::parse_time(value).is_none() {
+                        self.error("blocker.time", id, format!("`{value}` is not HH:MM"));
+                    }
+                }
+                if let Some(tz) = time
+                    .timezone
+                    .as_deref()
+                    .filter(|tz| tz.parse::<chrono_tz::Tz>().is_err())
+                {
+                    self.error(
+                        "blocker.timezone",
+                        id,
+                        format!("unknown IANA time zone `{tz}`"),
+                    );
+                }
+            }
+        }
+        for item in &trip.itinerary {
+            for name in item.overrides.iter().filter(|o| !ids.contains(o.as_str())) {
+                self.error(
+                    "item.overrides",
+                    Some(&item.id),
+                    format!("unknown blocker `{name}`"),
+                );
+            }
+        }
+        for conflict in crate::blockers::conflicts(trip)
+            .into_iter()
+            .filter(|c| !c.overridden)
+        {
+            let message = format!(
+                "happens during `{}` for {} — move it, or add `overrides: [{}]` if it can coexist",
+                conflict.blocker.id,
+                conflict.members.join(", "),
+                conflict.blocker.id
+            );
+            if conflict.blocker.strict {
+                self.error("blocker.conflict", Some(&conflict.item.id), message);
+            } else {
+                self.warn("blocker.conflict", Some(&conflict.item.id), message);
+            }
         }
     }
 
@@ -733,5 +806,30 @@ ideas:
             ["who.redundant", "who.unknown", "who.empty"],
             "{d:?}"
         );
+    }
+
+    #[test]
+    fn blockers_flag_plans_in_their_window_unless_overridden() {
+        // 09:00–17:00 Helsinki (+02:00) is 16:00–24:00 in Tokyo.
+        let d = check_with(
+            "blockers:
+  - id: work
+    title: Work
+    who: [a]
+    periods: [{ from: 2027-01-04, to: 2027-01-08 }]
+    days: [mon, tue, wed, thu, fri]
+    time: { start: '09:00', end: '17:00', timezone: Europe/Helsinki }",
+            "  - { id: dinner, kind: meal, title: D, start: 2027-01-05T18:00:00+09:00, end: 2027-01-05T20:00:00+09:00 }
+  - { id: lunch, kind: meal, title: L, start: 2027-01-05T12:00:00+09:00, end: 2027-01-05T13:00:00+09:00 }
+  - { id: train, kind: train, title: T, start: 2027-01-06T17:00:00+09:00, end: 2027-01-06T19:00:00+09:00, places: [tokyo, kyoto], overrides: [work] }
+  - { id: weekend, kind: meal, title: W, start: 2027-01-09T18:00:00+09:00, end: 2027-01-09T20:00:00+09:00 }
+  - { id: other, kind: meal, title: O, start: 2027-01-05T18:00:00+09:00, end: 2027-01-05T19:00:00+09:00, who: [b] }",
+        );
+        let conflicts: Vec<_> = d
+            .iter()
+            .filter(|d| d.code == "blocker.conflict")
+            .filter_map(|d| d.item.as_deref())
+            .collect();
+        assert_eq!(conflicts, ["dinner"], "{d:?}");
     }
 }

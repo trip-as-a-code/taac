@@ -46,6 +46,9 @@ pub struct TripFile {
     /// Unscheduled things to pick from on the spot.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ideas: Vec<Idea>,
+    /// Time someone is unavailable (work, a call): whole days or a window.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blockers: Vec<Blocker>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packing: Vec<PackingCategory>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -257,6 +260,83 @@ impl DayPart {
     }
 }
 
+/// Unavailable time, repeating over one or more date periods.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Blocker {
+    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9_-]*$"))]
+    pub id: String,
+    pub title: String,
+    /// Member and/or group ids; omitted means everyone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
+    /// Inclusive date ranges, in the blocker's time zone.
+    pub periods: Vec<Period>,
+    /// Weekdays it applies on; omitted means every day.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub days: Vec<Weekday>,
+    /// A daily window; omitted blocks whole days.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<TimeWindow>,
+    /// Conflicts are errors rather than warnings.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub strict: bool,
+    /// Markdown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Period {
+    #[schemars(with = "String", extend("format" = "date"))]
+    pub from: NaiveDate,
+    #[schemars(with = "String", extend("format" = "date"))]
+    pub to: NaiveDate,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TimeWindow {
+    /// `HH:MM`.
+    #[schemars(regex(pattern = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"))]
+    pub start: String,
+    /// `HH:MM`; at or before `start` means the next day (`24:00` allowed).
+    #[schemars(regex(pattern = r"^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$"))]
+    pub end: String,
+    /// IANA zone the times are in; defaults to the trip's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timezone: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Weekday {
+    Mon,
+    Tue,
+    Wed,
+    Thu,
+    Fri,
+    Sat,
+    Sun,
+}
+
+impl Weekday {
+    pub fn matches(self, day: chrono::Weekday) -> bool {
+        use chrono::Weekday as W;
+        matches!(
+            (self, day),
+            (Self::Mon, W::Mon)
+                | (Self::Tue, W::Tue)
+                | (Self::Wed, W::Wed)
+                | (Self::Thu, W::Thu)
+                | (Self::Fri, W::Fri)
+                | (Self::Sat, W::Sat)
+                | (Self::Sun, W::Sun)
+        )
+    }
+}
+
 /// A key into `places`, or a place declared inline.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(untagged)]
@@ -308,6 +388,10 @@ pub struct Item {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    /// Blocker ids this plan may run through, e.g. a train with good
+    /// Wi-Fi during work hours.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overrides: Vec<String>,
 }
 
 impl Item {

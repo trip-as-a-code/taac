@@ -1,6 +1,7 @@
 //! Trip as a Code: declare trips in YAML, validate them, and compile them
 //! into calendars, maps, ledgers and a web-ready export.
 
+pub mod blockers;
 pub mod budget;
 pub mod diagnostics;
 pub mod export;
