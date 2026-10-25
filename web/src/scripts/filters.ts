@@ -23,6 +23,7 @@ export interface FilterState {
 type Listener = (state: FilterState) => void
 
 let cleanup: (() => void) | undefined
+let listeners: AbortController | undefined
 
 function addDays(day: string, n: number): string {
   const date = new Date(`${day}T00:00:00Z`)
@@ -121,6 +122,11 @@ function writeUrl(state: FilterState, query: string) {
 
 export function setupFilters(onChange?: Listener): FilterState {
   cleanup?.()
+  // A second setup on the same page replaces the first; stacked click
+  // handlers would toggle twice and cancel out.
+  listeners?.abort()
+  listeners = new AbortController()
+  const { signal } = listeners
   const state: FilterState = { lens: getLens(), ...readUrl() }
   const bar = document.querySelector<HTMLElement>('[data-filters]')
   const search = bar?.querySelector<HTMLInputElement>('[data-filter-q]')
@@ -174,40 +180,52 @@ export function setupFilters(onChange?: Listener): FilterState {
     render()
   }
 
-  bar?.addEventListener('click', (event) => {
-    const target = event.target as Element
-    const facet = target.closest<HTMLButtonElement>('button[data-facet]')
-    const chip = target.closest<HTMLButtonElement>('[data-remove-facet]')
-    if (facet) set(facet.dataset.facet as Facet, facet.dataset.value!)
-    else if (chip) set(chip.dataset.removeFacet as Facet, chip.dataset.removeValue!)
-    else if (target.closest('[data-filter-clear]')) {
-      state.values = {}
-      state.q = ''
-      if (search) search.value = ''
-      writeUrl(state, '')
+  bar?.addEventListener(
+    'click',
+    (event) => {
+      const target = event.target as Element
+      const facet = target.closest<HTMLButtonElement>('button[data-facet]')
+      const chip = target.closest<HTMLButtonElement>('[data-remove-facet]')
+      if (facet) set(facet.dataset.facet as Facet, facet.dataset.value!)
+      else if (chip) set(chip.dataset.removeFacet as Facet, chip.dataset.removeValue!)
+      else if (target.closest('[data-filter-clear]')) {
+        state.values = {}
+        state.q = ''
+        if (search) search.value = ''
+        writeUrl(state, '')
+        render()
+      } else if (target.closest('[data-filter-toggle]') && panel && toggle) {
+        panel.hidden = !panel.hidden
+        toggle.setAttribute('aria-expanded', String(!panel.hidden))
+      }
+    },
+    { signal },
+  )
+  bar?.addEventListener(
+    'change',
+    (event) => {
+      const select = (event.target as Element).closest<HTMLSelectElement>('select[data-facet]')
+      if (!select) return
+      const key = select.dataset.facet as Facet
+      state.values[key] = select.value ? [select.value] : []
+      writeUrl(state, search?.value ?? '')
       render()
-    } else if (target.closest('[data-filter-toggle]') && panel && toggle) {
-      panel.hidden = !panel.hidden
-      toggle.setAttribute('aria-expanded', String(!panel.hidden))
-    }
-  })
-  bar?.addEventListener('change', (event) => {
-    const select = (event.target as Element).closest<HTMLSelectElement>('select[data-facet]')
-    if (!select) return
-    const key = select.dataset.facet as Facet
-    state.values[key] = select.value ? [select.value] : []
-    writeUrl(state, search?.value ?? '')
-    render()
-  })
+    },
+    { signal },
+  )
   let typing: ReturnType<typeof setTimeout> | undefined
-  search?.addEventListener('input', () => {
-    clearTimeout(typing)
-    typing = setTimeout(() => {
-      state.q = fold(search.value).trim()
-      writeUrl(state, search.value)
-      render()
-    }, 120)
-  })
+  search?.addEventListener(
+    'input',
+    () => {
+      clearTimeout(typing)
+      typing = setTimeout(() => {
+        state.q = fold(search.value).trim()
+        writeUrl(state, search.value)
+        render()
+      }, 120)
+    },
+    { signal },
+  )
 
   cleanup = onLens((lens) => {
     state.lens = lens

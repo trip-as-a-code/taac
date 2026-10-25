@@ -35,13 +35,15 @@ const ratio = total ? done.length / total : 1
         </div>
       </section>
 
-      <FilterBar
-        i18n={i18n}
-        trip={trip}
-        facts={[...open, ...done, ...cancelled].map((item) => itemFacts(trip, item))}
-        facets={['focus', 'issue', 'due', 'status', 'when', 'conflict', 'kind', 'cost', 'payer', 'place', 'tag']}
-        placeholder={t('filter.searchPlans')}
-      />
+      <div class="toolbar">
+        <FilterBar
+          i18n={i18n}
+          trip={trip}
+          facts={[...open, ...done, ...cancelled].map((item) => itemFacts(trip, item))}
+          facets={['focus', 'issue', 'due', 'status', 'when', 'conflict', 'kind', 'cost', 'payer', 'place', 'tag']}
+          placeholder={t('filter.searchPlans')}
+        />
+      </div>
 
       {open.length > 0 && (
         <section class="section">
@@ -95,9 +97,10 @@ const ratio = total ? done.length / total : 1
 </TripLayout>
 
 <script>
+  import { onPage } from '@/scripts/page'
   import { setupFilters } from '@/scripts/filters'
 
-  document.addEventListener('astro:page-load', () => {
+  onPage('bookings', () => {
     setupFilters(() => {
       for (const section of document.querySelectorAll<HTMLElement>('.section'))
         section.hidden = !section.querySelector('[data-item]:not([hidden])')
@@ -138,6 +141,10 @@ const ratio = total ? done.length / total : 1
 
   .section {
     margin-top: var(--space-6);
+  }
+
+  .toolbar + .section {
+    margin-top: var(--space-8);
   }
 
   .list > :global(* + *) {

@@ -231,6 +231,7 @@ const dash = '—'
 </TripLayout>
 
 <script>
+  import { onPage } from '@/scripts/page'
   import { computeBudget, type BudgetData } from '@/scripts/budget'
   import { setupFilters } from '@/scripts/filters'
   import { getLens } from '@/scripts/lens'
@@ -336,7 +337,7 @@ const dash = '—'
 
   let off: (() => void) | undefined
 
-  document.addEventListener('astro:page-load', () => {
+  onPage('budget', () => {
     off?.()
     off = onMoney(render)
     setupFilters(render)

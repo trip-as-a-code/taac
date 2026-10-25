@@ -100,6 +100,7 @@ const whose = (members: string[]) => {
 </TripLayout>
 
 <script>
+  import { onPage } from '@/scripts/page'
   import { setupFilters } from '@/scripts/filters'
   import { getLens } from '@/scripts/lens'
 
@@ -167,7 +168,7 @@ const whose = (members: string[]) => {
     setupFilters(render)
   }
 
-  document.addEventListener('astro:page-load', setup)
+  onPage('packing', setup)
 </script>
 
 <style>
