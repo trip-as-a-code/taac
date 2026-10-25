@@ -21,6 +21,8 @@ export interface Facts {
   tags: string[]
   /** Diagnostic codes the validator raised for it. */
   issues: string[]
+  /** No `who`: kept out of every people selection. */
+  unassigned: boolean
   /** Folded search text: title, places, notes, provider, carrier, tags. */
   text: string
 }
@@ -101,6 +103,7 @@ export function itemFacts(trip: TripExport, item: Item): Facts {
     places: item.places,
     tags: item.tags,
     issues: issuesOf(trip, item.id).map((d) => d.code),
+    unassigned: issuesOf(trip, item.id).some((d) => d.code === 'item.unassigned'),
     text: text(
       trip,
       [item.title, item.notes, item.booking.provider, item.transport?.carrier, item.transport?.number, ...item.tags],
@@ -121,6 +124,7 @@ export function ideaFacts(trip: TripExport, idea: Idea): Facts {
     places,
     tags: idea.tags,
     issues: issuesOf(trip, idea.id).map((d) => d.code),
+    unassigned: false,
     text: text(trip, [idea.title, idea.notes, ...idea.tags], places),
   }
 }

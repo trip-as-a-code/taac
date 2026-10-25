@@ -65,7 +65,7 @@ export async function setupMap() {
         ([, item]) =>
           (state.filters
             ? matchesFacts(item.facts, item.people, state.filters, today)
-            : inLens(item.people, state.lens)) &&
+            : inLens(item.people, state.lens, item.facts.unassigned)) &&
           (!state.day || item.date === state.day),
       )
       .map(([id]) => id)

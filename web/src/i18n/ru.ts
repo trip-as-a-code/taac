@@ -88,6 +88,7 @@ export const ru: Messages = {
   'filter.day': 'День',
   'filter.allDays': 'Все дни',
   'filter.empty': 'Под эти фильтры ничего не подходит.',
+  'lens.unassigned': 'Не назначено',
   'filter.filters': 'Фильтры',
   'filter.focus': 'Быстро',
   'filter.attention': 'Требует внимания',
