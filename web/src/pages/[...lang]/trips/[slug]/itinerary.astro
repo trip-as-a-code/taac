@@ -1,31 +1,27 @@
 ---
+import Avatars from '@/components/Avatars.astro'
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import IdeaRow from '@/components/IdeaRow.astro'
+import OpenDay from '@/components/OpenDay.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
-import { itemFacts } from '@/lib/facts'
+import { issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
-import {
-  baseById,
-  anchor,
-  daysBetween,
-  homeOffset,
-  ideasAt,
-  itemById,
-  partyEmoji,
-  partyHue,
-  partyLabel,
-  people,
-} from '@/lib/trip'
+import { baseById, daysBetween, homeOffset, itemById, partyEmoji, partyHue, partyLabel, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
-const { t, date, path } = i18n
+const { t, date } = i18n
 const bases = baseById(trip)
-// Shown on free days: ideas near each base, must-dos first.
-const SUGGESTED = 3
+// Each base a day is spent in, and whether its people have nothing planned.
+// When the group is split, a free base gets a lane of its own.
+const dayParts = (day: (typeof trip.days)[number]) =>
+  day.bases.map((p) => {
+    const free = !day.items.some((id) => items.get(id)!.members.some((m) => p.members.includes(m)))
+    return { p, base: bases.get(p.id)!, free, laned: free && p.party !== 'everyone' && !trip.basesDerived }
+  })
 // Ideas with a date show on that day as proposed, by time.
 const proposals = Map.groupBy(
   trip.ideas.filter((i) => i.local).sort((a, b) => (a.local!.time ?? '').localeCompare(b.local!.time ?? '')),
@@ -33,6 +29,32 @@ const proposals = Map.groupBy(
 )
 const items = itemById(trip)
 const offset = homeOffset(trip)
+
+// Who is on the trip, day by day: from the bases and the plans that name
+// them (a plan nobody was assigned to says nothing about it).
+const nextDay = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+const spans = new Map<string, { first: string; last: string }>()
+const extend = (member: string, from: string, to: string) => {
+  const span = spans.get(member)
+  spans.set(member, {
+    first: span && span.first < from ? span.first : from,
+    last: span && span.last > to ? span.last : to,
+  })
+}
+for (const base of trip.bases) for (const m of base.members) extend(m, base.from, nextDay(base.to))
+for (const item of trip.items)
+  if (!issuesOf(trip, item.id).some((d) => d.code === 'item.unassigned'))
+    for (const m of item.members) extend(m, item.local.date, item.local.endDate ?? item.local.date)
+const firstDay = trip.days[0]?.date
+const lastDay = trip.days.at(-1)?.date
+const onTrip = (day: string) =>
+  trip.members.filter((m) => {
+    const span = spans.get(m.id)
+    return !span || (span.first <= day && day <= span.last)
+  })
+const joining = (day: string) => trip.members.filter((m) => day !== firstDay && spans.get(m.id)?.first === day)
+const leaving = (day: string) => trip.members.filter((m) => day !== lastDay && spans.get(m.id)?.last === day)
+const names = (members: { name: string }[]) => members.map((m) => m.name).join(', ')
 ---
 
 <TripLayout trip={trip} lang={lang} section="itinerary">
@@ -58,166 +80,154 @@ const offset = homeOffset(trip)
 
   <div class="days">
     {trip.days.map((day, index) => (
-      <section class="day" id={day.date} data-day-section>
-        <header class="day-header">
-          <h2>
-            <span class="weekday">{date(day.date, { weekday: 'long' })}</span>
-            {/* The link stays on the date's line. */}
-            <span class="date-line">
-              <span class="tabular">{date(day.date, { day: 'numeric', month: 'long' })}</span>
-              <a
-                class="anchor"
-                href={`#${day.date}`}
-                data-anchor
-                aria-label={t('item.copyLink')}
-                title={t('item.copyLink')}
-              >
-                <Icon name="link" size={15} class="anchor-link" />
-                <Icon name="check" size={15} class="anchor-check" />
-              </a>
-            </span>
-          </h2>
-          <span class="badge">{t('trip.dayN', { n: index + 1 })}</span>
-        </header>
-        {day.blockers.length > 0 && (
-          <ul class="presence">
-            {day.blockers.map((b) => {
-              const blocker = trip.blockers.find((x) => x.id === b.id)!
-              const who = b.members.map((m) => trip.members.find((x) => x.id === m)?.name ?? m).join(', ')
-              const source = blocker.time?.timezone
-                ? t('blocker.source', {
-                    start: blocker.time.start,
-                    end: blocker.time.end,
-                    zone: blocker.time.timezone.split('/').pop()!.replace(/_/g, ' '),
-                  })
-                : undefined
-              return (
-                <li class="blocker footnote" data-presence data-people={people(b.members)} title={source}>
-                  <span aria-hidden="true">⛔</span>
-                  <span class="blocker-title chip-text">{blocker.title}</span>
-                  <span class="tabular">
-                    {b.wholeDay ? t('blocker.allDay') : t('blocker.window', { start: b.start, end: b.end })}
-                  </span>
-                  <span class="secondary chip-text">· {who}</span>
-                </li>
-              )
-            })}
-          </ul>
+      <>
+        {/* Where the group changes: someone joins later, or heads home. */}
+        {joining(day.date).length > 0 && (
+          <p class="edge footnote" data-presence data-people={people(joining(day.date).map((m) => m.id))}>
+            <Icon name="arrowRight" size={14} />
+            {t('trip.joins', { names: names(joining(day.date)) })}
+          </p>
         )}
-        {(day.bases.length > 0 || day.stays.length > 0) && (
-          <ul class="presence">
-            {day.bases
-              .filter(() => !trip.basesDerived)
-              .map((p) => {
-                const base = bases.get(p.id)!
-                const emoji = partyEmoji(trip, p.party)
-                const n = daysBetween(base.from, day.date) + 1
+        <section class="day" id={day.date} data-day-section>
+          <header class="day-header">
+            <h2>
+              <span class="weekday">{date(day.date, { weekday: 'long' })}</span>
+              {/* The link stays on the date's line. */}
+              <span class="date-line">
+                <span class="tabular">{date(day.date, { day: 'numeric', month: 'long' })}</span>
+                <a
+                  class="anchor"
+                  href={`#${day.date}`}
+                  data-anchor
+                  aria-label={t('item.copyLink')}
+                  title={t('item.copyLink')}
+                >
+                  <Icon name="link" size={15} class="anchor-link" />
+                  <Icon name="check" size={15} class="anchor-check" />
+                </a>
+              </span>
+            </h2>
+            {/* Not everyone is here: show who is. */}
+            {onTrip(day.date).length < trip.members.length && (
+              <span class="present" title={t('trip.present', { names: names(onTrip(day.date)) })}>
+                <Avatars members={onTrip(day.date)} size={20} />
+              </span>
+            )}
+            <span class="badge">{t('trip.dayN', { n: index + 1 })}</span>
+          </header>
+          {day.blockers.length > 0 && (
+            <ul class="presence">
+              {day.blockers.map((b) => {
+                const blocker = trip.blockers.find((x) => x.id === b.id)!
+                const who = b.members.map((m) => trip.members.find((x) => x.id === m)?.name ?? m).join(', ')
+                const source = blocker.time?.timezone
+                  ? t('blocker.source', {
+                      start: blocker.time.start,
+                      end: blocker.time.end,
+                      zone: blocker.time.timezone.split('/').pop()!.replace(/_/g, ' '),
+                    })
+                  : undefined
                 return (
-                  <li class="base subhead" data-presence data-people={people(p.members)}>
-                    <Icon name="pin" size={15} />
-                    <span class="base-title chip-text" lang={trip.locale} title={base.title}>
-                      {base.title}
+                  <li class="blocker footnote" data-presence data-people={people(b.members)} title={source}>
+                    <span aria-hidden="true">⛔</span>
+                    <span class="blocker-title chip-text">{blocker.title}</span>
+                    <span class="tabular">
+                      {b.wholeDay ? t('blocker.allDay') : t('blocker.window', { start: b.start, end: b.end })}
                     </span>
-                    {base.nights > 1 && (
-                      <span class="footnote secondary">{t('trip.baseDay', { n, total: base.nights })}</span>
-                    )}
-                    {p.party !== 'everyone' && (
-                      <span
-                        class="party-tag footnote"
-                        title={partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
-                      >
-                        {emoji ?? partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
-                      </span>
-                    )}
+                    <span class="secondary chip-text">· {who}</span>
                   </li>
                 )
               })}
-            {day.stays.map((p) => {
-              const stay = items.get(p.id)!
-              const night = t('trip.nightAt', { place: trip.places[stay.places[0]]?.name ?? stay.title })
-              return (
-                <li class="stay footnote" data-presence data-people={people(p.members)} title={night}>
-                  <Icon name="lodging" size={14} />
-                  <span class="chip-text" lang={trip.locale}>
-                    {night}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-        {day.items.length > 0 && (
-          <div class="card list" data-lanes>
-            {day.items.map((id) => (
-              <div class="row-wrap" data-party={items.get(id)!.party}>
-                <ItemRow trip={trip} item={items.get(id)!} i18n={i18n} homeOffset={offset} />
-              </div>
-            ))}
-          </div>
-        )}
-        {proposals.has(day.date) && (
-          <div class="proposals" aria-label={t('ideas.proposed')}>
-            {proposals.get(day.date)!.map((idea) => (
-              <IdeaRow trip={trip} idea={idea} i18n={i18n} proposed />
-            ))}
-          </div>
-        )}
-        {day.bases.length > 0 && !trip.basesDerived
-          ? day.bases.map((p) => {
-              const base = bases.get(p.id)!
-              const ideas = ideasAt(trip, base)
-              // Free for this base when nobody staying there has a plan today.
-              const free = !day.items.some((id) => items.get(id)!.members.some((m) => p.members.includes(m)))
-              const place = trip.places[base.place]?.name ?? base.title
-              const allHref = path(
-                `/trips/${trip.slug}/ideas/${ideas.some((i) => i.area === base.place) ? `#area-${anchor(base.place)}` : ''}`,
-              )
-              return (
-                <div
-                  class="open footnote"
-                  data-presence
-                  data-people={people(p.members)}
-                  data-open-day={free ? '' : undefined}
-                >
-                  {/* With the group split between bases, say whose free day it is. */}
-                  {free && (
-                    <span class="secondary">
-                      {day.bases.length > 1 && (
-                        <strong class="whose">
-                          {partyEmoji(trip, p.party) ?? ''} {place}:{' '}
-                        </strong>
+            </ul>
+          )}
+          {(day.bases.length > 0 || day.stays.length > 0) && (
+            <ul class="presence">
+              {day.bases
+                .filter(() => !trip.basesDerived)
+                .map((p) => {
+                  const base = bases.get(p.id)!
+                  const emoji = partyEmoji(trip, p.party)
+                  const n = daysBetween(base.from, day.date) + 1
+                  return (
+                    <li class="base subhead" data-presence data-people={people(p.members)}>
+                      <Icon name="pin" size={15} />
+                      <span class="base-title chip-text" lang={trip.locale} title={base.title}>
+                        {base.title}
+                      </span>
+                      {base.nights > 1 && (
+                        <span class="footnote secondary">{t('trip.baseDay', { n, total: base.nights })}</span>
                       )}
-                      {t('trip.openDay')}
+                      {p.party !== 'everyone' && (
+                        <span
+                          class="party-tag footnote"
+                          title={partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
+                        >
+                          {emoji ?? partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
+                        </span>
+                      )}
+                    </li>
+                  )
+                })}
+              {day.stays.map((p) => {
+                const stay = items.get(p.id)!
+                const night = t('trip.nightAt', { place: trip.places[stay.places[0]]?.name ?? stay.title })
+                return (
+                  <li class="stay footnote" data-presence data-people={people(p.members)} title={night}>
+                    <Icon name="lodging" size={14} />
+                    <span class="chip-text" lang={trip.locale}>
+                      {night}
                     </span>
-                  )}
-                  {free && ideas.length > 0 && (
-                    <ul class="suggestions">
-                      {ideas.slice(0, SUGGESTED).map((idea) => (
-                        <li>
-                          <a href={path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`)}>
-                            <Icon name="sparkle" size={14} />
-                            <span class="ellipsis" lang={trip.locale}>
-                              {idea.priority === 'must' && '★ '}
-                              {idea.title}
-                            </span>
-                            {idea.duration && <span class="secondary">{t(`ideas.duration.${idea.duration}`)}</span>}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {ideas.length > (free ? SUGGESTED : 0) && (
-                    <a class="all-ideas" href={allHref}>
-                      {free
-                        ? t('trip.allIdeas', { n: ideas.length, place })
-                        : t('trip.ideasHere', { n: ideas.length, place })}
-                    </a>
-                  )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {(day.items.length > 0 || dayParts(day).some((part) => part.laned)) && (
+            <div class="card list" data-lanes>
+              {day.items.map((id) => (
+                <div class="row-wrap" data-party={items.get(id)!.party}>
+                  <ItemRow trip={trip} item={items.get(id)!} i18n={i18n} homeOffset={offset} />
                 </div>
-              )
-            })
-          : day.items.length === 0 && <p class="free footnote secondary">{t('trip.freeDay')}</p>}
-      </section>
+              ))}
+              {/* A group with nothing planned keeps its own lane for its free day. */}
+              {dayParts(day)
+                .filter((part) => part.laned)
+                .map((part) => (
+                  <div class="row-wrap free-lane" data-party={part.p.party} data-free>
+                    <OpenDay trip={trip} i18n={i18n} part={part.p} base={part.base} free split />
+                  </div>
+                ))}
+            </div>
+          )}
+          {proposals.has(day.date) && (
+            <div class="proposals" aria-label={t('ideas.proposed')}>
+              {proposals.get(day.date)!.map((idea) => (
+                <IdeaRow trip={trip} idea={idea} i18n={i18n} proposed />
+              ))}
+            </div>
+          )}
+          {day.bases.length > 0 && !trip.basesDerived
+            ? dayParts(day)
+                .filter((part) => !part.laned)
+                .map((part) => (
+                  <OpenDay
+                    trip={trip}
+                    i18n={i18n}
+                    part={part.p}
+                    base={part.base}
+                    free={part.free}
+                    split={day.bases.length > 1}
+                  />
+                ))
+            : day.items.length === 0 && <p class="free footnote secondary">{t('trip.freeDay')}</p>}
+        </section>
+        {leaving(day.date).length > 0 && onTrip(nextDay(day.date)).length > 0 && (
+          <p class="edge footnote" data-presence data-people={people(leaving(day.date).map((m) => m.id))}>
+            <Icon name="flight" size={14} />
+            {t('trip.leaves', { names: names(leaving(day.date)), rest: names(onTrip(nextDay(day.date))) })}
+          </p>
+        )}
+      </>
     ))}
   </div>
   <script
@@ -413,51 +423,6 @@ const offset = homeOffset(trip)
     font-weight: 500;
   }
 
-  .open {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 14px;
-    margin-top: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius);
-    border: 1px dashed var(--separator-strong);
-  }
-
-  .open:not([data-open-day]) {
-    border: 0;
-    padding: 0 var(--space-4);
-  }
-
-  .open a {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    min-width: 0;
-    font-weight: 500;
-  }
-
-  /* Ideas for a free day: one per line, then a link to all of them. */
-  .suggestions {
-    list-style: none;
-    display: grid;
-    gap: 2px;
-    flex: 1 1 100%;
-    margin: 0;
-    padding: 0;
-  }
-
-  .suggestions a {
-    display: flex;
-    max-width: 100%;
-    min-height: 32px;
-  }
-
-  .suggestions :global(svg),
-  .suggestions .secondary {
-    flex: none;
-  }
-
   .blocker {
     display: inline-flex;
     align-items: center;
@@ -561,15 +526,39 @@ const offset = homeOffset(trip)
     }
   }
 
-  .whose {
-    font-weight: 600;
-    color: var(--label);
-  }
-
   /* Proposed, not planned: separate dashed cards rather than one list. */
   .proposals {
     display: grid;
     gap: var(--space-2);
     margin-top: var(--space-3);
+  }
+
+  /* Someone joins or heads home: a quiet line across the timeline. */
+  .edge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--label-secondary);
+  }
+
+  .edge::before,
+  .edge::after {
+    content: '';
+    flex: 1;
+    border-top: 1px dashed var(--separator-strong);
+  }
+
+  .edge :global(svg) {
+    flex: none;
+  }
+
+  .present {
+    display: inline-flex;
+    margin-left: auto;
+  }
+
+  .present + .badge {
+    margin-left: var(--space-2);
   }
 </style>

@@ -1,6 +1,7 @@
 // Side-by-side lanes for days when the travellers split up. Wide screens
-// only: each party gets a column, shared plans span all of them, and rows
-// pack in chronological order. Narrow screens keep the single column, where
+// only: each party gets a column (a group with nothing planned gets one for
+// its free day), shared plans span all of them, and rows pack in
+// chronological order. Narrow screens keep the single column, where
 // every item already carries its party pill and rail.
 
 export interface PartyInfo {
@@ -15,9 +16,10 @@ export function layoutLanes(parties: Record<string, PartyInfo>) {
   for (const container of document.querySelectorAll<HTMLElement>('[data-lanes]')) {
     reset(container)
     if (!wide) continue
-    const wraps = [...container.querySelectorAll<HTMLElement>(':scope > [data-party]')].filter(
-      (wrap) => !wrap.querySelector('[data-item][hidden]'),
-    )
+    // A group's free day (`data-free`) heads its lane, above nothing else.
+    const wraps = [...container.querySelectorAll<HTMLElement>(':scope > [data-party]')]
+      .filter((wrap) => !wrap.querySelector('[data-item][hidden], [data-presence][hidden]'))
+      .sort((a, b) => Number(b.hasAttribute('data-free')) - Number(a.hasAttribute('data-free')))
     const lanes = [...new Set(wraps.map((w) => w.dataset.party!).filter((p) => p !== 'everyone'))]
     if (lanes.length < 2) continue
 

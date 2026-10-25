@@ -1,0 +1,125 @@
+---
+import type { Base, Presence, TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+import { anchor, ideasAt, partyEmoji, people } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+  /** Who spends the day in this base. */
+  part: Presence
+  base: Base
+  /** Nobody staying here has a plan today. */
+  free: boolean
+  /** The group is split between bases: say whose day it is. */
+  split?: boolean
+}
+
+const { trip, i18n, part, base, free, split } = Astro.props
+const { t, path } = i18n
+// Shown on free days: ideas near the base, must-dos first.
+const SUGGESTED = 3
+const ideas = ideasAt(trip, base)
+const place = trip.places[base.place]?.name ?? base.title
+const allHref = path(
+  `/trips/${trip.slug}/ideas/${ideas.some((i) => i.area === base.place) ? `#area-${anchor(base.place)}` : ''}`,
+)
+---
+
+{(free || ideas.length > 0) && (
+  <div class="open footnote" data-presence data-people={people(part.members)} data-open-day={free ? '' : undefined}>
+    {free && (
+      <span class="secondary">
+        {split && (
+          <strong class="whose">
+            {partyEmoji(trip, part.party) ?? ''} {place}:{' '}
+          </strong>
+        )}
+        {t('trip.openDay')}
+      </span>
+    )}
+    {free && ideas.length > 0 && (
+      <ul class="suggestions">
+        {ideas.slice(0, SUGGESTED).map((idea) => (
+          <li>
+            <a href={path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`)}>
+              <Icon name="sparkle" size={14} />
+              <span class="ellipsis" lang={trip.locale}>
+                {idea.priority === 'must' && '★ '}
+                {idea.title}
+              </span>
+              {idea.duration && <span class="secondary">{t(`ideas.duration.${idea.duration}`)}</span>}
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+    {ideas.length > (free ? SUGGESTED : 0) && (
+      <a class="all-ideas" href={allHref}>
+        {free ? t('trip.allIdeas', { n: ideas.length, place }) : t('trip.ideasHere', { n: ideas.length, place })}
+      </a>
+    )}
+  </div>
+)}
+
+<style>
+  .open {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    border: 1px dashed var(--separator-strong);
+  }
+
+  .open:not([data-open-day]) {
+    border: 0;
+    padding: 0 var(--space-4);
+  }
+
+  .open a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    font-weight: 500;
+  }
+
+  /* Ideas for a free day: one per line, then a link to all of them. */
+  .suggestions {
+    list-style: none;
+    display: grid;
+    gap: 2px;
+    flex: 1 1 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .suggestions a {
+    display: flex;
+    max-width: 100%;
+    min-height: 32px;
+  }
+
+  .suggestions :global(svg),
+  .suggestions .secondary {
+    flex: none;
+  }
+
+  .whose {
+    font-weight: 600;
+    color: var(--label);
+  }
+
+  /* As a lane in the day's card: no box of its own. */
+  :global(.free-lane) > .open {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 14px var(--space-4);
+  }
+</style>
