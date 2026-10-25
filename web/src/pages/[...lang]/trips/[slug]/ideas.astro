@@ -34,7 +34,7 @@ const visits = (area: string) =>
           i18n={i18n}
           trip={trip}
           facts={trip.ideas.map((idea) => ideaFacts(trip, idea))}
-          facets={['issue', 'priority', 'kind', 'status', 'due', 'cost', 'place', 'tag']}
+          facets={['issue', 'priority', 'kind', 'cost', 'place', 'tag']}
           placeholder={t('filter.searchIdeas')}
         />
       </div>

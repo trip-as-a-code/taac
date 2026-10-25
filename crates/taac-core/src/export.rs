@@ -150,8 +150,6 @@ pub struct IdeaExport {
     pub priority: Priority,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<IdeaDuration>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub booking: Option<BookingExport>,
     pub costs: Vec<CostExport>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -502,7 +500,6 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 party: trip.party(&trip.who(idea.who.as_deref())).id,
                 priority: idea.priority,
                 duration: idea.duration,
-                booking: idea.booking.as_ref().map(booking_export),
                 costs: cost_exports(trip, &idea.costs, &trip.who(idea.who.as_deref())),
                 notes: idea.notes.clone(),
                 url: idea.url.clone(),

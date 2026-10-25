@@ -885,7 +885,7 @@
       ]
     },
     "Idea": {
-      "description": "Something worth doing, without a date: decided on the spot.",
+      "description": "Something worth doing, without a date: decided on the spot. Nothing about\nit is scheduled, booked or paid; once it is, it becomes a plan.",
       "type": "object",
       "properties": {
         "title": {
@@ -932,18 +932,8 @@
             }
           ]
         },
-        "booking": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Booking"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "costs": {
-          "description": "Usually `estimate: true`; counted as possible spend only.",
+          "description": "What it would cost, usually `estimate: true`: possible spend only,\nnobody has paid. Booking and paying make it a plan in the itinerary.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/Cost"

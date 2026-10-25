@@ -189,7 +189,8 @@ pub struct Base {
     pub notes: Option<String>,
 }
 
-/// Something worth doing, without a date: decided on the spot.
+/// Something worth doing, without a date: decided on the spot. Nothing about
+/// it is scheduled, booked or paid; once it is, it becomes a plan.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Idea {
@@ -212,9 +213,8 @@ pub struct Idea {
     pub priority: Priority,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<IdeaDuration>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub booking: Option<Booking>,
-    /// Usually `estimate: true`; counted as possible spend only.
+    /// What it would cost, usually `estimate: true`: possible spend only,
+    /// nobody has paid. Booking and paying make it a plan in the itinerary.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<Cost>,
     /// Markdown.
