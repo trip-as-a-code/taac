@@ -15,7 +15,7 @@
   "dependencies": {
     "@taac/core": "0.1.0",
     "astro": "7.3.8",
-    "maplibre-gl": "6.13.0",
+    "maplibre-gl": "6.14.0",
     "marked": "18.1.0"
   },
   "devDependencies": {
