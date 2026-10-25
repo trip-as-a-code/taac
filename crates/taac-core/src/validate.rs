@@ -369,6 +369,24 @@ impl Validator<'_> {
                     PlaceRef::Key(_) => {}
                 }
             }
+            // Unscheduled: stays and journeys need a date, so they are plans.
+            if idea.kind == ItemKind::Lodging || idea.kind.is_transport() {
+                self.error(
+                    "idea.kind",
+                    id,
+                    format!(
+                        "an idea can't be a {}: it needs a date, so make it a plan in the itinerary",
+                        idea.kind.as_str()
+                    ),
+                );
+            }
+            if idea.costs.iter().any(crate::model::Cost::is_paid) {
+                self.warn(
+                    "idea.paid",
+                    id,
+                    "an idea is only possible spend: once paid for, make it a plan in the itinerary".into(),
+                );
+            }
             self.who(&idea.id, idea.who.as_deref());
             let participants = trip.who(idea.who.as_deref());
             self.costs(&idea.id, &idea.costs, &participants, false);
@@ -1078,6 +1096,26 @@ ideas:
             !d.iter().any(|x| x.item.as_deref() == Some("back")),
             "{d:?}"
         );
+    }
+
+    #[test]
+    fn ideas_stay_unscheduled() {
+        let d = check_with(
+            "ideas:
+  - { title: stay, kind: lodging }
+  - { title: prepaid, costs: [{ amount: 5, currency: EUR, paidBy: a }] }
+  - { title: fine, costs: [{ amount: 5, currency: EUR, estimate: true }] }",
+            "  - { title: x, kind: note, date: 2027-01-01, who: [everyone] }",
+        );
+        let at = |item: &str| {
+            d.iter()
+                .filter(|x| x.item.as_deref() == Some(item))
+                .map(|x| x.code)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(at("stay"), ["idea.kind"], "{d:?}");
+        assert_eq!(at("prepaid"), ["idea.paid"], "{d:?}");
+        assert!(at("fine").is_empty(), "{d:?}");
     }
 
     #[test]

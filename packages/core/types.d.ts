@@ -118,7 +118,6 @@ export interface Idea {
   party: string
   priority: 'must' | 'maybe'
   duration?: 'hour' | 'halfDay' | 'day'
-  booking?: Booking
   costs: Cost[]
   notes?: string
   url?: string

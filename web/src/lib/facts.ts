@@ -6,7 +6,7 @@ import type { Diagnostic, Idea, Item, TripExport } from '@taac/core'
 
 export interface Facts {
   kind: string
-  /** Booking status; ideas without a booking have none. */
+  /** Booking status of a plan; ideas are never booked. */
   status?: string
   /** Every reservation's status, when a plan has several. */
   statuses?: string[]
@@ -122,12 +122,11 @@ export function ideaFacts(trip: TripExport, idea: Idea): Facts {
   const places = idea.area ? [idea.area, ...idea.places.filter((p) => p !== idea.area)] : idea.places
   return {
     kind: idea.kind,
-    status: idea.booking?.status,
     priority: idea.priority,
-    deadline: idea.booking?.deadline,
     priced: idea.costs.some((c) => c.amount > 0),
-    toPay: idea.costs.some((c) => c.amount > 0 && c.unpaid),
-    payers: payers(idea.costs),
+    // Possible spend: nothing to pay until it becomes a plan.
+    toPay: false,
+    payers: [],
     places,
     tags: idea.tags,
     issues: issuesOf(trip, idea.id).map((d) => d.code),
