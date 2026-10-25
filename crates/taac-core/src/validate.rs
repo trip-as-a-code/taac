@@ -2,12 +2,12 @@
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use rust_decimal::Decimal;
 
 use crate::diagnostics::Diagnostic;
 use crate::loader::{Site, Trip};
-use crate::model::{ItemKind, PlaceRef, Split};
+use crate::model::{BookingStatus, ItemKind, PlaceRef, Split};
 
 pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
     let mut out = Vec::new();
@@ -38,6 +38,7 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.blockers();
     v.overlaps();
     v.nights();
+    v.flaws();
     v.packing();
     v.out
 }
@@ -425,6 +426,140 @@ impl Validator<'_> {
 
     /// With declared bases, every night of someone's trip should be accounted
     /// for: a base, a bed, or an overnight journey.
+    /// Plans that are valid but probably wrong: someone who is not there,
+    /// nobody chosen when the group splits up, bookings with loose ends.
+    fn flaws(&mut self) {
+        let trip = self.trip;
+        let bases = trip.bases();
+        // Each member's time on the trip, from the bases and journeys that
+        // name them; a plan for everyone says nothing about who is there.
+        let mut presence: HashMap<&str, (NaiveDate, NaiveDate)> = HashMap::new();
+        let mut extend = |member: &str, from: NaiveDate, to: NaiveDate| {
+            let Some(member) = trip.member(member) else {
+                return;
+            };
+            let span = presence.entry(member.id.as_str()).or_insert((from, to));
+            span.0 = span.0.min(from);
+            span.1 = span.1.max(to);
+        };
+        for base in &bases {
+            for member in &base.members {
+                extend(member, base.from, base.to.succ_opt().unwrap_or(base.to));
+            }
+        }
+        for item in trip.itinerary.iter().filter(|i| i.who.is_some()) {
+            if item.kind.is_transport() || item.kind == ItemKind::Lodging {
+                let end = item.span().map_or(item.day(), |(_, end)| end.date_naive());
+                for member in trip.participants(item) {
+                    extend(member, item.day(), end);
+                }
+            }
+        }
+        let referenced: HashSet<&str> = trip
+            .itinerary
+            .iter()
+            .filter(|i| !i.costs.is_empty())
+            .filter_map(|i| i.booking.as_ref()?.reference.as_ref())
+            .map(|r| r.secret.as_str())
+            .collect();
+
+        for item in &trip.itinerary {
+            let id = Some(item.id.as_str());
+            let day = item.day();
+            let end = item.span().map_or(day, |(_, end)| end.date_naive());
+            let absent: Vec<&str> = trip
+                .participants(item)
+                .into_iter()
+                .filter(|m| {
+                    presence
+                        .get(m)
+                        .is_some_and(|(from, to)| end < *from || day > *to)
+                })
+                .collect();
+            if !absent.is_empty() {
+                let (code, hint) = if item.who.is_none() {
+                    (
+                        "item.unassigned",
+                        "it is for everyone by default; set `who`",
+                    )
+                } else {
+                    ("item.absent", "fix `who` or the dates")
+                };
+                let verb = if absent.len() == 1 { "is" } else { "are" };
+                self.warn(
+                    code,
+                    id,
+                    format!(
+                        "{} {verb} not on the trip on {day}: {hint}",
+                        absent.join(", ")
+                    ),
+                );
+            } else if item.who.is_none() && item.kind != ItemKind::Note {
+                let mut apart: Vec<&str> = bases
+                    .iter()
+                    .filter(|b| b.from <= day && day <= b.to)
+                    .map(|b| b.place_id.as_str())
+                    .collect();
+                apart.sort_unstable();
+                apart.dedup();
+                if apart.len() > 1 {
+                    let names: Vec<&str> = apart
+                        .iter()
+                        .map(|p| trip.places.get(*p).map_or(*p, |place| place.name.as_str()))
+                        .collect();
+                    self.warn(
+                        "item.unassigned",
+                        id,
+                        format!(
+                            "the group is split between {} on {day}, but this is for everyone: set `who`",
+                            names.join(" and ")
+                        ),
+                    );
+                }
+            }
+            if item.kind == ItemKind::Lodging && item.places.is_empty() {
+                self.warn(
+                    "item.unlocated",
+                    id,
+                    "a stay without a place: it is off the map and bases cannot follow it".into(),
+                );
+            }
+            let Some(booking) = item
+                .booking
+                .as_ref()
+                .filter(|b| b.status == BookingStatus::Booked)
+            else {
+                continue;
+            };
+            let confirmed = item.kind.is_transport() || item.kind == ItemKind::Lodging;
+            if confirmed && booking.reference.is_none() {
+                self.warn(
+                    "booking.reference",
+                    id,
+                    "booked without a confirmation number (`booking.reference`)".into(),
+                );
+            }
+            let shared = booking
+                .reference
+                .as_ref()
+                .is_some_and(|r| referenced.contains(r.secret.as_str()));
+            if item.costs.is_empty() && !shared && item.kind != ItemKind::Note {
+                self.warn(
+                    "booking.cost",
+                    id,
+                    "booked without a cost: add `costs`, or share a `booking.reference` with the item that has them".into(),
+                );
+            }
+            if item.costs.iter().any(|c| c.estimate) {
+                self.warn(
+                    "cost.estimate",
+                    id,
+                    "booked, but a cost is still marked `estimate`".into(),
+                );
+            }
+        }
+    }
+
     fn nights(&mut self) {
         let trip = self.trip;
         if trip.declared_bases.is_empty() {
@@ -792,8 +927,61 @@ ideas:
   - { id: t, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-01 }",
             "  - { id: x, kind: activity, title: X, date: 2027-01-03 }",
         );
-        assert_eq!(codes(&d), ["base.missing", "base.missing"], "{d:?}");
-        assert!(d[0].message.contains("2027-01-02"));
+        let missing: Vec<_> = d.iter().filter(|d| d.code == "base.missing").collect();
+        assert_eq!(missing.len(), 2, "{d:?}");
+        assert!(missing[0].message.contains("2027-01-02"));
+    }
+
+    #[test]
+    fn plans_for_people_who_are_not_there() {
+        let d = check_with(
+            "bases:
+  - { id: t, title: Tokyo, place: tokyo, from: 2027-01-01, to: 2027-01-03, who: [a] }
+  - { id: k, title: Kyoto, place: kyoto, from: 2027-01-02, to: 2027-01-03, who: [b] }",
+            "  - { id: early, kind: note, title: E, date: 2027-01-01 }
+  - { id: split, kind: activity, title: S, date: 2027-01-02, places: [tokyo] }
+  - { id: late, kind: activity, title: L, date: 2027-01-09, who: [a], places: [tokyo] }
+  - { id: fine, kind: activity, title: F, date: 2027-01-02, who: [b], places: [kyoto] }",
+        );
+        let at = |item: &str| {
+            d.iter()
+                .filter(|x| x.item.as_deref() == Some(item))
+                .map(|x| x.code)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(at("early"), ["item.unassigned"], "{d:?}");
+        assert!(
+            d.iter()
+                .any(|x| x.item.as_deref() == Some("early") && x.message.contains("b is not"))
+        );
+        assert_eq!(at("split"), ["item.unassigned"], "{d:?}");
+        assert_eq!(at("late"), ["item.absent"], "{d:?}");
+        assert!(at("fine").is_empty(), "{d:?}");
+    }
+
+    #[test]
+    fn bookings_with_loose_ends() {
+        let d = check(
+            "  - { id: hotel, kind: lodging, title: H, start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, booking: { status: booked } }
+  - { id: out, kind: flight, title: O, start: 2027-01-01T08:00:00+09:00, end: 2027-01-01T09:00:00+09:00, places: [tokyo, kyoto],
+      booking: { status: booked, reference: { secret: PNR } }, costs: [{ amount: 9, currency: EUR, paidBy: a, estimate: true }] }
+  - { id: back, kind: flight, title: B, start: 2027-01-02T08:00:00+09:00, end: 2027-01-02T09:00:00+09:00, places: [kyoto, tokyo],
+      booking: { status: booked, reference: { secret: PNR } } }",
+        );
+        let codes = codes(&d);
+        for code in [
+            "item.unlocated",
+            "booking.reference",
+            "booking.cost",
+            "cost.estimate",
+        ] {
+            assert!(codes.contains(&code), "{code} missing in {codes:?}");
+        }
+        // The return shares the outbound's booking, which carries the cost.
+        assert!(
+            !d.iter().any(|x| x.item.as_deref() == Some("back")),
+            "{d:?}"
+        );
     }
 
     #[test]

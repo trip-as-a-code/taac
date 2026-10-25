@@ -4,11 +4,11 @@
 // live in the URL, so a filtered view is a link.
 
 import type { Facts } from '@/lib/facts'
-import { fold } from '@/lib/facts'
+import { fold, issueGroup } from '@/lib/facts'
 import { getLens, inLens, onLens, peopleOf, type Lens } from '@/scripts/lens'
 
 /** Several values match any of them; single ones replace each other. */
-const MULTI = ['status', 'kind', 'priority', 'payer', 'place', 'tag'] as const
+const MULTI = ['issue', 'status', 'kind', 'priority', 'payer', 'place', 'tag'] as const
 const SINGLE = ['focus', 'when', 'due', 'conflict', 'cost'] as const
 export const FACETS = [...SINGLE, ...MULTI] as const
 export type Facet = (typeof FACETS)[number]
@@ -46,9 +46,12 @@ const test: Record<Facet, (f: Facts, values: string[], today: string) => boolean
   payer: (f, v) => f.payers.some((p) => v.includes(p)),
   place: (f, v) => f.places.some((p) => v.includes(p)),
   tag: (f, v) => f.tags.some((t) => v.includes(t)),
-  // A clash nobody signed off, or a booking due within a week (or late).
+  issue: (f, v) => f.issues.some((code) => v.includes('any') || v.includes(issueGroup(code))),
+  // Anything the validator flagged, or a booking due within a week (or late).
   focus: (f, _, today) =>
-    f.conflict === 'open' || (f.status === 'required' && Boolean(f.deadline && f.deadline <= addDays(today, 7))),
+    f.issues.length > 0 ||
+    f.conflict === 'open' ||
+    (f.status === 'required' && Boolean(f.deadline && f.deadline <= addDays(today, 7))),
   when: (f, [v], today) => {
     if (!f.day) return false
     const end = f.end ?? f.day
