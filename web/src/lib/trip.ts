@@ -154,6 +154,39 @@ export function ideasByArea(trip: TripExport): Map<string, Idea[]> {
   return out
 }
 
+/** Great-circle metres between two `[lat, lon]` points. */
+function distanceM([lat1, lon1]: [number, number], [lat2, lon2]: [number, number]): number {
+  const rad = Math.PI / 180
+  const h =
+    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lon2 - lon1) * rad) / 2) ** 2
+  return 12_742_000 * Math.asin(Math.sqrt(h))
+}
+
+/** Whether a place lies in a base's area (its radius, or a city's worth, like the core). */
+export function inBase(trip: TripExport, base: Base, placeId: string | undefined): boolean {
+  if (!placeId) return false
+  if (placeId === base.place) return true
+  const area = trip.places[base.place]
+  const place = trip.places[placeId]
+  return Boolean(area && place && distanceM(place.geo, area.geo) <= (area.radius ?? 30_000))
+}
+
+/**
+ * Ideas to suggest while staying at a base: its area's, or any whose area
+ * (or, without one, a place) lies inside it, for someone staying there.
+ * Must-dos first.
+ */
+export function ideasAt(trip: TripExport, base: Base): Idea[] {
+  return trip.ideas
+    .filter(
+      (idea) =>
+        (idea.area ? inBase(trip, base, idea.area) : idea.places.some((p) => inBase(trip, base, p))) &&
+        idea.members.some((m) => base.members.includes(m)),
+    )
+    .sort((a, b) => Number(b.priority === 'must') - Number(a.priority === 'must'))
+}
+
 /** Route rows: one per group when groups go separate ways, else one. */
 export function routeRows(trip: TripExport): { label?: string; emoji?: string; members: string[]; bases: Base[] }[] {
   const ordered = [...trip.bases].sort((a, b) => a.from.localeCompare(b.from))
