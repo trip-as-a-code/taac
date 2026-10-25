@@ -406,6 +406,15 @@ impl Validator<'_> {
                         .into(),
                 );
             }
+            // Like a plan: say who it's for.
+            if idea.who.is_none() && trip.members.len() > 1 {
+                self.warn(
+                    "item.unassigned",
+                    id,
+                    "no `who`, so it counts as everyone: list members or groups, or `everyone`"
+                        .into(),
+                );
+            }
             self.who(&idea.id, idea.who.as_deref());
             let participants = trip.who(idea.who.as_deref());
             self.costs(&idea.id, &idea.costs, &participants, false);
@@ -1121,13 +1130,14 @@ ideas:
     fn ideas_are_proposals_of_any_kind() {
         let d = check_with(
             "ideas:
-  - { title: stay, kind: lodging, start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, option: Stay,
+  - { title: stay, kind: lodging, who: [everyone], start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, option: Stay,
       booking: { status: required, deadline: 2026-12-01 }, costs: [{ amount: 90, currency: EUR, estimate: true }] }
-  - { title: flight, kind: flight }
-  - { title: booked, booking: { status: booked } }
-  - { title: prepaid, costs: [{ amount: 5, currency: EUR, paidBy: a }] }
-  - { title: both, date: 2027-01-01, start: 2027-01-01T10:00:00+09:00 }
-  - { title: loose, part: evening }",
+  - { title: flight, kind: flight, who: [a] }
+  - { title: booked, who: [a], booking: { status: booked } }
+  - { title: prepaid, who: [a], costs: [{ amount: 5, currency: EUR, paidBy: a }] }
+  - { title: both, who: [a], date: 2027-01-01, start: 2027-01-01T10:00:00+09:00 }
+  - { title: loose, who: [a], part: evening }
+  - { title: anyone }",
             "  - { title: x, kind: note, date: 2027-01-01, who: [everyone] }",
         );
         let at = |item: &str| {
@@ -1142,6 +1152,7 @@ ideas:
         assert_eq!(at("prepaid"), ["idea.paid"], "{d:?}");
         assert_eq!(at("both"), ["idea.when"], "{d:?}");
         assert_eq!(at("loose"), ["idea.when"], "{d:?}");
+        assert_eq!(at("anyone"), ["item.unassigned"], "{d:?}");
     }
 
     #[test]

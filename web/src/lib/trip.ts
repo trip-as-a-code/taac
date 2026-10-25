@@ -1,6 +1,8 @@
 import type { Base, BookingStatus, Idea, Item, ItemKind, Member, TripExport } from '@taac/core'
 import { marked } from 'marked'
 
+import { issuesOf } from '@/lib/facts'
+
 import type { IconName } from '@/components/Icon.astro'
 
 /** Budget categories: every item kind, plus things bought before packing. */
@@ -182,7 +184,9 @@ export function ideasAt(trip: TripExport, base: Base): Idea[] {
     .filter(
       (idea) =>
         (idea.area ? inBase(trip, base, idea.area) : idea.places.some((p) => inBase(trip, base, p))) &&
-        idea.members.some((m) => base.members.includes(m)),
+        idea.members.some((m) => base.members.includes(m)) &&
+        // Nobody chose who it's for yet: not suggested until someone does.
+        !issuesOf(trip, idea.id).some((d) => d.code === 'item.unassigned'),
     )
     .sort((a, b) => Number(b.priority === 'must') - Number(a.priority === 'must'))
 }

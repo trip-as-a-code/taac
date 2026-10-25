@@ -5,7 +5,7 @@ import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
-import { ideaFacts } from '@/lib/facts'
+import { ideaFacts, isLabelled, issuesOf } from '@/lib/facts'
 import { kindIcon, kindTint, markdown, partyEmoji, partyHue, partyLabel, people, statusTone } from '@/lib/trip'
 
 interface Props {
@@ -37,7 +37,11 @@ const members = trip.members.filter((m) => idea.members.includes(m.id))
 const everyone = members.length === trip.members.length
 const party = partyLabel(trip, idea.party, i18n.t('lens.everyone'), i18n.t('party.and'))
 const emoji = partyEmoji(trip, idea.party)
-const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
+// As on plan cards: say what's wrong (or how much), details in the list.
+const issues = [...new Map(issuesOf(trip, idea.id).map((d) => [d.code, d])).values()]
+const unassigned = issues.some((d) => d.code === 'item.unassigned')
+const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
+const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.some((p) => p.url))
 ---
 
 <article
@@ -96,11 +100,13 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
           />
         ))}
         {everyone ? (
-          <span class="who" title={members.map((m) => m.name).join(', ')}>
-            <span class="party-pill">
-              <span class="ellipsis">{party}</span>
+          !unassigned && (
+            <span class="who" title={members.map((m) => m.name).join(', ')}>
+              <span class="party-pill">
+                <span class="ellipsis">{party}</span>
+              </span>
             </span>
-          </span>
+          )
         ) : (
           <span class="who" title={members.map((m) => m.name).join(', ')}>
             <span class="party-pill">
@@ -111,9 +117,22 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
           </span>
         )}
       </div>
+      {issues.length > 0 && (
+        <p class="issues footnote">
+          <span aria-hidden="true">⚠︎</span>
+          <span class="ellipsis">
+            {issues.length === 1 ? issueLabel(issues[0].code) : i18n.plural('issues.count', issues.length)}
+          </span>
+        </p>
+      )}
     </summary>
     {hasDetails && (
       <div class="details">
+        {issues.length > 0 && (
+          <p class="issue-link footnote">
+            <a href={i18n.path(`/trips/${trip.slug}/#issue-${idea.id}`)}>{t('issues.inList')} →</a>
+          </p>
+        )}
         {idea.notes && <div class="prose" lang={trip.locale} set:html={markdown(idea.notes)} />}
         <div class="links">
           {idea.url && (
@@ -356,5 +375,20 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
     .glyph {
       display: none;
     }
+  }
+
+  .issues {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    margin: 2px 0 0;
+    font-weight: 600;
+    color: var(--orange);
+  }
+
+  .issue-link {
+    margin: 0;
+    font-weight: 600;
   }
 </style>

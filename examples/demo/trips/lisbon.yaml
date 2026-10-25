@@ -110,6 +110,7 @@ itinerary:
     booking: { status: booked, reference: { secret: DEMO_PNR } }
 ideas:
   - title: LX Factory market
+    who: [everyone]
     area: Lisbon
     places: [{ name: LX Factory, geo: [38.7036, -9.1784], category: shopping }]
     duration: halfDay
@@ -117,6 +118,7 @@ ideas:
   # Two options for one evening: compared side by side, only the cheaper counts as possible spend.
   - title: Fado at Clube de Fado
     kind: meal
+    who: [everyone]
     option: Fado dinner
     area: Lisbon
     date: 2027-05-16
@@ -126,6 +128,7 @@ ideas:
     costs: [{ amount: 120, currency: EUR, estimate: true }]
   - title: Fado at Tasca do Chico
     kind: meal
+    who: [everyone]
     option: Fado dinner
     area: Lisbon
     date: 2027-05-16
