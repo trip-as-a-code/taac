@@ -89,12 +89,14 @@ blockers: # time someone is unavailable; plans inside it are flagged
     # strict: true turns warnings into errors; a plan opts out with `overrides: [Work]`
 ideas: # proposals: anything that could become a plan, never booked or paid yet
   - title: Fado night in Alfama # no date: suggested on free days nearby
+    who: [everyone] # like plans, ideas say who they're for
     area: Lisbon
     priority: must # or maybe (default)
     duration: hour # hour, halfDay, day
     costs: [{ amount: 60, currency: EUR, estimate: true }]
   - title: Pestana Palace # a dated option: shown on that day as proposed
     kind: lodging
+    who: [Early birds]
     option: Last night # alternatives share a label; only the cheapest counts as possible spend
     start: 2027-05-16T15:00:00+01:00
     end: 2027-05-17T11:00:00+01:00

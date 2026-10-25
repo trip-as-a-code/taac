@@ -134,7 +134,7 @@ export function ideaFacts(trip: TripExport, idea: Idea): Facts {
     places,
     tags: idea.tags,
     issues: issuesOf(trip, idea.id).map((d) => d.code),
-    unassigned: false,
+    unassigned: issuesOf(trip, idea.id).some((d) => d.code === 'item.unassigned'),
     text: text(trip, [idea.title, idea.notes, ...idea.tags], places),
   }
 }
