@@ -2,14 +2,21 @@
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
-import { ideaFacts, itemFacts } from '@/lib/facts'
+import { ideaFacts, issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { kindTint, placeEmoji } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
-const { t, date, path } = i18n
+const { t, date, path, plural, number } = i18n
+// Plural forms for the browser, which fills in the count as the map moves.
+const rules = new Intl.PluralRules(lang)
+const outsideForms = JSON.stringify(
+  Object.fromEntries(
+    [0, 1, 2, 5, 1.5].map((n) => [rules.select(n), plural('map.outside', n).replace(number(n), '{n}')]),
+  ),
+)
 
 // Only what the map needs, inlined as JSON in the page (never in a JS bundle).
 const used = new Map<string, { id: string; items: string[] }>()
@@ -36,6 +43,8 @@ const itemInfo = Object.fromEntries([
       people: item.members,
       facts: itemFacts(trip, item),
       href: path(`/trips/${trip.slug}/itinerary/#item-${item.id}`),
+      issues: new Set(issuesOf(trip, item.id).map((d) => d.code)).size,
+      issuesHref: path(`/trips/${trip.slug}/#issue-${item.id}`),
     },
   ]),
   ...trip.ideas.map((idea) => [
@@ -82,7 +91,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
 
 <TripLayout trip={trip} lang={lang} section="map" bare>
   <div class="map-shell">
-    <div class="map" data-map aria-label={t('nav.map')}></div>
+    <div class="map" data-map data-issues={t('issues.inList')} aria-label={t('nav.map')}></div>
     <aside class="panel" data-panel>
       <button class="grabber" type="button" data-sheet-toggle aria-expanded="false" aria-label={t('map.places')}>
         <span aria-hidden="true" />
@@ -126,11 +135,18 @@ const data = { places, routes, items: itemInfo, overlays, areas }
               <span class="subhead name" lang={trip.locale}>
                 {p.name}
               </span>
+              <span class="footnote place-issues" data-place-issues hidden />
               <span class="footnote tertiary tabular">{p.items.length}</span>
             </button>
           </li>
         ))}
       </ul>
+      <p class="footnote secondary outside" data-outside hidden>
+        <span data-outside-text data-template={outsideForms} />
+        <button class="button button-plain" type="button" data-show-all>
+          {t('map.showAll')}
+        </button>
+      </p>
       <p class="footnote secondary none" data-no-places hidden>
         {t('map.noPlaces')}
       </p>
@@ -435,5 +451,48 @@ const data = { places, routes, items: itemInfo, overlays, areas }
     .panel-title h2 {
       cursor: pointer;
     }
+  }
+
+  .place-issues {
+    flex: none;
+    font-weight: 600;
+    color: var(--orange);
+  }
+
+  .outside {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-2);
+    margin: var(--space-2) var(--space-4) var(--space-3);
+  }
+
+  .outside[hidden] {
+    display: none;
+  }
+
+  .outside .button {
+    min-height: 30px;
+    padding-inline: 6px;
+    font-size: 13px;
+  }
+
+  :global(.popup li) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  :global(.popup li > a:first-child) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  :global(.popup .popup-issues) {
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--orange);
+    text-decoration: none;
   }
 </style>

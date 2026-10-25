@@ -142,6 +142,8 @@ export const ru: Messages = {
   'issues.lede': 'То, что в плане выглядит неправильно. Исправьте в файлах поездки.',
   'issues.count': { one: '{n} проблема', few: '{n} проблемы', many: '{n} проблем', other: '{n} проблемы' },
   'issues.show': 'Показать планы',
+  'issues.showAll': 'Показать все ({n})',
+  'issues.inList': 'Открыть в списке проблем',
   'issues.none': 'Проблем не найдено.',
 
   'kind.flight': 'Перелёт',
@@ -244,7 +246,14 @@ export const ru: Messages = {
   'packing.toBuy': 'Купить',
 
   'map.places': 'Места',
-  'map.fit': 'Показать всё',
+  'map.fit': 'Вся поездка',
+  'map.showAll': 'Показать все',
+  'map.outside': {
+    one: 'Ещё {n} место за пределами карты',
+    few: 'Ещё {n} места за пределами карты',
+    many: 'Ещё {n} мест за пределами карты',
+    other: 'Ещё {n} места за пределами карты',
+  },
   'map.noPlaces': 'Подходящих мест нет.',
   'map.layers': 'Слои',
 

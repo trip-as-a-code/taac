@@ -120,8 +120,10 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       </div>
       <p class="footnote secondary lede">{t('issues.lede')}</p>
       <ul class="card list">
-        {issues.slice(0, 6).map((d) => {
+        {issues.map((d, index) => {
           const href = issueHref(d.item)
+          // Cards link here: the first entry of each plan is its anchor.
+          const first = d.item && issues.findIndex((x) => x.item === d.item) === index
           const body = (
             <>
               <span class="issue-mark" data-severity={d.severity} aria-hidden="true">
@@ -146,7 +148,11 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
             </>
           )
           return (
-            <li>
+            <li
+              id={first ? `issue-${d.item}` : undefined}
+              hidden={index >= 6 || undefined}
+              data-more={index >= 6 ? '' : undefined}
+            >
               {href ? (
                 <a class="row issue" href={href}>
                   {body}
@@ -159,9 +165,9 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
         })}
       </ul>
       {issues.length > 6 && (
-        <a class="subhead more" href={path(`${base}/itinerary/?issue=any`)}>
-          {plural('issues.count', issues.length)} →
-        </a>
+        <button class="button button-plain more" type="button" data-issues-more>
+          {t('issues.showAll', { n: issues.length })}
+        </button>
       )}
     </section>
   )}
@@ -399,10 +405,29 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
 
   let offMoney: (() => void) | undefined
 
+  /** The issues list: the rest folds open on request, or when a card links to an entry in it. */
+  function issuesList() {
+    const more = document.querySelector<HTMLButtonElement>('[data-issues-more]')
+    const open = () => {
+      for (const li of document.querySelectorAll<HTMLElement>('.issues [data-more]')) li.hidden = false
+      more?.remove()
+    }
+    more?.addEventListener('click', open)
+    const id = decodeURIComponent(location.hash.slice(1))
+    const entry = id.startsWith('issue-') ? document.getElementById(id) : null
+    if (!entry) return
+    if (entry.hidden) open()
+    entry.classList.remove('flash')
+    void entry.offsetWidth
+    entry.classList.add('flash')
+    requestAnimationFrame(() => entry.scrollIntoView({ block: 'center' }))
+  }
+
   onPage('overview', () => {
     status()
     // `webcal://` (set in follow) makes calendar apps subscribe, not import once.
     setupFilters((state) => follow(state.lens))
+    issuesList()
     revealTarget()
     offMoney?.()
     offMoney = onMoney(() => follow(getLens()))
@@ -638,8 +663,11 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     min-width: 0;
   }
 
-  .more {
-    display: inline-block;
-    margin-top: var(--space-3);
+  .issues .more {
+    margin-top: var(--space-2);
+  }
+
+  .issues li {
+    scroll-margin-block: calc(var(--nav-height) + 80px) 80px;
   }
 </style>
