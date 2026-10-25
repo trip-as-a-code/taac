@@ -41,6 +41,16 @@ const hasDetails = Boolean(idea.notes || idea.url || places.some((p) => p.url))
     <summary>
       <h3 class="headline" lang={trip.locale}>
         {idea.title}
+        <a
+          class="anchor"
+          href={`#idea-${idea.id}`}
+          data-anchor
+          aria-label={t('item.copyLink')}
+          title={t('item.copyLink')}
+        >
+          <Icon name="link" size={14} class="anchor-link" />
+          <Icon name="check" size={14} class="anchor-check" />
+        </a>
       </h3>
       {places.length > 0 && (
         <p class="subhead secondary place">

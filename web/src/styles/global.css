@@ -390,6 +390,57 @@ p {
   animation-duration: 180ms;
 }
 
+/* Permalink anchor on cards and day headings. */
+.anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  margin-block: -2px;
+  border-radius: 6px;
+  vertical-align: -3px;
+  color: var(--label-tertiary);
+  opacity: 0.45;
+  text-decoration: none;
+  transition:
+    opacity var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    background var(--duration) var(--ease);
+}
+
+.anchor .anchor-check {
+  display: none;
+}
+
+[data-item]:hover .anchor,
+.day-header:hover .anchor,
+.section-header:hover .anchor {
+  opacity: 0.85;
+}
+
+.anchor:hover,
+.anchor:focus-visible {
+  opacity: 1;
+  color: var(--tint);
+  background: var(--fill);
+  text-decoration: none;
+}
+
+.anchor[data-copied] {
+  opacity: 1;
+  color: var(--green);
+}
+
+.anchor[data-copied] .anchor-link {
+  display: none;
+}
+
+.anchor[data-copied] .anchor-check {
+  display: block;
+}
+
 /* A card reached from a link (budget → plan) flashes once. */
 [data-item] {
   scroll-margin-block: calc(var(--nav-height) + 80px) 80px;

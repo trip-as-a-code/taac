@@ -173,6 +173,7 @@ export const en = {
   'item.paidBy': 'Paid by {name}',
   'item.website': 'Website',
   'item.bookingLink': 'Book',
+  'item.copyLink': 'Copy link',
   'item.localTime': 'Local time ({offset})',
   'part.morning': 'Morning',
   'part.afternoon': 'Afternoon',

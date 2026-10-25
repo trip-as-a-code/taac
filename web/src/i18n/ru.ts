@@ -175,6 +175,7 @@ export const ru: Messages = {
   'item.paidBy': 'Платит {name}',
   'item.website': 'Сайт',
   'item.bookingLink': 'Забронировать',
+  'item.copyLink': 'Скопировать ссылку',
   'item.localTime': 'Местное время ({offset})',
   'part.morning': 'Утро',
   'part.afternoon': 'День',

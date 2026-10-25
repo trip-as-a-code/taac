@@ -273,13 +273,19 @@ export function applyFilters(state: FilterState) {
 }
 
 /**
- * A link to one card (`#item-…`, `#packing-…`, from the budget) shows it even
- * when the people lens hid it, opens it and brings it into view.
+ * A link to one card (`#item-…`, `#idea-…`, `#packing-…`) or day section shows
+ * it even when the people lens hid it, opens it and brings it into view.
  */
 export function revealTarget() {
   const id = decodeURIComponent(location.hash.slice(1))
   const el = id ? document.getElementById(id) : null
-  if (!el?.hasAttribute('data-item')) return
+  if (!el) return
+  if (el.hasAttribute('data-day-section')) {
+    if (el.hidden) setLens({ people: [] })
+    requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }))
+    return
+  }
+  if (!el.hasAttribute('data-item')) return
   if (el.hidden || el.closest('[hidden]')) {
     const facts = el.dataset.facts ? (JSON.parse(el.dataset.facts) as Facts) : undefined
     setLens({ people: [], unassigned: Boolean(facts?.unassigned) })
