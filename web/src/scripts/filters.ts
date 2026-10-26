@@ -291,7 +291,9 @@ export function applyFilters(state: FilterState) {
  */
 export function revealTarget() {
   const id = decodeURIComponent(location.hash.slice(1))
-  const el = id ? document.getElementById(id) : null
+  const target = id ? document.getElementById(id) : null
+  // A day folded into a run of free days points at the run.
+  const el = target?.hasAttribute('data-run-anchor') ? target.closest<HTMLElement>('[data-day-section]') : target
   if (!el) return
   const card = el.hasAttribute('data-item')
   if (!card && !el.hasAttribute('data-day-section')) return
