@@ -1,0 +1,241 @@
+---
+import type { Idea, Presence, TripExport } from '@taac/core'
+
+import Avatars from '@/components/Avatars.astro'
+import Blockers from '@/components/Blockers.astro'
+import IdeaRow from '@/components/IdeaRow.astro'
+import ItemRow from '@/components/ItemRow.astro'
+import OpenDay from '@/components/OpenDay.astro'
+import Whereabouts from '@/components/Whereabouts.astro'
+import type { I18n } from '@/i18n'
+import { baseById, itemById, partyEmoji, partyLabel } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+  day: TripExport['days'][number]
+  /** Days this stands for: more than one for a folded run. */
+  span?: number
+  /** Ideas proposed for this day. */
+  proposals?: Idea[]
+  homeOffset?: string
+}
+
+const { trip, i18n, day, span = 1, proposals = [], homeOffset } = Astro.props
+const { t } = i18n
+const items = itemById(trip)
+const bases = baseById(trip)
+const plans = day.items.map((id) => items.get(id)!)
+const within = (inner: string[], outer: string[]) => inner.every((m) => outer.includes(m))
+const rank = (party: string) => {
+  const i = trip.parties.findIndex((p) => p.id === party)
+  return i < 0 ? trip.parties.length : i
+}
+
+// When the travellers go separate ways, each group gets its own section,
+// headed by who they are (and where, when they're in different places): the
+// heading says whose it is, so nothing depends on reading colours. Groups are
+// the bases when people are in different places, else the groups the plans
+// are for when they don't overlap.
+interface Group {
+  party: string
+  members: string[]
+  base?: Presence
+}
+const baseSplit = !trip.basesDerived && new Set(day.bases.map((b) => b.party)).size > 1
+let groups: Group[] = []
+if (baseSplit) groups = day.bases.map((b) => ({ party: b.party, members: b.members, base: b }))
+else {
+  const parties = [...new Set(plans.filter((p) => p.party !== 'everyone').map((p) => p.party))].map((party) => ({
+    party,
+    members: trip.parties.find((p) => p.id === party)?.members ?? [],
+  }))
+  const disjoint = parties.every((a, i) =>
+    parties.slice(i + 1).every((b) => !a.members.some((m) => b.members.includes(m))),
+  )
+  if (parties.length > 1 && disjoint) groups = parties
+}
+groups.sort((a, b) => rank(a.party) - rank(b.party))
+const groupOf = (members: string[]) => groups.find((g) => within(members, g.members))
+const mine = <T extends { members: string[] }>(list: T[], g: Group) => list.filter((x) => groupOf(x.members) === g)
+const shared = <T extends { members: string[] }>(list: T[]) => list.filter((x) => !groupOf(x.members))
+const label = (party: string) =>
+  `${partyEmoji(trip, party) ?? ''} ${partyLabel(trip, party, t('lens.everyone'), t('party.and'))}`.trim()
+const whoIn = (ids: string[]) => trip.members.filter((m) => ids.includes(m.id))
+// A plan for exactly its group needn't say whose it is.
+const same = (a: string[], b: string[]) => a.length === b.length && within(a, b)
+const parts = trip.basesDerived ? [] : day.bases
+---
+
+{/* What concerns more than one group (or everyone) comes first. */}
+<Blockers trip={trip} i18n={i18n} blockers={groups.length ? shared(day.blockers) : day.blockers} />
+{!baseSplit && <Whereabouts trip={trip} i18n={i18n} date={day.date} span={span} bases={day.bases} stays={day.stays} />}
+{shared(plans).length > 0 && (
+  <div class="card list">
+    {shared(plans).map((item) => (
+      <div class="row-wrap">
+        <ItemRow trip={trip} item={item} i18n={i18n} homeOffset={homeOffset} />
+      </div>
+    ))}
+  </div>
+)}
+{shared(proposals).length > 0 && (
+  <div class="proposals" aria-label={t('ideas.proposed')}>
+    {shared(proposals).map((idea) => (
+      <IdeaRow trip={trip} idea={idea} i18n={i18n} proposed />
+    ))}
+  </div>
+)}
+
+{groups.length > 0 ? (
+  <div class="groups">
+    {groups.map((g) => (
+      <section class="group" data-group aria-label={label(g.party)}>
+        {g.base ? (
+          <Whereabouts
+            trip={trip}
+            i18n={i18n}
+            date={day.date}
+            span={span}
+            bases={[g.base]}
+            stays={day.stays.filter((s) => within(s.members, g.members))}
+            named
+          />
+        ) : (
+          <header class="group-head subhead" data-presence data-people={g.members.join(' ')}>
+            <span class="ellipsis">{label(g.party)}</span>
+            <Avatars members={whoIn(g.members)} size={20} />
+          </header>
+        )}
+        <Blockers trip={trip} i18n={i18n} blockers={mine(day.blockers, g)} />
+        {mine(plans, g).length > 0 && (
+          <div class="card list">
+            {mine(plans, g).map((item) => (
+              <div class="row-wrap">
+                <ItemRow
+                  trip={trip}
+                  item={item}
+                  i18n={i18n}
+                  homeOffset={homeOffset}
+                  grouped={same(item.members, g.members)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+        {mine(proposals, g).length > 0 && (
+          <div class="proposals" aria-label={t('ideas.proposed')}>
+            {mine(proposals, g).map((idea) => (
+              <IdeaRow trip={trip} idea={idea} i18n={i18n} proposed />
+            ))}
+          </div>
+        )}
+        {g.base && (
+          <OpenDay
+            trip={trip}
+            i18n={i18n}
+            part={g.base}
+            base={bases.get(g.base.id)!}
+            free={mine(plans, g).length === 0}
+          />
+        )}
+      </section>
+    ))}
+  </div>
+) : parts.length > 0 ? (
+  parts.map((p) => (
+    <OpenDay
+      trip={trip}
+      i18n={i18n}
+      part={p}
+      base={bases.get(p.id)!}
+      free={!plans.some((i) => i.members.some((m) => p.members.includes(m)))}
+      split={parts.length > 1}
+    />
+  ))
+) : (
+  plans.length === 0 && <p class="free footnote secondary">{t('trip.freeDay')}</p>
+)}
+
+<style>
+  .card.list > .row-wrap + .row-wrap {
+    position: relative;
+    border-top: 0;
+  }
+
+  .row-wrap + .row-wrap::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 128px;
+    right: 0;
+    border-top: 0.5px solid var(--separator);
+  }
+
+  .row-wrap:has([data-item][hidden]) {
+    display: none;
+  }
+
+  @media (max-width: 560px) {
+    .row-wrap + .row-wrap::before {
+      left: 0;
+    }
+  }
+
+  .card.list + .groups,
+  .proposals + .groups {
+    margin-top: var(--space-4);
+  }
+
+  /* Side by side where there's room, one under the other on a phone. */
+  .groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: var(--space-5) var(--space-4);
+    align-items: start;
+  }
+
+  .group {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .group[hidden] {
+    display: none;
+  }
+
+  .group > :global(*) {
+    margin: 0 !important;
+  }
+
+  .group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    background: var(--fill);
+  }
+
+  .group-head[hidden] {
+    display: none;
+  }
+
+  /* Proposed, not planned: separate dashed cards rather than one list. */
+  .proposals {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+  }
+
+  .free {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    border: 1px dashed var(--separator-strong);
+    text-align: center;
+  }
+</style>

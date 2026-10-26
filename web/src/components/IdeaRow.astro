@@ -7,17 +7,7 @@ import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { ideaFacts, isLabelled, issuesOf } from '@/lib/facts'
 import { sourceHref, sourceLabel } from '@/lib/source'
-import {
-  echoesPlace,
-  kindIcon,
-  kindTint,
-  markdown,
-  partyEmoji,
-  partyHue,
-  partyLabel,
-  people,
-  statusTone,
-} from '@/lib/trip'
+import { echoesPlace, kindIcon, kindTint, markdown, partyEmoji, partyLabel, people, statusTone } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -64,7 +54,7 @@ const hasDetails = Boolean(
   data-party={idea.party}
   data-facts={JSON.stringify(ideaFacts(trip, idea))}
   data-status={idea.priority}
-  style={`--kind:${kindTint[idea.kind]};--party-hue:${partyHue(idea.party)}`}
+  style={`--kind:${kindTint[idea.kind]}`}
   class:list={['idea', { shared: everyone, proposed }]}
 >
   <div class="glyph" aria-hidden="true">
@@ -314,11 +304,7 @@ const hasDetails = Boolean(
     margin-top: 3px;
   }
 
-  /* Plans for a subset of the trip carry their party: a rail and a pill. */
-  .idea:not(.shared) {
-    box-shadow: inset 3px 0 0 hsl(var(--party-hue) 65% 55%);
-  }
-
+  /* Ideas for a subset of the trip carry their party by name, not by colour. */
   .party-pill {
     display: inline-flex;
     align-items: center;
@@ -330,12 +316,8 @@ const hasDetails = Boolean(
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
-    color: hsl(var(--party-hue) 55% 38%);
-    background: hsl(var(--party-hue) 70% 50% / 0.12);
-  }
-
-  :global(:root[data-theme='dark']) .party-pill {
-    color: hsl(var(--party-hue) 80% 72%);
+    color: var(--label-secondary);
+    background: var(--fill);
   }
 
   .who {

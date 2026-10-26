@@ -16,7 +16,6 @@ import {
   markdown,
   memberName,
   partyEmoji,
-  partyHue,
   partyLabel,
   people,
   statusTone,
@@ -33,9 +32,11 @@ interface Props {
   homeOffset?: string
   /** Listed under its deadline already: the card needn't repeat it. */
   dueShown?: boolean
+  /** In a section headed by exactly its people: no party pill or rail. */
+  grouped?: boolean
 }
 
-const { trip, item, i18n, withDate, homeOffset, dueShown } = Astro.props
+const { trip, item, i18n, withDate, homeOffset, dueShown, grouped } = Astro.props
 const { t, money, date } = i18n
 const places = item.places.map((id) => trip.places[id]).filter(Boolean)
 const everyone = item.members.length === trip.members.length
@@ -77,8 +78,8 @@ const offsetLabel =
   data-status={item.booking.status}
   data-day={item.local.date}
   data-facts={JSON.stringify(itemFacts(trip, item))}
-  style={`--kind:${kindTint[item.kind]};--party-hue:${partyHue(item.party)}`}
-  class:list={['item', { shared: everyone }]}
+  style={`--kind:${kindTint[item.kind]}`}
+  class:list={['item', { shared: everyone || grouped }]}
 >
   <div class="when tabular">
     {withDate && <span class="date">{date(item.local.date, { day: 'numeric', month: 'short' })}</span>}
@@ -184,7 +185,7 @@ const offsetLabel =
               class="footnote secondary cost"
             />
           ))}
-        {everyone ? (
+        {grouped ? null : everyone ? (
           !unassigned && (
             <span class="who" title={members.map((m) => m.name).join(', ')}>
               <span class="party-pill">
@@ -499,11 +500,7 @@ const offsetLabel =
     color: var(--red);
   }
 
-  /* Plans for a subset of the trip carry their party: a rail and a pill. */
-  .item:not(.shared) {
-    box-shadow: inset 3px 0 0 hsl(var(--party-hue) 65% 55%);
-  }
-
+  /* Plans for a subset of the trip carry their party by name, not by colour. */
   .party-pill {
     display: inline-flex;
     align-items: center;
@@ -515,12 +512,8 @@ const offsetLabel =
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
-    color: hsl(var(--party-hue) 55% 38%);
-    background: hsl(var(--party-hue) 70% 50% / 0.12);
-  }
-
-  :global(:root[data-theme='dark']) .party-pill {
-    color: hsl(var(--party-hue) 80% 72%);
+    color: var(--label-secondary);
+    background: var(--fill);
   }
 
   .who {
