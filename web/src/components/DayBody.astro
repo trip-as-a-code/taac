@@ -82,15 +82,17 @@ const label = (party: string) =>
   `${partyEmoji(trip, party) ?? ''} ${partyLabel(trip, party, t('lens.everyone'), t('party.and'))}`.trim()
 const whoIn = (ids: string[]) => trip.members.filter((m) => ids.includes(m.id))
 const parts = trip.basesDerived ? [] : day.bases
-// Overnight journeys land today: say so, and say "home" when that ends someone's trip.
+// Whatever ran past midnight ends today (stays aside: their beds show nightly):
+// a journey arrives (home, when that ends someone's trip), anything else ends.
 const arrivals = trip.items.filter(
-  (i) => isTransport(i.kind) && i.local.endDate === day.date && i.local.endDate !== i.local.date,
+  (i) => i.kind !== 'lodging' && i.local.endDate === day.date && i.local.endDate !== i.local.date,
 )
-const home = (i: (typeof arrivals)[number]) => i.members.some((m) => spans(trip).get(m)?.last === day.date)
+const home = (i: (typeof arrivals)[number]) =>
+  isTransport(i.kind) && i.members.some((m) => spans(trip).get(m)?.last === day.date)
 const arrival = (i: (typeof arrivals)[number]) => {
-  const place = trip.places[i.places.at(-1) ?? '']?.name ?? i.title
+  const place = isTransport(i.kind) ? (trip.places[i.places.at(-1) ?? '']?.name ?? i.title) : i.title
   const vars = { time: i.local.endTime ?? '', place }
-  return home(i) ? t('trip.arriveHome', vars) : t('trip.arrive', vars)
+  return home(i) ? t('trip.arriveHome', vars) : isTransport(i.kind) ? t('trip.arrive', vars) : t('trip.endsAt', vars)
 }
 ---
 
@@ -98,7 +100,7 @@ const arrival = (i: (typeof arrivals)[number]) => {
 <Blockers trip={trip} i18n={i18n} date={day.date} blockers={groups.length ? shared(day.blockers) : day.blockers} />
 {shared(arrivals).map((a) => (
   <a class="arrival footnote" href={`#item-${a.id}`} data-presence data-people={a.members.join(' ')}>
-    <Icon name={home(a) ? 'home' : 'arrowRight'} size={14} />
+    <Icon name={home(a) ? 'home' : isTransport(a.kind) ? 'arrowRight' : 'clock'} size={14} />
     <span>{arrival(a)}</span>
   </a>
 ))}
@@ -150,7 +152,7 @@ const arrival = (i: (typeof arrivals)[number]) => {
         <Blockers trip={trip} i18n={i18n} date={day.date} blockers={mine(day.blockers, g)} />
         {mine(arrivals, g).map((a) => (
           <a class="arrival footnote" href={`#item-${a.id}`} data-presence data-people={a.members.join(' ')}>
-            <Icon name={home(a) ? 'home' : 'arrowRight'} size={14} />
+            <Icon name={home(a) ? 'home' : isTransport(a.kind) ? 'arrowRight' : 'clock'} size={14} />
             <span>{arrival(a)}</span>
           </a>
         ))}

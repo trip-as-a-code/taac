@@ -38,6 +38,7 @@ export const ru: Messages = {
   'trip.leaves': '{names}: конец поездки · дальше — {rest}',
   'trip.arrive': 'Прибытие {time} · {place}',
   'trip.arriveHome': 'Домой · прибытие {time} · {place}',
+  'trip.endsAt': 'Окончание {time} · {place}',
   'trip.ends': '{names}: конец поездки',
   'trip.until': 'до {when}',
   'trip.present': 'В поездке: {names}',

@@ -36,6 +36,7 @@ export const en = {
   'trip.leaves': '{names} heads home · {rest} carry on',
   'trip.arrive': 'Arrive {time} · {place}',
   'trip.arriveHome': 'Home · arrive {time} · {place}',
+  'trip.endsAt': 'Ends {time} · {place}',
   'trip.ends': '{names}: end of the trip',
   'trip.until': 'until {when}',
   'trip.present': 'On the trip: {names}',
