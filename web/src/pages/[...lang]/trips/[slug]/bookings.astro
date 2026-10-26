@@ -10,11 +10,12 @@ import { bookable, homeOffset } from '@/lib/trip'
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
-const { t, plural, path } = i18n
+const { t, plural, path, date } = i18n
 const offset = homeOffset(trip)
 const byDeadline = (a: (typeof trip.items)[number], b: (typeof trip.items)[number]) =>
   (a.booking.deadline ?? '9999').localeCompare(b.booking.deadline ?? '9999') || a.local.date.localeCompare(b.local.date)
 const open = trip.items.filter((i) => i.booking.status === 'required').sort(byDeadline)
+const dueGroups = [...Map.groupBy(open, (i) => i.booking.deadline ?? '').entries()]
 const done = trip.items.filter((i) => i.booking.status === 'booked')
 const cancelled = trip.items.filter((i) => i.booking.status === 'cancelled')
 // Options that would need booking if chosen: decided before their deadline,
@@ -71,11 +72,29 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
               {open.length}
             </span>
           </div>
-          <div class="card list">
-            {open.map((item) => (
-              <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} />
-            ))}
-          </div>
+          {/* The job here is "what do I book next": one group per deadline, soonest first. */}
+          {dueGroups.map(([deadline, items]) => (
+            <div class="due-group" data-due-group>
+              <h3 class="due-head footnote">
+                {deadline ? (
+                  <>
+                    <span class="tabular">
+                      {t('bookings.by', { date: date(deadline, { day: 'numeric', month: 'long' }) })}
+                    </span>
+                    <time class="due-rel" data-relative={deadline} data-template="{rel}" />
+                  </>
+                ) : (
+                  <span>{t('bookings.noDeadline')}</span>
+                )}
+                <span class="secondary tabular">{items.length}</span>
+              </h3>
+              <div class="card list">
+                {items.map((item) => (
+                  <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} dueShown />
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
       )}
 
@@ -134,6 +153,8 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
 
   onPage('bookings', () => {
     setupFilters(() => {
+      for (const group of document.querySelectorAll<HTMLElement>('[data-due-group]'))
+        group.hidden = !group.querySelector('[data-item]:not([hidden])')
       for (const section of document.querySelectorAll<HTMLElement>('.section'))
         section.hidden = !section.querySelector('[data-item]:not([hidden])')
     })
@@ -204,5 +225,30 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
 
   .attention a {
     font-weight: 600;
+  }
+
+  .due-group + .due-group {
+    margin-top: var(--space-4);
+  }
+
+  .due-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
+    padding-inline: var(--space-4);
+    font-weight: 600;
+  }
+
+  .due-rel {
+    color: var(--orange);
+  }
+
+  .due-rel[data-days^='-'] {
+    color: var(--red);
+  }
+
+  .due-head > :last-child {
+    margin-left: auto;
   }
 </style>

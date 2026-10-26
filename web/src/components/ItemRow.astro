@@ -30,9 +30,11 @@ interface Props {
   withDate?: boolean
   /** The trip's usual UTC offset; others get a label. */
   homeOffset?: string
+  /** Listed under its deadline already: the card needn't repeat it. */
+  dueShown?: boolean
 }
 
-const { trip, item, i18n, withDate, homeOffset } = Astro.props
+const { trip, item, i18n, withDate, homeOffset, dueShown } = Astro.props
 const { t, money, date } = i18n
 const places = item.places.map((id) => trip.places[id]).filter(Boolean)
 const everyone = item.members.length === trip.members.length
@@ -139,13 +141,20 @@ const offsetLabel =
                 </span>
               )
             })
-          : tone && (
+          : tone &&
+            !dueShown && (
               <span class="badge" data-tone={tone}>
                 {t(`status.${item.booking.status}`)}
               </span>
             )}
-        {item.booking.status === 'required' && item.booking.deadline && (
+        {item.booking.status === 'required' && item.booking.deadline && !dueShown && (
           <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />
+        )}
+        {/* Where to book, without opening the card. */}
+        {item.booking.status === 'required' && item.booking.url && (
+          <a class="footnote book" href={item.booking.url} target="_blank" rel="noopener noreferrer">
+            {t('item.bookingLink')} ↗
+          </a>
         )}
         {item.conflicts.map((c) => {
           const blocker = trip.blockers.find((b) => b.id === c.blocker)
@@ -464,6 +473,12 @@ const offsetLabel =
   .kind {
     font-weight: 600;
     color: var(--kind);
+  }
+
+  .book {
+    position: relative;
+    z-index: 1;
+    font-weight: 600;
   }
 
   .deadline {

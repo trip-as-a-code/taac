@@ -206,6 +206,7 @@ export const en = {
   'bookings.done': 'Booked',
   'bookings.cancelled': 'Cancelled',
   'bookings.noDeadline': 'No deadline',
+  'bookings.by': 'By {date}',
   'bookings.due': 'Due {rel}',
   'bookings.overdue': 'Overdue · was due {rel}',
   'bookings.none': 'Nothing on this trip needs booking.',

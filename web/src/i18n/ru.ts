@@ -223,6 +223,7 @@ export const ru: Messages = {
   'bookings.done': 'Забронировано',
   'bookings.cancelled': 'Отменено',
   'bookings.noDeadline': 'Без срока',
+  'bookings.by': 'До {date}',
   'bookings.due': 'Срок {rel}',
   'bookings.overdue': 'Просрочено · срок был {rel}',
   'bookings.none': 'В этой поездке ничего не нужно бронировать.',
