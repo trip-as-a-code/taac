@@ -101,7 +101,11 @@ const arrival = (i: (typeof arrivals)[number]) => {
 {shared(arrivals).map((a) => (
   <a class="arrival footnote" href={`#item-${a.id}`} data-presence data-people={a.members.join(' ')}>
     <Icon name={home(a) ? 'home' : isTransport(a.kind) ? 'arrowRight' : 'clock'} size={14} />
-    <span>{arrival(a)}</span>
+    <span class="ellipsis">{arrival(a)}</span>
+    {/* Whose journey or plan this is: the day may hold others. */}
+    <span class="arrival-who">
+      <Avatars members={whoIn(a.members)} size={18} />
+    </span>
   </a>
 ))}
 {!baseSplit && <Whereabouts trip={trip} i18n={i18n} date={day.date} span={span} bases={day.bases} stays={day.stays} />}
@@ -153,7 +157,11 @@ const arrival = (i: (typeof arrivals)[number]) => {
         {mine(arrivals, g).map((a) => (
           <a class="arrival footnote" href={`#item-${a.id}`} data-presence data-people={a.members.join(' ')}>
             <Icon name={home(a) ? 'home' : isTransport(a.kind) ? 'arrowRight' : 'clock'} size={14} />
-            <span>{arrival(a)}</span>
+            <span class="ellipsis">{arrival(a)}</span>
+            {/* Whose journey or plan this is: the day may hold others. */}
+            <span class="arrival-who">
+              <Avatars members={whoIn(a.members)} size={18} />
+            </span>
           </a>
         ))}
         {mine(plans, g).length > 0 && (
@@ -285,6 +293,16 @@ const arrival = (i: (typeof arrivals)[number]) => {
     color: var(--label);
     background: var(--fill);
     text-decoration: none;
+  }
+
+  .arrival :global(svg) {
+    flex: none;
+  }
+
+  .arrival-who {
+    display: flex;
+    flex: none;
+    margin-left: auto;
   }
 
   .arrival:hover {
