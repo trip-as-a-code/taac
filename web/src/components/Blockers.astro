@@ -1,0 +1,89 @@
+---
+import type { DayBlocker, TripExport } from '@taac/core'
+
+import type { I18n } from '@/i18n'
+import { people } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+  blockers: DayBlocker[]
+}
+
+const { trip, i18n, blockers } = Astro.props
+const { t } = i18n
+---
+
+{blockers.length > 0 && (
+  <ul class="presence">
+    {blockers.map((b) => {
+      const blocker = trip.blockers.find((x) => x.id === b.id)!
+      const who = b.members.map((m) => trip.members.find((x) => x.id === m)?.name ?? m).join(', ')
+      const source = blocker.time?.timezone
+        ? t('blocker.source', {
+            start: blocker.time.start,
+            end: blocker.time.end,
+            zone: blocker.time.timezone.split('/').pop()!.replace(/_/g, ' '),
+          })
+        : undefined
+      return (
+        <li class="blocker footnote" data-presence data-people={people(b.members)} title={source}>
+          <span aria-hidden="true">⛔</span>
+          <span class="blocker-title chip-text">{blocker.title}</span>
+          <span class="tabular">
+            {b.wholeDay ? t('blocker.allDay') : t('blocker.window', { start: b.start, end: b.end })}
+          </span>
+          <span class="secondary chip-text">· {who}</span>
+        </li>
+      )
+    })}
+  </ul>
+)}
+
+<style>
+  .presence {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+  }
+
+  /* Chips stay one line; the longest text gives way with an ellipsis. */
+  .presence > li {
+    max-width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .presence > li > :global(*) {
+    flex: none;
+  }
+
+  .presence .chip-text {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .blocker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px 4px 10px;
+    border-radius: 999px;
+    color: var(--label);
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--red) 9%, transparent) 0 6px,
+      color-mix(in srgb, var(--red) 4%, transparent) 6px 12px
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 22%, transparent);
+  }
+
+  .blocker-title {
+    font-weight: 600;
+  }
+</style>
