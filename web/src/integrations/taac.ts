@@ -92,7 +92,7 @@ function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
       if (id === CHANGES_RESOLVED) {
         // Replays git history once per build (and once per dev server).
         changes ??= tripChanges(sitePath(), load().site)
-        return `export default ${JSON.stringify(changes)}`
+        return `export default ${JSON.stringify(await changes)}`
       }
       if (id !== RESOLVED) return
       const { site, paths } = load()
