@@ -4,6 +4,7 @@ import Icon, { type IconName } from '@/components/Icon.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import ProgressRing from '@/components/ProgressRing.astro'
 import RouteStrip from '@/components/RouteStrip.astro'
+import TodayCard from '@/components/TodayCard.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { isLabelled } from '@/lib/facts'
 import { sourceHref, sourceLabel } from '@/lib/source'
@@ -74,6 +75,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
 ---
 
 <TripLayout trip={trip} lang={lang} section="overview">
+  <TodayCard trip={trip} i18n={i18n} />
   <section class="intro">
     {trip.summary && (
       <p class="summary" lang={trip.locale}>
