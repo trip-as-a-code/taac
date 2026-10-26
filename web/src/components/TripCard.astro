@@ -128,13 +128,10 @@ const hue = tripHue(trip)
     margin-top: var(--space-2);
   }
 
+  /* A countdown is news, not an alarm: neutral, like the trip's own overview. */
   .countdown {
     margin-left: auto;
     font-weight: 600;
-    color: hsl(var(--hue) 70% 42%);
-  }
-
-  :global(:root[data-theme='dark']) .countdown {
-    color: hsl(var(--hue) 85% 70%);
+    color: var(--label-secondary);
   }
 </style>
