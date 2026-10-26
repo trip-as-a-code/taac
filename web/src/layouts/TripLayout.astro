@@ -1,7 +1,6 @@
 ---
 import type { TripExport } from '@taac/core'
 
-import Avatars from '@/components/Avatars.astro'
 import Icon, { type IconName } from '@/components/Icon.astro'
 import CurrencyPicker from '@/components/CurrencyPicker.astro'
 import PeopleLens from '@/components/PeopleLens.astro'
@@ -61,7 +60,6 @@ const current = t(`nav.${section}`)
             {section !== 'overview' && <span lang={trip.locale}>{trip.title}</span>}
             <span class="dates">{dateRange(trip.startDate, trip.endDate)}</span>
             <span class="dates">{plural('trip.days', trip.days.length)}</span>
-            <Avatars members={trip.members} size={22} />
           </p>
         </div>
       </header>
@@ -112,6 +110,22 @@ const current = t(`nav.${section}`)
 
   .heading {
     min-width: 0;
+  }
+
+  /* Sub-pages: the section is the title, the trip a quiet line under it. */
+  .trip-header.compact {
+    padding-block: var(--space-6) var(--space-4);
+  }
+
+  .compact .cover-chip {
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+    font-size: 28px;
+  }
+
+  .compact .heading h1 {
+    font-size: clamp(26px, 3.4vw, 34px);
   }
 
   .heading h1 {
@@ -210,42 +224,35 @@ const current = t(`nav.${section}`)
       font-size: 32px;
     }
 
-    /* Sub-pages: the section is the title; the trip is one quiet line. */
+    /* Sub-pages: one line, the section; the trip's name is in the nav bar. */
     .trip-header.compact {
-      padding-block: var(--space-5) var(--space-2);
+      padding-block: var(--space-4) 0;
     }
 
     .compact .cover-chip,
-    .compact .meta :global(.avatars),
-    .compact .meta .dates {
+    .compact .meta {
       display: none;
     }
 
     .compact .heading h1 {
-      font-size: 32px;
-    }
-
-    .compact .meta span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: 26px;
     }
   }
 
-  /* Phones: sections move to a bottom tab bar; the people and currency row
-     scrolls with the page instead of eating the top of the screen. */
+  /* Phones: sections move to a bottom tab bar. */
   @media (max-width: 760px) {
     .trip {
       padding-bottom: calc(60px + env(safe-area-inset-bottom));
     }
 
+    /* What's left up top is the people row: it stays in view, so the
+       current selection is never a surprise further down. */
     .tabs {
-      position: static;
-      padding-block: var(--space-2) var(--space-3);
-      background: transparent;
+      padding-block: var(--space-2);
+      background: var(--bg);
+      /* A backdrop filter would make it the bottom tab bar's containing block. */
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
-      border-bottom: 0;
     }
 
     .tools {
