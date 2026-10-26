@@ -295,7 +295,7 @@ export const en = {
   'packing.progress': '{done} of {total} packed',
   'packing.reset': 'Reset',
   'packing.forOnly': 'For {names}',
-  'packing.hint': 'Ticks are saved on this device only.',
+  'packing.off': 'Ticking needs the PACKING binding on this deployment.',
   'packing.all': 'Everyone',
   'packing.packedBy': '{name}: packed',
   'packing.notPackedBy': '{name}: not packed yet',

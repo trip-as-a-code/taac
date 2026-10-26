@@ -133,13 +133,8 @@ const whose = (members: string[]) => {
       <p class="empty secondary" data-filter-empty hidden>
         {t('packing.none')}
       </p>
-      <p
-        class="footnote tertiary hint"
-        data-packing-hint
-        data-shared={t('packing.shared')}
-        data-local={t('packing.hint')}
-      >
-        {t('packing.hint')}
+      <p class="footnote tertiary hint" data-packing-hint data-shared={t('packing.shared')} data-off={t('packing.off')}>
+        {t('packing.shared')}
       </p>
     </div>
   )}
@@ -186,12 +181,13 @@ const whose = (members: string[]) => {
         const packers = packersOf(row)
         const box = row.querySelector<HTMLInputElement>('[data-packing-item]')!
         const who = owner(row)
-        box.disabled = !who
+        box.disabled = !who || !store.available
         box.checked = who ? store.packed(id, who) : packers.every((m) => store.packed(id, m))
         for (const button of row.querySelectorAll<HTMLButtonElement>('[data-packer]')) {
           const m = button.dataset.packer!
           const packed = store.packed(id, m)
           button.setAttribute('aria-pressed', String(packed))
+          button.disabled = !store.available
           button.setAttribute(
             'aria-label',
             (packed ? root!.dataset.packed! : root!.dataset.unpacked!).replace('{name}', names[m] ?? m),
@@ -209,9 +205,9 @@ const whose = (members: string[]) => {
         .template!.replace('{done}', String(done))
         .replace('{total}', String(total))
       root!.querySelector<HTMLElement>('[data-packing-bar]')!.style.width = `${total ? (done / total) * 100 : 0}%`
-      root!.querySelector<HTMLElement>('[data-packing-reset]')!.hidden = !one
+      root!.querySelector<HTMLElement>('[data-packing-reset]')!.hidden = !one || !store.available
       const hint = root!.querySelector<HTMLElement>('[data-packing-hint]')!
-      hint.textContent = store.shared ? hint.dataset.shared! : hint.dataset.local!
+      hint.textContent = store.available ? hint.dataset.shared! : hint.dataset.off!
     }
 
     for (const row of rows) {
@@ -313,6 +309,11 @@ const whose = (members: string[]) => {
     color: var(--label-tertiary);
     background: transparent;
     cursor: pointer;
+  }
+
+  .packer:disabled {
+    cursor: default;
+    opacity: 0.6;
   }
 
   .packer[aria-pressed='true'] {

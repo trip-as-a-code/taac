@@ -165,7 +165,7 @@ cargo run -p taac-cli -- schema --out schema           # regenerate the JSON Sch
 For local testing behind the Worker, put the same secrets in `.dev.vars` and run `wrangler dev`.
 
 With the `PACKING` Durable Object binding (see the example config), packing ticks are shared by everyone on a trip,
-behind the trip's password, and merge after offline edits; without it each device keeps its own.
+behind the trip's password, and merge after offline edits; without it the packing list is read-only.
 
 ## How it fits together
 
@@ -182,8 +182,8 @@ trip YAML ──► taac-core (Rust) ──► CLI: validate, ICS/GeoJSON/Beanco
   Worker can protect.
 - `worker/` — the Cloudflare Worker.
 
-The website is read-only by design: trips change through commits, not through the UI. A new deploy is offered to open
-tabs when they regain focus.
+Trips change through commits, not through the UI; the one thing the site writes is packing ticks, which are progress,
+not plan. A new deploy is offered to open tabs when they regain focus.
 
 ## Development
 

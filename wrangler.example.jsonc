@@ -22,8 +22,8 @@
   // binding, logins are not rate-limited.
   "ratelimits": [{ "name": "LOGIN_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
 
-  // Shares packing ticks between everyone on a trip. Optional: without the
-  // binding, each device keeps its own ticks.
+  // Packing ticks, shared by everyone on a trip. Without it the packing list
+  // is read-only.
   "durable_objects": { "bindings": [{ "name": "PACKING", "class_name": "PackingState" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PackingState"] }],
 

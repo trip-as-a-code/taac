@@ -312,7 +312,7 @@ export const ru: Messages = {
   'packing.progress': 'Собрано {done} из {total}',
   'packing.reset': 'Сбросить',
   'packing.forOnly': 'Для: {names}',
-  'packing.hint': 'Отметки сохраняются только на этом устройстве.',
+  'packing.off': 'Чтобы отмечать, на этом деплое нужна привязка PACKING.',
   'packing.all': 'Все',
   'packing.packedBy': '{name}: собрано',
   'packing.notPackedBy': '{name}: ещё не собрано',
