@@ -203,6 +203,10 @@ export function setupFilters(onChange?: Listener): FilterState {
         if (search) search.value = ''
         writeUrl(state, '')
         render()
+      } else if (target.closest('[data-filter-q-clear]') && search) {
+        search.value = ''
+        search.dispatchEvent(new Event('input'))
+        search.focus()
       } else if (target.closest('[data-filter-toggle]') && panel && toggle) {
         panel.hidden = !panel.hidden
         toggle.setAttribute('aria-expanded', String(!panel.hidden))

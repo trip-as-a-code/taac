@@ -1,0 +1,51 @@
+---
+import type { HTMLAttributes } from 'astro/types'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+
+export interface Option {
+  value: string
+  label: string
+  lang?: string
+}
+
+interface Props extends Omit<HTMLAttributes<'select'>, 'class'> {
+  options: Option[]
+  value?: string
+  /** Accessible name; shown nowhere else. */
+  label: string
+  i18n: I18n
+  /** `pill` for toolbars, `field` for full-width panels. */
+  variant?: 'pill' | 'field'
+  class?: string
+}
+
+const { options, value, label, i18n, variant = 'field', class: className, ...attrs } = Astro.props
+const current = options.find((o) => o.value === value) ?? options[0]
+---
+
+<!--
+  The native select stays the source of truth (value, change events,
+  no-JS fallback); scripts/picker.ts swaps in the custom trigger and list.
+-->
+<div
+  class:list={['picker', variant, className]}
+  data-picker
+  data-search={i18n.t('picker.search')}
+  data-empty={i18n.t('picker.empty')}
+>
+  <select aria-label={label} {...attrs}>
+    {options.map((o) => (
+      <option value={o.value} lang={o.lang} selected={o.value === current?.value}>
+        {o.label}
+      </option>
+    ))}
+  </select>
+  <button type="button" class="picker-trigger" role="combobox" aria-label={label} aria-expanded="false" tabindex="-1">
+    <span class="picker-value ellipsis" lang={current?.lang}>
+      {current?.label}
+    </span>
+  </button>
+  <Icon name="chevronDown" size={14} />
+</div>
