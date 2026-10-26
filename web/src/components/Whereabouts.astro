@@ -1,0 +1,169 @@
+---
+import type { Presence, TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+import { baseById, daysBetween, itemById, partyEmoji, partyLabel, people } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+  /** The day, or the first of a run of days. */
+  date: string
+  /** How many days these chips stand for (a folded run of free days). */
+  span?: number
+  bases: Presence[]
+  stays: Presence[]
+}
+
+const { trip, i18n, date, span = 1, bases, stays } = Astro.props
+const { t } = i18n
+const byId = baseById(trip)
+const items = itemById(trip)
+const shown = trip.basesDerived ? [] : bases
+// Each bed sits with the base of the people sleeping in it, so a split group
+// reads as "these people: here, in this bed".
+const within = (inner: string[], outer: string[]) => inner.every((m) => outer.includes(m))
+const bedsOf = (base: Presence) => stays.filter((s) => within(s.members, base.members))
+const loose = stays.filter((s) => !shown.some((b) => within(s.members, b.members)))
+const bed = (s: Presence) => {
+  const stay = items.get(s.id)!
+  const place = trip.places[stay.places[0] ?? '']?.name ?? stay.title
+  return {
+    place,
+    tip: t('trip.nightAt', { place }),
+    // The day you arrive is when the time matters.
+    checkIn: stay.local.date === date && stay.local.time ? t('trip.checkIn', { time: stay.local.time }) : undefined,
+  }
+}
+---
+
+{(shown.length > 0 || stays.length > 0) && (
+  <ul class="presence">
+    {shown.map((p) => {
+      const base = byId.get(p.id)!
+      const from = daysBetween(base.from, date) + 1
+      const label = partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))
+      return (
+        <li class="where" data-presence data-people={people(p.members)}>
+          <span class="base subhead">
+            <Icon name="pin" size={15} />
+            <span class="chip-text" lang={trip.locale} title={base.title}>
+              {base.title}
+            </span>
+            {base.nights > 1 && (
+              <span class="footnote secondary">
+                {span > 1
+                  ? t('trip.baseDays', { from, to: from + span - 1, total: base.nights })
+                  : t('trip.baseDay', { n: from, total: base.nights })}
+              </span>
+            )}
+            {p.party !== 'everyone' && (
+              <span class="party-tag footnote" title={label}>
+                {partyEmoji(trip, p.party) ?? label}
+              </span>
+            )}
+          </span>
+          {bedsOf(p).map((s) => (
+            <span class="stay footnote" data-presence data-people={people(s.members)} title={bed(s).tip}>
+              <Icon name="lodging" size={14} />
+              <span class="chip-text" lang={trip.locale}>
+                {bed(s).place}
+              </span>
+              {bed(s).checkIn && <span class="tabular">{bed(s).checkIn}</span>}
+              {/* Only some of this base sleep here: say who. */}
+              {s.members.length < p.members.length && (
+                <span class="party-tag" title={partyLabel(trip, s.party, t('lens.everyone'), t('party.and'))}>
+                  {partyEmoji(trip, s.party) ?? partyLabel(trip, s.party, t('lens.everyone'), t('party.and'))}
+                </span>
+              )}
+            </span>
+          ))}
+        </li>
+      )
+    })}
+    {loose.map((s) => (
+      <li class="where" data-presence data-people={people(s.members)}>
+        <span class="stay footnote" title={bed(s).tip}>
+          <Icon name="lodging" size={14} />
+          <span class="chip-text" lang={trip.locale}>
+            {bed(s).place}
+          </span>
+          {bed(s).checkIn && <span class="tabular">{bed(s).checkIn}</span>}
+        </span>
+      </li>
+    ))}
+  </ul>
+)}
+
+<style>
+  .presence {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+  }
+
+  /* One party's base and bed together; they wrap as a pair. */
+  .where {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .where[hidden] {
+    display: none;
+  }
+
+  .base,
+  .stay {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+    border-radius: 999px;
+  }
+
+  .base > :global(*),
+  .stay > :global(*) {
+    flex: none;
+  }
+
+  .chip-text {
+    flex: 0 1 auto !important;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .base {
+    padding: 4px 12px 4px 10px;
+    font-weight: 600;
+    color: var(--tint);
+    background: var(--tint-soft);
+  }
+
+  .base .footnote {
+    font-weight: 500;
+  }
+
+  .stay {
+    padding: 4px 10px;
+    color: var(--purple);
+    background: color-mix(in srgb, var(--purple) 10%, transparent);
+  }
+
+  .party-tag {
+    font-weight: 600;
+  }
+
+  .stay .tabular {
+    opacity: 0.8;
+  }
+</style>

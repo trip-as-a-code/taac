@@ -4,6 +4,7 @@ import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import IdeaRow from '@/components/IdeaRow.astro'
 import OpenDay from '@/components/OpenDay.astro'
+import Whereabouts from '@/components/Whereabouts.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { issuesOf, itemFacts } from '@/lib/facts'
@@ -137,32 +138,7 @@ const checkIn = (stay: string, day: string) => items.get(stay)!.local.date === d
             )}
             <span class="badge">{t('trip.daysN', { from: index + 1, to: index + days.length })}</span>
           </header>
-          <ul class="presence">
-            {days[0].bases.map((p) => {
-              const base = bases.get(p.id)!
-              const emoji = partyEmoji(trip, p.party)
-              const from = daysBetween(base.from, days[0].date) + 1
-              return (
-                <li class="base subhead" data-presence data-people={people(p.members)}>
-                  <Icon name="pin" size={15} />
-                  <span class="base-title chip-text" lang={trip.locale} title={base.title}>
-                    {base.title}
-                  </span>
-                  <span class="footnote secondary">
-                    {t('trip.baseDays', { from, to: from + days.length - 1, total: base.nights })}
-                  </span>
-                  {p.party !== 'everyone' && (
-                    <span
-                      class="party-tag footnote"
-                      title={partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
-                    >
-                      {emoji ?? partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
-                    </span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+          <Whereabouts trip={trip} i18n={i18n} date={day.date} span={days.length} bases={day.bases} stays={day.stays} />
           {dayParts(day).some((part) => part.laned) && (
             <div class="card list" data-lanes>
               {dayParts(day)
@@ -241,50 +217,7 @@ const checkIn = (stay: string, day: string) => items.get(stay)!.local.date === d
                 })}
               </ul>
             )}
-            {(day.bases.length > 0 || day.stays.some((p) => checkIn(p.id, day.date))) && (
-              <ul class="presence">
-                {day.bases
-                  .filter(() => !trip.basesDerived)
-                  .map((p) => {
-                    const base = bases.get(p.id)!
-                    const emoji = partyEmoji(trip, p.party)
-                    const n = daysBetween(base.from, day.date) + 1
-                    return (
-                      <li class="base subhead" data-presence data-people={people(p.members)}>
-                        <Icon name="pin" size={15} />
-                        <span class="base-title chip-text" lang={trip.locale} title={base.title}>
-                          {base.title}
-                        </span>
-                        {base.nights > 1 && (
-                          <span class="footnote secondary">{t('trip.baseDay', { n, total: base.nights })}</span>
-                        )}
-                        {p.party !== 'everyone' && (
-                          <span
-                            class="party-tag footnote"
-                            title={partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
-                          >
-                            {emoji ?? partyLabel(trip, p.party, t('lens.everyone'), t('party.and'))}
-                          </span>
-                        )}
-                      </li>
-                    )
-                  })}
-                {day.stays
-                  .filter((p) => checkIn(p.id, day.date))
-                  .map((p) => {
-                    const stay = items.get(p.id)!
-                    const night = t('trip.nightAt', { place: trip.places[stay.places[0]]?.name ?? stay.title })
-                    return (
-                      <li class="stay footnote" data-presence data-people={people(p.members)} title={night}>
-                        <Icon name="lodging" size={14} />
-                        <span class="chip-text" lang={trip.locale}>
-                          {night}
-                        </span>
-                      </li>
-                    )
-                  })}
-              </ul>
-            )}
+            <Whereabouts trip={trip} i18n={i18n} date={day.date} bases={day.bases} stays={day.stays} />
             {(day.items.length > 0 || dayParts(day).some((part) => part.laned)) && (
               <div class="card list" data-lanes>
                 {day.items.map((id) => (
@@ -524,21 +457,6 @@ const checkIn = (stay: string, day: string) => items.get(stay)!.local.date === d
     text-overflow: ellipsis;
   }
 
-  .base {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px 4px 10px;
-    border-radius: 999px;
-    font-weight: 600;
-    color: var(--tint);
-    background: var(--tint-soft);
-  }
-
-  .base .footnote {
-    font-weight: 500;
-  }
-
   .blocker {
     display: inline-flex;
     align-items: center;
@@ -556,16 +474,6 @@ const checkIn = (stay: string, day: string) => items.get(stay)!.local.date === d
 
   .blocker-title {
     font-weight: 600;
-  }
-
-  .stay {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    color: var(--purple);
-    background: color-mix(in srgb, var(--purple) 10%, transparent);
   }
 
   .card.list > .row-wrap + .row-wrap {
@@ -618,10 +526,6 @@ const checkIn = (stay: string, day: string) => items.get(stay)!.local.date === d
   /* In lanes the column header names the party already. */
   .laned :global(.party-pill) {
     display: none;
-  }
-
-  .party-tag {
-    font-weight: 600;
   }
 
   .free {

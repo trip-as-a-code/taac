@@ -50,6 +50,7 @@ export const ru: Messages = {
   },
   'trip.nightsShort': { one: '{n} ночь', few: '{n} ночи', many: '{n} ночей', other: '{n} ночи' },
   'trip.nightAt': 'Ночь: {place}',
+  'trip.checkIn': 'заезд {time}',
   'trip.upNext': 'Дальше',
   'changes.title': 'Изменения',
   'changes.new': 'новых: {n}',
