@@ -129,6 +129,8 @@ metadata:
   title: Our trips # or per language: { en: Our trips, ru: Наши поездки }
 access: # optional: password-protect the whole site
   password: { secret: SITE_PASSWORD }
+source: # optional: link every card and issue to its line
+  repo: https://github.com/you/trips # branch: main, dir: '' (site file's folder in the repo)
 trips:
   - path: trips/lisbon.yaml
   - path: trips/japan
@@ -136,7 +138,8 @@ trips:
       password: { secret: JAPAN_PASSWORD }
 ```
 
-`secret` names a Worker secret. Without `access` the site is public.
+`secret` names a Worker secret. Without `access` the site is public. With `source`, cards and issues link to
+`<repo>/blob/<branch>/<file>#L<line>`, and issues offer YAML to paste.
 
 ## CLI
 

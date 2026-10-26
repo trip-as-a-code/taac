@@ -165,6 +165,14 @@ pub struct Place {
     pub radius: Option<u32>,
 }
 
+/// Where an entry is written: a trip file (relative to the site file's
+/// directory) and its 1-based line, for links back to the source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Source {
+    pub file: String,
+    pub line: u64,
+}
+
 /// A stretch of days spent in one area, by everyone or some of the members.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -172,6 +180,9 @@ pub struct Base {
     #[serde(skip_deserializing)]
     #[schemars(skip)]
     pub id: String,
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub source: Option<Source>,
     pub title: String,
     /// Name of an area in `places`.
     pub place: String,
@@ -200,6 +211,9 @@ pub struct Idea {
     #[serde(skip_deserializing)]
     #[schemars(skip)]
     pub id: String,
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub source: Option<Source>,
     pub title: String,
     #[serde(default = "default_idea_kind")]
     pub kind: ItemKind,
@@ -400,6 +414,9 @@ pub struct Item {
     #[serde(skip_deserializing)]
     #[schemars(skip)]
     pub id: String,
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub source: Option<Source>,
     pub kind: ItemKind,
     pub title: String,
     /// RFC 3339 with the local offset of where it happens. Set this, or
@@ -948,6 +965,27 @@ pub struct SiteFile {
     /// Password-protects the whole site.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access: Option<Access>,
+    /// Where the trip files live, so the site can link each entry to its line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<SourceRepo>,
+}
+
+/// A repository browsable on the web (GitHub, Gitea, Forgejo, GitLab:
+/// `<repo>/blob/<branch>/<path>#L<line>`).
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SourceRepo {
+    /// Web URL of the repository, such as `https://github.com/you/trips`.
+    pub repo: String,
+    #[serde(default = "default_branch")]
+    pub branch: String,
+    /// Directory of the site file inside the repository; empty for the root.
+    #[serde(default)]
+    pub dir: String,
+}
+
+fn default_branch() -> String {
+    "main".into()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]

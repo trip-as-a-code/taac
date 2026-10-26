@@ -10,6 +10,23 @@ export interface Diagnostic {
   file?: string
   trip?: string
   item?: string
+  /** The specifics, for phrasing the message in the interface's language. */
+  params?: Record<string, string>
+  /** YAML that fixes it, ready to paste into the entry. */
+  fix?: string
+}
+
+/** File (relative to the site file's directory) and 1-based line of an entry. */
+export interface Source {
+  file: string
+  line: number
+}
+
+/** Web repository holding the trip files. */
+export interface SourceRepo {
+  repo: string
+  branch: string
+  dir: string
 }
 
 /** One string for every language, or one per language. */
@@ -24,7 +41,7 @@ export interface Rates {
 
 export interface SiteExport {
   apiVersion: 'taac/v1alpha4'
-  site: { title: Text; description?: Text; passwordSecret?: string }
+  site: { title: Text; description?: Text; passwordSecret?: string; source?: SourceRepo }
   trips: TripExport[]
   diagnostics: Diagnostic[]
 }
@@ -110,6 +127,7 @@ export interface Booking {
 export interface Idea {
   id: string
   title: string
+  source?: Source
   kind: ItemKind
   area?: string
   places: string[]
@@ -148,6 +166,7 @@ export interface Item {
   id: string
   kind: ItemKind
   title: string
+  source?: Source
   start?: ISODateTime
   end?: ISODateTime
   local: {

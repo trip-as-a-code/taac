@@ -12,7 +12,7 @@ use crate::generators;
 use crate::loader::{Site, Trip};
 use crate::model::{
     Booking, BookingStatus, Cost, Cover, DayPart, Group, IdeaDuration, ItemKind, Member, Place,
-    Priority, Text, Transport,
+    Priority, Source, SourceRepo, Text, Transport,
 };
 
 #[derive(Debug, Serialize)]
@@ -33,6 +33,9 @@ pub struct SiteInfo {
     /// Worker secret name guarding the whole site, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password_secret: Option<String>,
+    /// Repository the trip files live in, for links to entries' lines.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<SourceRepo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -140,6 +143,9 @@ pub struct ConflictExport {
 pub struct IdeaExport {
     pub id: String,
     pub title: String,
+    /// File and line it is written on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
     pub kind: ItemKind,
     /// When it is proposed for; absent for an idea without a date.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -173,6 +179,9 @@ pub struct ItemExport {
     pub id: String,
     pub kind: ItemKind,
     pub title: String,
+    /// File and line it is written on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start: Option<DateTime<FixedOffset>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -373,6 +382,7 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
             title: site.metadata.title.clone(),
             description: site.metadata.description.clone(),
             password_secret: site.access.as_ref().map(|a| a.password.secret.clone()),
+            source: site.source.clone(),
         },
         trips,
         diagnostics: diagnostics
@@ -397,6 +407,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 id: item.id.clone(),
                 kind: item.kind,
                 title: item.title.clone(),
+                source: item.source.clone(),
                 start: item.start,
                 end: item.end,
                 local: local_times(item.day(), item.start, item.end, item.part),
@@ -490,6 +501,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
             IdeaExport {
                 id: idea.id.clone(),
                 title: idea.title.clone(),
+                source: idea.source.clone(),
                 kind: idea.kind,
                 local: idea
                     .day()

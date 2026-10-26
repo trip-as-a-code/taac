@@ -7,6 +7,7 @@ import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { isLabelled, issuesOf, itemFacts } from '@/lib/facts'
+import { sourceHref, sourceLabel } from '@/lib/source'
 import {
   daysBetween,
   echoesPlace,
@@ -62,7 +63,8 @@ const hasDetails =
   item.contacts.length > 0 ||
   item.costs.length > 0 ||
   item.booking.hasReference ||
-  item.url
+  Boolean(item.url) ||
+  Boolean(sourceHref(item.source))
 const offsetLabel =
   homeOffset && item.local.offset && item.local.offset !== homeOffset ? `UTC${item.local.offset}` : undefined
 ---
@@ -270,6 +272,13 @@ const offsetLabel =
             <a class="button" href={i18n.path(`/trips/${trip.slug}/itinerary/#item-${item.id}`)}>
               <Icon name="itinerary" size={15} />
               <span>{t('item.inItinerary')}</span>
+            </a>
+          )}
+          {/* The line in the trip files that says all this. */}
+          {sourceHref(item.source) && (
+            <a class="button" href={sourceHref(item.source)} target="_blank" rel="noopener noreferrer">
+              <Icon name="code" size={15} />
+              <span class="tabular">{sourceLabel(item.source!)}</span>
             </a>
           )}
           {item.url && (

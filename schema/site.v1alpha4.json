@@ -29,6 +29,17 @@
           "type": "null"
         }
       ]
+    },
+    "source": {
+      "description": "Where the trip files live, so the site can link each entry to its line.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourceRepo"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": false,
@@ -136,6 +147,29 @@
       "additionalProperties": false,
       "required": [
         "secret"
+      ]
+    },
+    "SourceRepo": {
+      "description": "A repository browsable on the web (GitHub, Gitea, Forgejo, GitLab:\n`<repo>/blob/<branch>/<path>#L<line>`).",
+      "type": "object",
+      "properties": {
+        "repo": {
+          "description": "Web URL of the repository, such as `https://github.com/you/trips`.",
+          "type": "string"
+        },
+        "branch": {
+          "type": "string",
+          "default": "main"
+        },
+        "dir": {
+          "description": "Directory of the site file inside the repository; empty for the root.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "repo"
       ]
     }
   }

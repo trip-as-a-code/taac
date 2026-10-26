@@ -95,7 +95,10 @@ export function useI18n(lang: Locale) {
     return JSON.stringify(typeof message === 'string' ? { other: message } : message)
   }
 
-  return { lang, t, plural, forms, number, money, date, dateRange, path: (p: string) => localePath(lang, p) }
+  /** Whether the catalog has a message, for keys built at runtime. */
+  const has = (key: string): key is MessageKey => key in messages
+
+  return { lang, t, plural, forms, has, number, money, date, dateRange, path: (p: string) => localePath(lang, p) }
 }
 
 export type I18n = ReturnType<typeof useI18n>
