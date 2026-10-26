@@ -3,6 +3,7 @@ import type { TripExport } from '@taac/core'
 
 import Icon, { type IconName } from '@/components/Icon.astro'
 import CurrencyPicker from '@/components/CurrencyPicker.astro'
+import LensMode from '@/components/LensMode.astro'
 import PeopleLens from '@/components/PeopleLens.astro'
 import { useI18n, type Locale } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
@@ -51,6 +52,7 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
   back={{ href: path('/'), label: t('nav.allTrips') }}
   wide={bare}
 >
+  <CurrencyPicker trip={trip} i18n={i18n} slot="nav" />
   <div class="trip" data-section={section} style={`--hue:${tripHue(trip)}`}>
     {!bare && (
       <header class:list={['container trip-header', { compact: section !== 'overview' }]}>
@@ -81,8 +83,8 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
         </div>
         <div class="tools">
           <PeopleLens trip={trip} i18n={i18n} plans={['ideas', 'itinerary', 'bookings', 'map'].includes(section)} />
-          <CurrencyPicker trip={trip} i18n={i18n} />
         </div>
+        <LensMode i18n={i18n} />
       </div>
     </nav>
     <div class:list={[bare ? 'bare' : 'container content']}>
@@ -286,7 +288,10 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
       backdrop-filter: none;
     }
 
+    /* Fades at the edge: there is more to swipe to. */
     .tools {
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+      mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
       margin-inline: calc(-1 * var(--gutter));
       padding-inline: var(--gutter);
       width: calc(100% + 2 * var(--gutter));

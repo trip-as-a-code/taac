@@ -161,7 +161,7 @@ function enhance(root: HTMLElement) {
 
   const sync = () => {
     const option = select.selectedOptions[0]
-    valueEl.textContent = option?.text ?? ''
+    valueEl.textContent = option?.dataset.short ?? option?.text ?? ''
     if (option?.lang) valueEl.lang = option.lang
     else valueEl.removeAttribute('lang')
     for (const e of entries) e.el.setAttribute('aria-selected', String(e.option === option))
