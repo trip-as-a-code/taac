@@ -43,7 +43,7 @@ export { PackingState } from './packing-state'
 
 export interface Env {
   ASSETS: Fetcher
-  /** Optional: shared packing ticks; without it ticks stay on each device. */
+  /** Packing ticks; without it the packing list is read-only. */
   PACKING?: DurableObjectNamespace
   SESSION_SECRET?: string
   LOGIN_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> }
