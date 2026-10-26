@@ -2,6 +2,8 @@
 
 import { revealTarget } from '@/scripts/filters'
 import { onMoney, renderMoney } from '@/scripts/money'
+import { setupPickers } from '@/scripts/picker'
+import { setupTooltips } from '@/scripts/tooltip'
 
 const LANG_COOKIE = 'taac_lang'
 let once = false
@@ -23,6 +25,8 @@ export function setupPage() {
   trackScroll()
   renderRelativeDates()
   renderMoney()
+  setupPickers()
+  setupTooltips()
   if (!once) {
     once = true
     onMoney(() => renderMoney())

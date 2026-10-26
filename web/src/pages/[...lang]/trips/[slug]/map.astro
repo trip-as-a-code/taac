@@ -1,6 +1,7 @@
 ---
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
+import Select from '@/components/Select.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { ideaFacts, issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
@@ -99,19 +100,18 @@ const data = { places, routes, items: itemInfo, overlays, areas }
         <span aria-hidden="true" />
       </button>
       <div class="panel-head">
-        <label class="day-select">
-          <span class="visually-hidden">{t('filter.day')}</span>
-          <select data-day-filter>
-            <option value="">{t('filter.allDays')}</option>
-            {trip.days.map((day, index) => (
-              <option value={day.date}>
-                {t('trip.dayN', { n: index + 1 })} ·{' '}
-                {date(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}
-              </option>
-            ))}
-          </select>
-          <Icon name="chevronDown" size={14} />
-        </label>
+        <Select
+          data-day-filter
+          label={t('filter.day')}
+          i18n={i18n}
+          options={[
+            { value: '', label: t('filter.allDays') },
+            ...trip.days.map((day, index) => ({
+              value: day.date,
+              label: `${t('trip.dayN', { n: index + 1 })} · ${date(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`,
+            })),
+          ]}
+        />
         <FilterBar
           i18n={i18n}
           trip={trip}
@@ -242,34 +242,6 @@ const data = { places, routes, items: itemInfo, overlays, areas }
     display: grid;
     gap: var(--space-2);
     padding: var(--space-4) var(--space-4) var(--space-2);
-  }
-
-  .day-select {
-    position: relative;
-    display: block;
-  }
-
-  .day-select select {
-    width: 100%;
-    min-height: 34px;
-    padding: 0 32px 0 12px;
-    border: 0;
-    border-radius: 10px;
-    appearance: none;
-    font: inherit;
-    font-size: 14px;
-    color: var(--label);
-    background: var(--fill);
-    cursor: pointer;
-  }
-
-  .day-select :global(svg) {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-    color: var(--label-secondary);
   }
 
   .panel-title {

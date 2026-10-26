@@ -1,6 +1,7 @@
 ---
 import type { TripExport } from '@taac/core'
 
+import Select from '@/components/Select.astro'
 import type { I18n } from '@/i18n'
 import { rates } from '@/lib/build'
 
@@ -22,16 +23,16 @@ const names = new Intl.DisplayNames(i18n.lang, { type: 'currency' })
 ---
 
 {trip.budget.lines.length > 0 && (
-  <label class="currency" title={i18n.t('currency.label')}>
-    <span class="visually-hidden">{i18n.t('currency.label')}</span>
-    <select data-currency-picker data-currency-default={base}>
-      {all.map((code) => (
-        <option value={code} selected={code === base}>
-          {code} · {names.of(code)}
-        </option>
-      ))}
-    </select>
-  </label>
+  <Select
+    data-currency-picker
+    data-currency-default={base}
+    label={i18n.t('currency.label')}
+    i18n={i18n}
+    variant="pill"
+    class="currency"
+    value={base}
+    options={all.map((code) => ({ value: code, label: `${code} · ${names.of(code)}` }))}
+  />
 )}
 <script type="application/json" id="taac-rates" set:html={JSON.stringify(rates)} />
 <script>
@@ -39,7 +40,7 @@ const names = new Intl.DisplayNames(i18n.lang, { type: 'currency' })
 
   function setup() {
     initMoney()
-    const select = document.querySelector<HTMLSelectElement>('[data-currency-picker]')
+    const select = document.querySelector<HTMLSelectElement>('select[data-currency-picker]')
     if (!select) return
     if (![...select.options].some((o) => o.value === displayCurrency())) {
       select.add(new Option(displayCurrency(), displayCurrency()))
@@ -53,25 +54,7 @@ const names = new Intl.DisplayNames(i18n.lang, { type: 'currency' })
 
 <style>
   .currency {
-    position: relative;
     flex: none;
-  }
-
-  select {
-    min-height: 30px;
     max-width: 9.5em;
-    padding: 0 26px 0 12px;
-    border: 0;
-    border-radius: 999px;
-    appearance: none;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--label);
-    background: var(--fill)
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
-      right 9px center / 12px no-repeat;
-    cursor: pointer;
-    text-overflow: ellipsis;
   }
 </style>

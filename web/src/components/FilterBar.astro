@@ -2,6 +2,7 @@
 import type { TripExport } from '@taac/core'
 
 import Icon, { type IconName } from '@/components/Icon.astro'
+import Select from '@/components/Select.astro'
 import type { I18n } from '@/i18n'
 import { issueGroup, type Facts } from '@/lib/facts'
 import { kindIcon, type CostKind } from '@/lib/trip'
@@ -102,6 +103,9 @@ const id = 'filters-panel'
     <label class="search">
       <Icon name="search" size={16} />
       <input type="search" data-filter-q placeholder={placeholder} aria-label={placeholder} enterkeyhint="search" />
+      <button type="button" class="search-clear" data-filter-q-clear aria-label={t('filter.clearSearch')}>
+        <Icon name="close" size={12} />
+      </button>
     </label>
     <button class="button toggle" type="button" data-filter-toggle aria-expanded="false" aria-controls={id}>
       <Icon name="sliders" size={16} />
@@ -135,17 +139,16 @@ const id = 'filters-panel'
     {facets.includes('place') && placeIds.length > 1 && (
       <section>
         <h3 class="footnote secondary">{t('filter.place')}</h3>
-        <label class="select">
-          <select data-facet="place" aria-label={t('filter.place')}>
-            <option value="">{t('filter.anyPlace')}</option>
-            {placeIds.map((p) => (
-              <option value={p} lang={trip.locale}>
-                {trip.places[p].name}
-              </option>
-            ))}
-          </select>
-          <Icon name="chevronDown" size={14} />
-        </label>
+        <Select
+          data-facet="place"
+          label={t('filter.place')}
+          i18n={i18n}
+          class="place"
+          options={[
+            { value: '', label: t('filter.anyPlace') },
+            ...placeIds.map((p) => ({ value: p, label: trip.places[p].name, lang: trip.locale })),
+          ]}
+        />
       </section>
     )}
   </div>
@@ -199,6 +202,29 @@ const id = 'filters-panel'
 
   .search :global(svg) {
     flex: none;
+  }
+
+  .search-clear {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin-right: -4px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: var(--bg-elevated);
+    background: var(--label-tertiary);
+    cursor: pointer;
+  }
+
+  .search input:placeholder-shown + .search-clear {
+    display: none;
+  }
+
+  .search input::-webkit-search-cancel-button {
+    appearance: none;
   }
 
   .search input {
@@ -296,38 +322,8 @@ const id = 'filters-panel'
   }
 
   /* The longest place name sets a select's width: let it give way. */
-  .select {
-    position: relative;
-    display: flex;
-    min-width: 0;
+  .place {
     max-width: min(100%, 420px);
-  }
-
-  .select select {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-    min-height: 32px;
-    padding: 0 30px 0 12px;
-    border: 0;
-    border-radius: 999px;
-    appearance: none;
-    font: inherit;
-    font-size: 14px;
-    color: var(--label);
-    background: var(--fill);
-    text-overflow: ellipsis;
-  }
-
-  .select :global(svg) {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    translate: 0 -50%;
-    pointer-events: none;
-    color: var(--label-secondary);
   }
 
   .active {
