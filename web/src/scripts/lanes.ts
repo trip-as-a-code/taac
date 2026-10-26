@@ -13,6 +13,8 @@ const WIDE = '(min-width: 980px)'
 
 export function layoutLanes(parties: Record<string, PartyInfo>) {
   const wide = window.matchMedia(WIDE).matches
+  const order = Object.keys(parties)
+  const rank = (party: string) => (order.includes(party) ? order.indexOf(party) : order.length)
   for (const container of document.querySelectorAll<HTMLElement>('[data-lanes]')) {
     reset(container)
     if (!wide) continue
@@ -20,7 +22,10 @@ export function layoutLanes(parties: Record<string, PartyInfo>) {
     const wraps = [...container.querySelectorAll<HTMLElement>(':scope > [data-party]')]
       .filter((wrap) => !wrap.querySelector('[data-item][hidden], [data-presence][hidden]'))
       .sort((a, b) => Number(b.hasAttribute('data-free')) - Number(a.hasAttribute('data-free')))
-    const lanes = [...new Set(wraps.map((w) => w.dataset.party!).filter((p) => p !== 'everyone'))]
+    // Lanes follow the trip's party order, so a group keeps its side every day.
+    const lanes = [...new Set(wraps.map((w) => w.dataset.party!).filter((p) => p !== 'everyone'))].sort(
+      (a, b) => rank(a) - rank(b),
+    )
     if (lanes.length < 2) continue
 
     container.classList.add('laned')
