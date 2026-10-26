@@ -89,7 +89,13 @@ export function useI18n(lang: Locale) {
     return format.formatRange(new Date(`${start}T00:00:00Z`), new Date(`${end}T00:00:00Z`))
   }
 
-  return { lang, t, plural, number, money, date, dateRange, path: (p: string) => localePath(lang, p) }
+  /** A message's plural forms as JSON, for scripts that count on the client. */
+  function forms(key: MessageKey): string {
+    const message = messages[key]
+    return JSON.stringify(typeof message === 'string' ? { other: message } : message)
+  }
+
+  return { lang, t, plural, forms, number, money, date, dateRange, path: (p: string) => localePath(lang, p) }
 }
 
 export type I18n = ReturnType<typeof useI18n>
