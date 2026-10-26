@@ -12,13 +12,16 @@ import { bookable, homeOffset, initials, memberHue } from '@/lib/trip'
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
-const { t, plural, path, number } = i18n
+const { t, plural, forms, path, number, date } = i18n
 const base = `/trips/${trip.slug}`
 const toBook = trip.items
   .filter((i) => i.booking.status === 'required')
   .sort((a, b) => (a.booking.deadline ?? '9999').localeCompare(b.booking.deadline ?? '9999'))
 const needsBooking = bookable(trip)
 const booked = needsBooking.filter((i) => i.booking.status === 'booked').length
+// The soonest booking deadline still open, and how many fall on it.
+const next = toBook.find((i) => i.booking.deadline)?.booking.deadline
+const dueThen = toBook.filter((i) => i.booking.deadline === next).length
 const placeCount = new Set(trip.items.flatMap((i) => i.places)).size
 const currency = trip.currency?.base ?? 'EUR'
 const offset = homeOffset(trip)
@@ -74,12 +77,19 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
   </section>
 
   <section class="stats">
-    <a class="stat card" href={path(`${base}/itinerary/`)}>
-      <Icon name="calendar" size={20} />
-      <span class="value tabular" data-stat="days">
-        {number(trip.days.length)}
+    <a class="stat card" href={path(`${base}/bookings/`)}>
+      <Icon name="clock" size={20} />
+      <span class="value tabular" data-stat="deadline">
+        {next ? date(next, { day: 'numeric', month: 'short' }) : '—'}
       </span>
-      <span class="label footnote secondary">{plural('trip.days', trip.days.length).replace(/^[\d\s ]+/, '')}</span>
+      <span
+        class="label footnote secondary"
+        data-stat="due"
+        data-forms={forms('trip.nextDeadline')}
+        data-none={t('trip.noDeadline')}
+      >
+        {next ? plural('trip.nextDeadline', dueThen) : t('trip.noDeadline')}
+      </span>
     </a>
     <a class="stat card" href={path(`${base}/map/`)}>
       <Icon name="pin" size={20} />
@@ -303,7 +313,12 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     set:html={JSON.stringify({
       currency,
       names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),
-      items: trip.items.map((i) => ({ people: i.members, places: i.places, status: i.booking.status })),
+      items: trip.items.map((i) => ({
+        people: i.members,
+        places: i.places,
+        status: i.booking.status,
+        deadline: i.booking.deadline,
+      })),
       days: trip.days.map((d) => ({
         people: [
           ...new Set([
@@ -328,7 +343,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
   interface OverviewData {
     currency: string
     names: Record<string, string>
-    items: { people: string[]; places: string[]; status: string }[]
+    items: { people: string[]; places: string[]; status: string; deadline?: string }[]
     days: { people: string[] }[]
     budget: BudgetData
   }
@@ -345,7 +360,21 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       if (el) el.textContent = text
     }
     const count = new Intl.NumberFormat(lang)
-    set('days', count.format(data.days.filter((d) => inLens(d.people, lens)).length))
+    const open = items.filter((i) => i.status === 'required' && i.deadline).map((i) => i.deadline!)
+    const next = open.sort()[0]
+    set(
+      'deadline',
+      next
+        ? new Date(`${next}T00:00:00Z`).toLocaleDateString(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' })
+        : '—',
+    )
+    const due = document.querySelector<HTMLElement>('[data-stat="due"]')
+    if (due) {
+      const n = open.filter((d) => d === next).length
+      const forms = JSON.parse(due.dataset.forms!) as Record<string, string>
+      const form = forms[new Intl.PluralRules(lang).select(n)] ?? forms.other
+      due.textContent = next ? form.replace('{n}', count.format(n)) : due.dataset.none!
+    }
     set('places', count.format(new Set(items.flatMap((i) => i.places)).size))
     const bookable = items.filter((i) => i.status === 'booked' || i.status === 'required')
     const booked = bookable.filter((i) => i.status === 'booked').length
@@ -390,6 +419,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     const today = todayUTC()
     const startMs = Date.parse(`${start}T00:00:00Z`)
     const endMs = Date.parse(`${end}T00:00:00Z`)
+    el.dataset.phase = today < startMs ? 'before' : today > endMs ? 'after' : 'during'
     if (today < startMs) {
       el.dataset.relative = start
       el.dataset.template = before
@@ -447,11 +477,16 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     color: var(--label-secondary);
   }
 
+  /* A countdown is news, not an alarm: tinted only once the trip is on. */
   .status {
+    color: var(--label-secondary);
+  }
+
+  .status[data-phase='during'] {
     color: hsl(var(--hue) 70% 42%);
   }
 
-  :global(:root[data-theme='dark']) .status {
+  :global(:root[data-theme='dark']) .status[data-phase='during'] {
     color: hsl(var(--hue) 85% 72%);
   }
 
@@ -497,8 +532,8 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     color: var(--label-tertiary);
   }
 
-  .label {
-    text-transform: capitalize;
+  .label::first-letter {
+    text-transform: uppercase;
   }
 
   .columns {

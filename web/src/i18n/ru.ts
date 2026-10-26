@@ -56,6 +56,13 @@ export const ru: Messages = {
   'trip.viewAll': 'Все',
   'trip.totalBudget': 'Бюджет',
   'trip.booked': 'Забронировано',
+  'trip.nextDeadline': {
+    one: 'Ближайший срок · {n} бронь',
+    few: 'Ближайший срок · {n} брони',
+    many: 'Ближайший срок · {n} броней',
+    other: 'Ближайший срок · {n} брони',
+  },
+  'trip.noDeadline': 'Сроков нет',
 
   'lens.label': 'Люди',
   'lens.everyone': 'Все',
@@ -255,6 +262,7 @@ export const ru: Messages = {
   'ideas.estimate': '≈ {amount}',
   'ideas.none':
     'Идей пока нет. Сюда попадает то, что можно сделать без даты, — раздел `ideas` в файлах поездки. В свободные дни маршрут предложит идеи рядом с тем местом, где вы будете.',
+  'ideas.exampleTitle': 'Вечерний рынок',
   'ideas.count': { one: '{n} идея', few: '{n} идеи', many: '{n} идей', other: '{n} идеи' },
 
   'packing.title': 'Сборы',

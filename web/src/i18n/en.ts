@@ -54,6 +54,8 @@ export const en = {
   'trip.viewAll': 'View all',
   'trip.totalBudget': 'Budget',
   'trip.booked': 'Booked',
+  'trip.nextDeadline': { one: 'Next deadline · {n} booking', other: 'Next deadline · {n} bookings' },
+  'trip.noDeadline': 'No deadlines',
 
   'lens.label': 'People',
   'lens.everyone': 'Everyone',
@@ -248,6 +250,7 @@ export const en = {
   'ideas.estimate': '≈ {amount}',
   'ideas.none':
     'No ideas yet. Things worth doing without a date go here, under `ideas` in the trip files. On a free day the itinerary suggests the ones near where you are.',
+  'ideas.exampleTitle': 'Evening food market',
   'ideas.count': { one: '{n} idea', other: '{n} ideas' },
 
   'packing.title': 'Packing',

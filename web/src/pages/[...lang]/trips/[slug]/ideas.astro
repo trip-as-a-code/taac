@@ -27,6 +27,15 @@ const groups = (ideas: Idea[]) => {
     out.push({ option, ideas: ideas.filter((i) => i.option === option) })
   return out
 }
+// A starting point to copy, set in the first place the trip stays.
+const firstArea = trip.bases[0] ? trip.places[trip.bases[0].place]?.name : undefined
+const example = [
+  'ideas:',
+  `  - title: ${t('ideas.exampleTitle')}`,
+  '    who: [everyone]',
+  ...(firstArea ? [`    area: ${firstArea}`] : []),
+  '    duration: halfDay',
+].join('\n')
 const visits = (area: string) =>
   trip.bases
     .filter((b) => inBase(trip, b, area))
@@ -35,11 +44,14 @@ const visits = (area: string) =>
 ---
 
 <TripLayout trip={trip} lang={lang} section="ideas">
-  <p class="lede secondary">{t('ideas.lede')}</p>
   {trip.ideas.length === 0 ? (
-    <p class="card card-pad secondary" set:html={t('ideas.none').replace(/`([^`]+)`/g, '<code>$1</code>')} />
+    <div class="card card-pad none">
+      <p class="secondary" set:html={t('ideas.none').replace(/`([^`]+)`/g, '<code>$1</code>')} />
+      <pre class="example" lang="en"><code>{example}</code></pre>
+    </div>
   ) : (
     <>
+      <p class="lede secondary">{t('ideas.lede')}</p>
       <div class="toolbar">
         <FilterBar
           i18n={i18n}
@@ -118,6 +130,22 @@ const visits = (area: string) =>
 </script>
 
 <style>
+  .none {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .example {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    background: var(--fill);
+  }
+
   .lede {
     max-width: 60ch;
     margin-bottom: var(--space-5);
