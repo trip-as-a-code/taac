@@ -226,6 +226,7 @@ impl Validator<'_> {
                 );
             }
             self.who(&item.id, item.who.as_deref());
+            self.title_names(&item.id, &item.title);
             if item
                 .booking
                 .as_ref()
@@ -274,6 +275,32 @@ impl Validator<'_> {
                     .is_some_and(|b| b.status == BookingStatus::Booked);
                 self.costs(&item.id, part.costs, &people, booked);
             }
+        }
+    }
+
+    /// A member's name in a title repeats `who`, which every card already shows.
+    fn title_names(&mut self, id: &str, title: &str) {
+        let words: Vec<String> = title
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(str::to_lowercase)
+            .collect();
+        let named: Vec<&str> = self
+            .trip
+            .members
+            .iter()
+            .filter(|m| words.contains(&m.name.to_lowercase()))
+            .map(|m| m.name.as_str())
+            .collect();
+        if !named.is_empty() {
+            self.warn(
+                "title.who",
+                Some(id),
+                format!(
+                    "the title names {}: `who` already shows who it's for, so drop it from the title",
+                    named.join(", ")
+                ),
+            );
         }
     }
 
@@ -416,6 +443,7 @@ impl Validator<'_> {
                 );
             }
             self.who(&idea.id, idea.who.as_deref());
+            self.title_names(&idea.id, &idea.title);
             let participants = trip.who(idea.who.as_deref());
             self.costs(&idea.id, &idea.costs, &participants, false);
         }
@@ -1059,6 +1087,16 @@ ideas:
         assert_eq!(at("split"), ["item.unassigned"], "{d:?}");
         assert_eq!(at("late"), ["item.absent"], "{d:?}");
         assert!(at("fine").is_empty(), "{d:?}");
+    }
+
+    #[test]
+    fn titles_leave_people_to_who() {
+        let d = check(
+            "  - { kind: activity, title: Hotel (b), date: 2027-01-01, who: [b] }
+  - { kind: activity, title: Board games, date: 2027-01-01, who: [b] }",
+        );
+        let codes: Vec<_> = d.iter().map(|x| (x.item.as_deref(), x.code)).collect();
+        assert_eq!(codes, [(Some("hotel-b"), "title.who")], "{d:?}");
     }
 
     #[test]

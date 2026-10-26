@@ -143,6 +143,7 @@ export const ru: Messages = {
   'filter.issue.other': 'Другое',
   'issue.blocker.conflict': 'Пересекается с блокером',
   'issue.item.unassigned': 'Не назначено',
+  'issue.title.who': 'Люди в названии',
   'issue.item.absent': 'Кого-то из участников нет в поездке',
   'issue.item.overlap': 'Пересекается с другим планом',
   'issue.item.unlocated': 'Без места',

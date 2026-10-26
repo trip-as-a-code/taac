@@ -6,7 +6,17 @@ import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { ideaFacts, isLabelled, issuesOf } from '@/lib/facts'
-import { kindIcon, kindTint, markdown, partyEmoji, partyHue, partyLabel, people, statusTone } from '@/lib/trip'
+import {
+  echoesPlace,
+  kindIcon,
+  kindTint,
+  markdown,
+  partyEmoji,
+  partyHue,
+  partyLabel,
+  people,
+  statusTone,
+} from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -62,7 +72,7 @@ const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.som
       <h3 class="headline" lang={trip.locale}>
         {idea.title}
       </h3>
-      {places.length > 0 && (
+      {places.length > 0 && !echoesPlace(idea.title, places) && (
         <p class="subhead secondary place">
           <Icon name="pin" size={14} />
           <span lang={trip.locale}>{places.map((p) => p.name).join(' · ')}</span>
