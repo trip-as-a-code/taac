@@ -136,6 +136,7 @@ export const en = {
   'filter.issue.other': 'Other',
   'issue.blocker.conflict': 'Clashes with a blocker',
   'issue.item.unassigned': 'Not assigned',
+  'issue.title.who': 'Names people in the title',
   'issue.item.absent': 'Someone here isn’t on the trip',
   'issue.item.overlap': 'Overlaps another plan',
   'issue.item.unlocated': 'No place',

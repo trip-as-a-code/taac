@@ -48,6 +48,7 @@ export const ISSUE_CODES = [
   'booking.reference',
   'booking.deadline',
   'cost.estimate',
+  'title.who',
 ] as const
 export type IssueCode = (typeof ISSUE_CODES)[number]
 
@@ -59,7 +60,7 @@ export function isLabelled(code: string): code is IssueCode {
 export type IssueGroup = 'people' | 'clash' | 'booking' | 'place' | 'other'
 
 export function issueGroup(code: string): IssueGroup {
-  if (code.startsWith('who.') || code === 'item.unassigned' || code === 'item.absent') return 'people'
+  if (code.startsWith('who.') || ['item.unassigned', 'item.absent', 'title.who'].includes(code)) return 'people'
   if (code === 'blocker.conflict' || code === 'item.overlap') return 'clash'
   if (code.startsWith('booking.') || code.startsWith('cost.')) return 'booking'
   if (

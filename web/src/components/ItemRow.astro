@@ -9,15 +9,16 @@ import type { I18n } from '@/i18n'
 import { isLabelled, issuesOf, itemFacts } from '@/lib/facts'
 import {
   daysBetween,
+  echoesPlace,
   kindIcon,
   kindTint,
   markdown,
   memberName,
-  statusTone,
   partyEmoji,
   partyHue,
   partyLabel,
   people,
+  statusTone,
 } from '@/lib/trip'
 
 interface Props {
@@ -100,7 +101,7 @@ const offsetLabel =
       <h3 class="headline" lang={trip.locale}>
         {item.title}
       </h3>
-      {places.length > 0 && (
+      {places.length > 0 && !echoesPlace(item.title, places) && (
         <p class="subhead secondary place">
           <Icon name={item.kind === 'flight' || item.kind === 'train' ? 'arrowRight' : 'pin'} size={14} />
           <span>{places.map((p) => p.name).join(' → ')}</span>

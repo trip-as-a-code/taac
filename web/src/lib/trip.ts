@@ -220,3 +220,20 @@ export function anchor(name: string): string {
       .replace(/^-|-$/g, '') || 'x'
   )
 }
+
+const words = (text: string) =>
+  new Set(
+    text
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean),
+  )
+
+/** The title already says every word of the one place's name: no need to repeat it under it. */
+export function echoesPlace(title: string, places: { name: string }[]): boolean {
+  if (places.length !== 1) return false
+  const said = words(title)
+  return [...words(places[0].name)].every((w) => said.has(w))
+}
