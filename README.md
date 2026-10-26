@@ -9,7 +9,7 @@ shared ledger. The YAML is the single source of truth; everything else is genera
 - **Website** — a static Astro site for any number of trips: overview, day-by-day itinerary, map, bookings, budget and
   packing list. English and Russian, dark or light, works offline.
 - **Edge** — a Cloudflare Worker in front of the site: optional site-wide and per-trip passwords, private calendar
-  feeds, live exchange rates, strict security headers.
+  feeds, live exchange rates, shared packing ticks, strict security headers.
 
 Confidential values (booking references, phone numbers) are never written into a trip. A trip names a secret; only a
 local `taac build --reveal` ever resolves it. The website never sees them, password or not.
@@ -104,7 +104,7 @@ ideas: # proposals: anything that could become a plan, never booked or paid yet
     costs: [{ amount: 240, currency: EUR, estimate: true }]
 packing:
   - category: Essentials
-    items: [Passport, { name: Camera, who: [Sam] }]
+    items: [Passport, { name: Camera, who: [Sam] }, { name: T-shirts, qty: 4, bag: suitcase, notes: … }]
 ```
 
 Nothing needs an id. People, groups, places and blockers are referred to by name (case doesn't matter); plans, ideas and
@@ -161,6 +161,9 @@ cargo run -p taac-cli -- schema --out schema           # regenerate the JSON Sch
 4. `wrangler deploy`.
 
 For local testing behind the Worker, put the same secrets in `.dev.vars` and run `wrangler dev`.
+
+With the `PACKING` Durable Object binding (see the example config), packing ticks are shared by everyone on a trip,
+behind the trip's password, and merge after offline edits; without it each device keeps its own.
 
 ## How it fits together
 

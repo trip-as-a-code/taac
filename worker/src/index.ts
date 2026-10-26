@@ -34,12 +34,17 @@ import {
   verifySession,
 } from './auth'
 import { handleFx } from './fx'
+import { packingSlug } from './packing'
 import { robotsTxt, secureResponse } from './headers'
 import { languageRedirect, pageLanguage } from './i18n'
 import { renderLoginPage, renderTooManyAttempts, type Theme } from './login-page'
 
+export { PackingState } from './packing-state'
+
 export interface Env {
   ASSETS: Fetcher
+  /** Optional: shared packing ticks; without it ticks stay on each device. */
+  PACKING?: DurableObjectNamespace
   SESSION_SECRET?: string
   LOGIN_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> }
   NOINDEX?: string
@@ -245,6 +250,16 @@ async function route(
 
   const underProtection = scopes.length > 0
   if (path === '/api/fx') return { response: await handleFx(url, ctx), underProtection }
+  // Behind the trip's password like its pages: only travellers read or tick.
+  const packing = packingSlug(path)
+  if (packing) {
+    if (!env.PACKING || !manifest.slugs.includes(packing))
+      return { response: text('Not found\n', 404), underProtection }
+    if (request.method !== 'GET' && request.method !== 'POST')
+      return { response: text('Method not allowed\n', 405), underProtection }
+    const stub = env.PACKING.get(env.PACKING.idFromName(packing))
+    return { response: await stub.fetch(request), underProtection }
+  }
 
   let response = await env.ASSETS.fetch(request)
   if (underProtection && response.headers.get('Content-Type')?.includes('text/html')) {

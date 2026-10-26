@@ -3,7 +3,7 @@ import Debts from '@/components/Debts.astro'
 import Money from '@/components/Money.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { memberName, partyEmoji, partyLabel, people } from '@/lib/trip'
+import { initials, memberHue, memberName, partyEmoji, partyLabel, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -31,11 +31,11 @@ const whose = (members: string[]) => {
       data-packing={trip.slug}
       data-template={t('packing.progress')}
       data-whose={t('packing.whose')}
+      data-all={t('packing.all')}
       data-names={JSON.stringify(Object.fromEntries(trip.members.map((m) => [m.id, m.name])))}
+      data-packed={t('packing.packedBy')}
+      data-unpacked={t('packing.notPackedBy')}
     >
-      <p class="pick card card-pad subhead" data-packing-pick>
-        {t('packing.pickPerson')}
-      </p>
       <section class="head" data-packing-head>
         <div class="progress">
           <span class="footnote secondary whose" data-packing-whose />
@@ -58,35 +58,72 @@ const whose = (members: string[]) => {
             </h2>
             <ul class="card list">
               {category.items.map((item) => (
-                <li id={`packing-${item.id}`} data-item data-people={people(item.members)} data-status="">
-                  <label class="row check">
-                    <input type="checkbox" data-packing-item={item.id} />
-                    <span class="box" aria-hidden="true" />
-                    <span class="text">
-                      <span class="subhead" lang={trip.locale}>
-                        {item.name}
-                      </span>
-                      {item.members.length < everyone && (
-                        <span
-                          class="footnote secondary"
-                          title={item.members.map((m) => memberName(trip, m)).join(', ')}
-                        >
-                          {whose(item.members)}
+                <li
+                  id={`packing-${item.id}`}
+                  data-item
+                  data-people={people(item.members)}
+                  data-status=""
+                  data-packing-row={item.id}
+                  data-packers={item.members.join(' ')}
+                >
+                  <div class="row check">
+                    <label class="tick">
+                      <input type="checkbox" data-packing-item={item.id} />
+                      <span class="box" aria-hidden="true" />
+                      <span class="text">
+                        <span class="subhead" lang={trip.locale}>
+                          {item.name}
+                          {item.qty && item.qty > 1 && <span class="qty tabular"> ×{item.qty}</span>}
                         </span>
-                      )}
-                      {costs.has(item.id) && (
-                        <span class="footnote secondary price">
-                          {costs.get(item.id)!.map((line) => (
-                            <Money amount={line.amount} currency={line.currency} charged={line.charged} lang={lang} />
-                          ))}
-                          <span class:list={['buy', { bought: item.bought }]}>
-                            {item.bought ? t('packing.bought') : t('packing.toBuy')}
+                        {(item.bag || item.members.length < everyone) && (
+                          <span class="footnote secondary meta">
+                            {item.bag && (
+                              <span class="bag" lang={trip.locale}>
+                                {item.bag}
+                              </span>
+                            )}
+                            {item.members.length < everyone && (
+                              <span title={item.members.map((m) => memberName(trip, m)).join(', ')}>
+                                {whose(item.members)}
+                              </span>
+                            )}
                           </span>
-                        </span>
-                      )}
-                      <Debts trip={trip} id={item.id} i18n={i18n} />
-                    </span>
-                  </label>
+                        )}
+                        {item.notes && (
+                          <span class="footnote secondary" lang={trip.locale}>
+                            {item.notes}
+                          </span>
+                        )}
+                        {costs.has(item.id) && (
+                          <span class="footnote secondary price">
+                            {costs.get(item.id)!.map((line) => (
+                              <Money amount={line.amount} currency={line.currency} charged={line.charged} lang={lang} />
+                            ))}
+                            <span class:list={['buy', { bought: item.bought }]}>
+                              {item.bought ? t('packing.bought') : t('packing.toBuy')}
+                            </span>
+                          </span>
+                        )}
+                        <Debts trip={trip} id={item.id} i18n={i18n} />
+                      </span>
+                    </label>
+                    {/* Shared things: who has packed it, and a tap to tick for anyone. */}
+                    {item.members.length > 1 && (
+                      <div class="packers">
+                        {item.members.map((m) => (
+                          <button
+                            type="button"
+                            class="packer"
+                            data-packer={m}
+                            aria-pressed="false"
+                            style={`--hue:${memberHue(m)}`}
+                          >
+                            {initials(trip.members.find((x) => x.id === m)!)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -96,7 +133,14 @@ const whose = (members: string[]) => {
       <p class="empty secondary" data-filter-empty hidden>
         {t('packing.none')}
       </p>
-      <p class="footnote tertiary hint">{t('packing.hint')}</p>
+      <p
+        class="footnote tertiary hint"
+        data-packing-hint
+        data-shared={t('packing.shared')}
+        data-local={t('packing.hint')}
+      >
+        {t('packing.hint')}
+      </p>
     </div>
   )}
 </TripLayout>
@@ -105,69 +149,103 @@ const whose = (members: string[]) => {
   import { onPage } from '@/scripts/page'
   import { revealTarget, setupFilters } from '@/scripts/filters'
   import { getLens } from '@/scripts/lens'
+  import { PackingStore } from '@/scripts/packing'
+
+  let stop: (() => void) | undefined
 
   /**
-   * Everyone ticks their own list (on this device): with one person in the
-   * lens their boxes are live, otherwise the list is read-only.
+   * One shared list. With one person in the lens the boxes tick their
+   * things; otherwise a box ticks the only packer, and shared things tick per
+   * person on their avatars.
    */
   function setup() {
+    stop?.()
     const root = document.querySelector<HTMLElement>('[data-packing]')
     if (!root) return
     const names = JSON.parse(root.dataset.names ?? '{}') as Record<string, string>
-    const boxes = [...root.querySelectorAll<HTMLInputElement>('[data-packing-item]')]
-    let person: string | undefined
-    let checked: Record<string, boolean> = {}
-    const key = () => `taac:packing:${root.dataset.packing}:${person}`
-    const load = () => {
-      try {
-        checked = person ? (JSON.parse(localStorage.getItem(key()) ?? '{}') as Record<string, boolean>) : {}
-      } catch {
-        checked = {}
-      }
+    const rows = [...root.querySelectorAll<HTMLElement>('[data-packing-row]')]
+    const packersOf = (row: HTMLElement) => row.dataset.packers!.split(' ')
+    const store = new PackingStore(root.dataset.packing!, () => render())
+    const person = () => {
+      const people = getLens().people
+      return people.length === 1 ? people[0] : undefined
     }
-    const save = () => {
-      try {
-        if (person) localStorage.setItem(key(), JSON.stringify(checked))
-      } catch {
-        // Ticks are a convenience; losing them is fine.
-      }
+    // Whose tick a row's box is: the selected person's, or the only packer's.
+    const owner = (row: HTMLElement) => {
+      const packers = packersOf(row)
+      const one = person()
+      return one ? (packers.includes(one) ? one : undefined) : packers.length === 1 ? packers[0] : undefined
     }
-    const render = () => {
-      const one = getLens().people.length === 1 ? getLens().people[0] : undefined
-      if (one !== person) {
-        person = one
-        load()
+
+    function render() {
+      const one = person()
+      let done = 0
+      let total = 0
+      for (const row of rows) {
+        const id = row.dataset.packingRow!
+        const packers = packersOf(row)
+        const box = row.querySelector<HTMLInputElement>('[data-packing-item]')!
+        const who = owner(row)
+        box.disabled = !who
+        box.checked = who ? store.packed(id, who) : packers.every((m) => store.packed(id, m))
+        for (const button of row.querySelectorAll<HTMLButtonElement>('[data-packer]')) {
+          const m = button.dataset.packer!
+          const packed = store.packed(id, m)
+          button.setAttribute('aria-pressed', String(packed))
+          button.setAttribute(
+            'aria-label',
+            (packed ? root!.dataset.packed! : root!.dataset.unpacked!).replace('{name}', names[m] ?? m),
+          )
+        }
+        if (row.hidden) continue
+        const counted = one ? packers.filter((m) => m === one) : packers
+        total += counted.length
+        done += counted.filter((m) => store.packed(id, m)).length
       }
-      root.querySelector<HTMLElement>('[data-packing-pick]')!.hidden = Boolean(person)
-      root.querySelector<HTMLElement>('[data-packing-head]')!.hidden = !person
-      root.querySelector('[data-packing-whose]')!.textContent = person
-        ? root.dataset.whose!.replace('{name}', names[person] ?? person)
-        : ''
-      for (const box of boxes) {
-        box.disabled = !person
-        box.checked = Boolean(person && checked[box.dataset.packingItem!])
-      }
-      const visible = boxes.filter((b) => !b.closest<HTMLElement>('[data-item]')!.hidden)
-      const done = visible.filter((b) => b.checked).length
-      root.querySelector('[data-packing-count]')!.textContent = root.dataset
+      root!.querySelector('[data-packing-whose]')!.textContent = one
+        ? root!.dataset.whose!.replace('{name}', names[one] ?? one)
+        : root!.dataset.all!
+      root!.querySelector('[data-packing-count]')!.textContent = root!.dataset
         .template!.replace('{done}', String(done))
-        .replace('{total}', String(visible.length))
-      root.querySelector<HTMLElement>('[data-packing-bar]')!.style.width =
-        `${visible.length ? (done / visible.length) * 100 : 0}%`
+        .replace('{total}', String(total))
+      root!.querySelector<HTMLElement>('[data-packing-bar]')!.style.width = `${total ? (done / total) * 100 : 0}%`
+      root!.querySelector<HTMLElement>('[data-packing-reset]')!.hidden = !one
+      const hint = root!.querySelector<HTMLElement>('[data-packing-hint]')!
+      hint.textContent = store.shared ? hint.dataset.shared! : hint.dataset.local!
     }
-    for (const box of boxes) {
-      box.addEventListener('change', () => {
-        checked[box.dataset.packingItem!] = box.checked
-        save()
-        render()
+
+    for (const row of rows) {
+      const id = row.dataset.packingRow!
+      row.querySelector<HTMLInputElement>('[data-packing-item]')!.addEventListener('change', (event) => {
+        const who = owner(row)
+        if (who) store.set(id, who, (event.target as HTMLInputElement).checked)
       })
+      for (const button of row.querySelectorAll<HTMLButtonElement>('[data-packer]')) {
+        button.addEventListener('click', () =>
+          store.set(id, button.dataset.packer!, !store.packed(id, button.dataset.packer!)),
+        )
+      }
     }
     root.querySelector('[data-packing-reset]')?.addEventListener('click', () => {
-      checked = {}
-      save()
-      render()
+      const one = person()
+      if (!one) return
+      for (const row of rows)
+        if (store.packed(row.dataset.packingRow!, one)) store.set(row.dataset.packingRow!, one, false)
     })
+    // Others tick too: catch up when the page comes back into view or online.
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void store.sync()
+    }
+    document.addEventListener('visibilitychange', refresh)
+    addEventListener('online', refresh)
+    const timer = setInterval(refresh, 30_000)
+    stop = () => {
+      document.removeEventListener('visibilitychange', refresh)
+      removeEventListener('online', refresh)
+      clearInterval(timer)
+    }
     setupFilters(render)
+    void store.sync()
     revealTarget()
   }
 
@@ -182,17 +260,65 @@ const whose = (members: string[]) => {
     gap: var(--space-4);
   }
 
-  .pick {
-    margin-bottom: var(--space-5);
-    color: var(--label-secondary);
-  }
-
   .whose {
     font-weight: 600;
   }
 
-  .check:has(input:disabled) {
+  .tick {
+    display: flex;
+    flex: 1;
+    align-items: flex-start;
+    gap: var(--space-3);
+    min-width: 0;
+    cursor: pointer;
+  }
+
+  .tick:has(input:disabled) {
     cursor: default;
+  }
+
+  .qty {
+    color: var(--label-secondary);
+    font-weight: 600;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+
+  .bag {
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--fill);
+  }
+
+  .packers {
+    display: flex;
+    flex: none;
+    gap: 4px;
+  }
+
+  .packer {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1.5px dashed var(--separator-strong);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--label-tertiary);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .packer[aria-pressed='true'] {
+    border: 1.5px solid transparent;
+    color: white;
+    background: hsl(var(--hue) 55% 48%);
   }
 
   .check input:disabled + .box {
@@ -245,7 +371,6 @@ const whose = (members: string[]) => {
 
   .check {
     position: relative;
-    cursor: pointer;
     align-items: flex-start;
   }
 

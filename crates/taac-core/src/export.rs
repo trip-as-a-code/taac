@@ -344,6 +344,12 @@ pub struct PackingItemExport {
     pub members: Vec<String>,
     /// Its costs are budget lines with `item` = this id.
     pub bought: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qty: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -610,6 +616,9 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                             .map(str::to_owned)
                             .collect(),
                         bought: item.bought(),
+                        qty: item.details().0,
+                        bag: item.details().1.map(str::to_owned),
+                        notes: item.details().2.map(str::to_owned),
                     })
                     .collect(),
             })

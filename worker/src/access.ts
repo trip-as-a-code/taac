@@ -11,6 +11,8 @@ export interface AccessManifest {
   title: Text
   site: { secret: string } | null
   trips: Record<string, { secret: string; title: string }>
+  /** Every trip on the site. */
+  slugs: string[]
   locales: string[]
   defaultLocale: string
 }
@@ -21,6 +23,7 @@ export const EMPTY_MANIFEST: AccessManifest = {
   title: 'taac',
   site: null,
   trips: {},
+  slugs: [],
   locales: ['en'],
   defaultLocale: 'en',
 }
@@ -49,6 +52,7 @@ export function normalise(raw: unknown): AccessManifest {
     title: isText(value.title) ? value.title : EMPTY_MANIFEST.title,
     site: value.site && typeof value.site.secret === 'string' ? { secret: value.site.secret } : null,
     trips: value.trips && typeof value.trips === 'object' ? value.trips : {},
+    slugs: Array.isArray(value.slugs) ? value.slugs.filter((s): s is string => typeof s === 'string') : [],
     locales,
     defaultLocale: typeof value.defaultLocale === 'string' ? value.defaultLocale : (locales[0] ?? 'en'),
   }
