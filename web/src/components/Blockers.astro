@@ -2,16 +2,26 @@
 import type { DayBlocker, TripExport } from '@taac/core'
 
 import type { I18n } from '@/i18n'
+import { offsetOn, shiftTime, tripOffset } from '@/lib/presence'
 import { people } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
   i18n: I18n
   blockers: DayBlocker[]
+  date: string
 }
 
-const { trip, i18n, blockers } = Astro.props
+const { trip, i18n, blockers, date } = Astro.props
 const { t } = i18n
+// Hours in the zone the people are in that day (home again, say), not the trip's.
+const home = tripOffset(trip, date)
+const local = (b: DayBlocker) => {
+  const offset = offsetOn(trip, b.members[0] ?? '', date)
+  return !offset || offset === home
+    ? { start: b.start, end: b.end }
+    : { start: shiftTime(b.start, home, offset), end: shiftTime(b.end, home, offset), offset }
+}
 ---
 
 {blockers.length > 0 && (
@@ -31,8 +41,9 @@ const { t } = i18n
           <span aria-hidden="true">⛔</span>
           <span class="blocker-title chip-text">{blocker.title}</span>
           <span class="tabular">
-            {b.wholeDay ? t('blocker.allDay') : t('blocker.window', { start: b.start, end: b.end })}
+            {b.wholeDay ? t('blocker.allDay') : t('blocker.window', { start: local(b).start, end: local(b).end })}
           </span>
+          {!b.wholeDay && local(b).offset && <span class="secondary tabular">UTC{local(b).offset}</span>}
           <span class="secondary chip-text">· {who}</span>
         </li>
       )

@@ -167,15 +167,9 @@ const bed = (s: Presence) => {
     display: none;
   }
 
-  /* Split groups share the row like the lanes below; one alone stays compact. */
-  .where:only-child {
-    max-width: 440px;
-  }
-
   .named .where {
     flex-wrap: wrap;
     row-gap: 4px;
-    max-width: none;
   }
 
   /* As a section heading: who first, on a line of their own. */
