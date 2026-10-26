@@ -7,6 +7,8 @@ import type { I18n } from '@/i18n'
 export interface Option {
   value: string
   label: string
+  /** What the closed control shows, when the label is too long for it. */
+  short?: string
   lang?: string
 }
 
@@ -37,7 +39,7 @@ const current = options.find((o) => o.value === value) ?? options[0]
 >
   <select aria-label={label} {...attrs}>
     {options.map((o) => (
-      <option value={o.value} lang={o.lang} selected={o.value === current?.value}>
+      <option value={o.value} lang={o.lang} data-short={o.short} selected={o.value === current?.value}>
         {o.label}
       </option>
     ))}

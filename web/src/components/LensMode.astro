@@ -1,0 +1,70 @@
+---
+import type { I18n } from '@/i18n'
+
+interface Props {
+  i18n: I18n
+}
+
+const { t } = Astro.props.i18n
+---
+
+<!-- With two or more people picked: their plans, or only the shared ones. PeopleLens drives it. -->
+<div class="lens-mode" data-lens-mode hidden>
+  <div class="segmented" role="group" aria-label={t('lens.label')}>
+    <button type="button" data-value="any" aria-pressed="true">
+      {t('lens.any')}
+    </button>
+    <button type="button" data-value="together" aria-pressed="false">
+      {t('lens.together')}
+    </button>
+  </div>
+  <span
+    class="footnote secondary hint"
+    data-hint-any={t('lens.anyHint')}
+    data-hint-together={t('lens.togetherHint')}
+  ></span>
+</div>
+
+<script>
+  import { getLens, onLens } from '@/scripts/lens'
+
+  // The hint under the switch says what the chosen mode shows.
+  function hint() {
+    const el = document.querySelector<HTMLElement>('[data-lens-mode] .hint')
+    if (el) el.textContent = getLens().mode === 'together' ? el.dataset.hintTogether! : el.dataset.hintAny!
+  }
+  document.addEventListener('astro:page-load', () => {
+    hint()
+    onLens(hint)
+  })
+</script>
+
+<style>
+  .lens-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px var(--space-3);
+    flex-basis: 100%;
+  }
+
+  .lens-mode[hidden] {
+    display: none;
+  }
+
+  .segmented button {
+    min-height: 30px;
+    padding-inline: 14px;
+    font-size: 13px;
+  }
+
+  /* Phones: the switch spans the width, each half an easy target. */
+  @media (max-width: 760px) {
+    .segmented {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      width: 100%;
+    }
+  }
+</style>

@@ -80,7 +80,9 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
     <a class="skip-link" href="#main">
       {lang === 'ru' ? 'Перейти к содержимому' : 'Skip to content'}
     </a>
-    <NavBar lang={lang} title={navTitle} back={back} />
+    <NavBar lang={lang} title={navTitle} back={back}>
+      <slot name="nav" slot="tools" />
+    </NavBar>
     <main id="main" class:list={{ wide }}>
       <slot />
     </main>

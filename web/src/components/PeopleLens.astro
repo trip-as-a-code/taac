@@ -57,14 +57,6 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
         </button>
       )}
     </div>
-    <div class="segmented mode" role="group" data-lens-mode hidden>
-      <button type="button" data-value="any" aria-pressed="true" title={t('lens.anyHint')}>
-        {t('lens.any')}
-      </button>
-      <button type="button" data-value="together" aria-pressed="false" title={t('lens.togetherHint')}>
-        {t('lens.together')}
-      </button>
-    </div>
   </div>
 )}
 
@@ -87,11 +79,17 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
         const members = b.dataset.lensGroup!.split(' ')
         b.setAttribute('aria-pressed', String(members.length === set.size && members.every((m) => set.has(m))))
       }
-      const mode = root.querySelector<HTMLElement>('[data-lens-mode]')!
+      // Outside the scrolling row (LensMode), so it never hides off-screen.
+      const mode = document.querySelector<HTMLElement>('[data-lens-mode]')
+      if (!mode) return
       mode.hidden = set.size < 2
       for (const b of mode.querySelectorAll<HTMLElement>('button'))
         b.setAttribute('aria-pressed', String(b.dataset.value === lens.mode))
     }
+    document.querySelector('[data-lens-mode]')?.addEventListener('click', (event) => {
+      const value = (event.target as Element).closest<HTMLElement>('button')?.dataset.value
+      if (value) setLens({ mode: value as Lens['mode'] })
+    })
     root.addEventListener('click', (event) => {
       const button = (event.target as Element).closest<HTMLElement>('button')
       if (!button) return
@@ -107,7 +105,7 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
       } else if (button.dataset.lensGroup) {
         // A group is a shortcut: select exactly its members, together.
         setLens({ people: button.dataset.lensGroup.split(' '), mode: 'together', unassigned: false })
-      } else if (button.dataset.value) setLens({ mode: button.dataset.value as Lens['mode'] })
+      }
     })
     off = onLens(render)
     render(getLens())
@@ -202,10 +200,6 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
     background: var(--tint);
   }
 
-  .mode button {
-    font-size: 12px;
-  }
-
   /* Phones: one swipeable line with the currency switch (TripLayout scrolls it). */
   @media (max-width: 760px) {
     /* Inside the row that scrolls, take the full width of the chips rather
@@ -218,10 +212,6 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
     .people {
       flex: none;
       overflow: visible;
-    }
-
-    .mode {
-      flex: none;
     }
   }
 </style>
