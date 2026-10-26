@@ -155,7 +155,9 @@ cargo run -p taac-cli -- schema --out schema           # regenerate the JSON Sch
 
 1. Copy [`wrangler.example.jsonc`](wrangler.example.jsonc) to `wrangler.jsonc` next to your `site.yaml`, adjust the
    name, paths and (optionally) your custom domain.
-2. Build: `TAAC_SITE=$PWD/site.yaml task web:build`.
+2. Build: `TAAC_SITE=$PWD/site.yaml task web:build`. Build from a git checkout with history (in CI,
+   `fetch-depth: 0`): the overview's "Recent changes" and the "changed since your last visit" dots replay the last 30
+   commits that touched each trip.
 3. If the site uses `access`, set the secrets once:
    `wrangler secret put SESSION_SECRET` (`openssl rand -hex 32`) and one per password named in `site.yaml`.
 4. `wrangler deploy`.

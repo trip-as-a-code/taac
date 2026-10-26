@@ -6,10 +6,14 @@ import { exportSite, type Diagnostic, type Rates, type SiteExport } from '@taac/
 import type { AstroIntegration } from 'astro'
 import type { Plugin, ViteDevServer } from 'vite'
 
+import { tripChanges } from './history'
+
 const VIRTUAL = 'virtual:taac/site'
 const RESOLVED = '\0' + VIRTUAL
 const RATES = 'virtual:taac/rates'
 const RATES_RESOLVED = '\0' + RATES
+const CHANGES = 'virtual:taac/changes'
+const CHANGES_RESOLVED = '\0' + CHANGES
 
 /**
  * ECB reference rates at build time: the fallback until the page fetches
@@ -58,6 +62,7 @@ function load(): { site: SiteExport; paths: string[] } {
 function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
   let server: ViteDevServer | undefined
   let rates: Promise<Rates | null> | undefined
+  let changes: ReturnType<typeof tripChanges> | undefined
   let watched = new Set<string>()
   return {
     name: 'taac-data',
@@ -76,12 +81,18 @@ function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
     resolveId(id) {
       if (id === VIRTUAL) return RESOLVED
       if (id === RATES) return RATES_RESOLVED
+      if (id === CHANGES) return CHANGES_RESOLVED
       return undefined
     },
     async load(id) {
       if (id === RATES_RESOLVED) {
         rates ??= fetchRates()
         return `export default ${JSON.stringify(await rates)}`
+      }
+      if (id === CHANGES_RESOLVED) {
+        // Replays git history once per build (and once per dev server).
+        changes ??= tripChanges(sitePath(), load().site)
+        return `export default ${JSON.stringify(changes)}`
       }
       if (id !== RESOLVED) return
       const { site, paths } = load()

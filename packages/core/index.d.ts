@@ -14,5 +14,9 @@ export type ExportResult =
 
 export function collectFiles(inputPath: string): CollectedFiles
 export function exportSite(inputPath: string): ExportResult
+export function exportFiles(
+  files: Record<string, string>,
+  key: string,
+): { ok: true; export: SiteExport } | { ok: false; diagnostics: Diagnostic[] }
 export function validate(inputPath: string): Diagnostic[]
 export function version(): string

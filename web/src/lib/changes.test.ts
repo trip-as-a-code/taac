@@ -1,0 +1,60 @@
+import type { Item, TripExport } from '@taac/core'
+import { describe, expect, it } from 'vitest'
+
+import { diffTrips } from './changes'
+
+const item = (id: string, over: Partial<Item> = {}): Item =>
+  ({
+    id,
+    title: id,
+    kind: 'activity',
+    local: { date: '2026-12-20', time: '10:00' },
+    booking: { status: 'none' },
+    costs: [],
+    members: ['a'],
+    ...over,
+  }) as Item
+
+const trip = (items: Item[], ideas: { id: string; title: string }[] = []) => ({ items, ideas }) as unknown as TripExport
+
+describe('diffTrips', () => {
+  it('names what was added, removed and changed', () => {
+    const before = trip([
+      item('temple'),
+      item('flight', { booking: { status: 'required' } as Item['booking'] }),
+      item('old'),
+    ])
+    const after = trip([
+      item('temple', { local: { date: '2026-12-21', time: '09:00' } }),
+      item('flight', {
+        booking: { status: 'booked' } as Item['booking'],
+        costs: [{ amount: 300, currency: 'EUR' }] as Item['costs'],
+      }),
+      item('new', { kind: 'meal', local: { date: '2026-12-25' } }),
+    ])
+    expect(diffTrips(before, after)).toEqual([
+      { kind: 'moved', id: 'temple', title: 'temple', from: '2026-12-20 10:00', to: '2026-12-21 09:00' },
+      { kind: 'booked', id: 'flight', title: 'flight' },
+      { kind: 'price', id: 'flight', title: 'flight', from: '', to: '300 EUR' },
+      { kind: 'added', id: 'new', title: 'new' },
+      { kind: 'removed', id: 'old', title: 'old' },
+    ])
+  })
+
+  it('reads a new title on the same day as a rename', () => {
+    const events = diffTrips(trip([item('hotel-robin')]), trip([item('hotel')]))
+    expect(events).toEqual([{ kind: 'renamed', id: 'hotel', title: 'hotel', from: 'hotel-robin', to: 'hotel' }])
+  })
+
+  it('tracks ideas and who', () => {
+    const events = diffTrips(
+      trip([item('walk')], [{ id: 'market', title: 'Market' }]),
+      trip([item('walk', { members: ['a', 'b'] })], [{ id: 'fado', title: 'Fado' }]),
+    )
+    expect(events.map((e) => [e.kind, e.id])).toEqual([
+      ['who', 'walk'],
+      ['ideaAdded', 'fado'],
+      ['ideaRemoved', 'market'],
+    ])
+  })
+})
