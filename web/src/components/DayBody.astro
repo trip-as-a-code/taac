@@ -27,6 +27,7 @@ const items = itemById(trip)
 const bases = baseById(trip)
 const plans = day.items.map((id) => items.get(id)!)
 const within = (inner: string[], outer: string[]) => inner.every((m) => outer.includes(m))
+const same = (a: string[], b: string[]) => a.length === b.length && within(a, b)
 const rank = (party: string) => {
   const i = trip.parties.findIndex((p) => p.id === party)
   return i < 0 ? trip.parties.length : i
@@ -35,14 +36,25 @@ const rank = (party: string) => {
 // When the travellers go separate ways, each group gets its own section,
 // headed by who they are (and where, when they're in different places): the
 // heading says whose it is, so nothing depends on reading colours. Groups are
-// the bases when people are in different places, else the groups the plans
-// are for when they don't overlap.
+// the bases when people are in different places; else, as soon as one plan is
+// for only some of the people there, the groups those plans are for plus
+// everyone else (whose free day it may be).
 interface Group {
   party: string
   members: string[]
+  /** Their own base, when the group is in a place of its own. */
   base?: Presence
+  /** Their share of a base they have in common with others. */
+  open?: Presence
 }
 const baseSplit = !trip.basesDerived && new Set(day.bases.map((b) => b.party)).size > 1
+const partyOf = (members: string[]) => trip.parties.find((p) => same(p.members, members))?.id ?? members.join('+')
+// Who is here: from the bases, or (a travel day without one) from the plans and blockers.
+const present = [
+  ...new Set(
+    day.bases.length ? day.bases.flatMap((b) => b.members) : [...plans, ...day.blockers].flatMap((x) => x.members),
+  ),
+]
 let groups: Group[] = []
 if (baseSplit) groups = day.bases.map((b) => ({ party: b.party, members: b.members, base: b }))
 else {
@@ -53,7 +65,12 @@ else {
   const disjoint = parties.every((a, i) =>
     parties.slice(i + 1).every((b) => !a.members.some((m) => b.members.includes(m))),
   )
-  if (parties.length > 1 && disjoint) groups = parties
+  const rest = present.filter((m) => !parties.some((p) => p.members.includes(m)))
+  const all = rest.length ? [...parties, { party: partyOf(rest), members: rest }] : parties
+  if (all.length > 1 && disjoint) {
+    const shared = !trip.basesDerived && day.bases.length === 1 ? day.bases[0] : undefined
+    groups = all.map((g) => ({ ...g, open: shared && { id: shared.id, members: g.members, party: g.party } }))
+  }
 }
 groups.sort((a, b) => rank(a.party) - rank(b.party))
 const groupOf = (members: string[]) => groups.find((g) => within(members, g.members))
@@ -62,8 +79,6 @@ const shared = <T extends { members: string[] }>(list: T[]) => list.filter((x) =
 const label = (party: string) =>
   `${partyEmoji(trip, party) ?? ''} ${partyLabel(trip, party, t('lens.everyone'), t('party.and'))}`.trim()
 const whoIn = (ids: string[]) => trip.members.filter((m) => ids.includes(m.id))
-// A plan for exactly its group needn't say whose it is.
-const same = (a: string[], b: string[]) => a.length === b.length && within(a, b)
 const parts = trip.basesDerived ? [] : day.bases
 ---
 
@@ -74,7 +89,14 @@ const parts = trip.basesDerived ? [] : day.bases
   <div class="card list">
     {shared(plans).map((item) => (
       <div class="row-wrap">
-        <ItemRow trip={trip} item={item} i18n={i18n} homeOffset={homeOffset} />
+        {/* For exactly who is here (the rest have gone home): no need to say whose. */}
+        <ItemRow
+          trip={trip}
+          item={item}
+          i18n={i18n}
+          homeOffset={homeOffset}
+          grouped={item.party !== 'everyone' && present.length > 0 && same(item.members, present)}
+        />
       </div>
     ))}
   </div>
@@ -130,12 +152,12 @@ const parts = trip.basesDerived ? [] : day.bases
             ))}
           </div>
         )}
-        {g.base && (
+        {(g.base ?? g.open) && (
           <OpenDay
             trip={trip}
             i18n={i18n}
-            part={g.base}
-            base={bases.get(g.base.id)!}
+            part={(g.base ?? g.open)!}
+            base={bases.get((g.base ?? g.open)!.id)!}
             free={mine(plans, g).length === 0}
           />
         )}
