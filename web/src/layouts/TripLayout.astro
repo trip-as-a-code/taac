@@ -6,6 +6,7 @@ import CurrencyPicker from '@/components/CurrencyPicker.astro'
 import PeopleLens from '@/components/PeopleLens.astro'
 import { useI18n, type Locale } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
+import { changes } from '@/lib/build'
 import { tripHue } from '@/lib/trip'
 
 export type Section = 'overview' | 'itinerary' | 'ideas' | 'map' | 'bookings' | 'packing' | 'budget'
@@ -36,6 +37,10 @@ const sections: { id: Section; icon: IconName; href: string }[] = [
   { id: 'budget', icon: 'budget', href: path(`${base}/budget/`) },
 ]
 const current = t(`nav.${section}`)
+// When each plan or idea last changed, for the "since your last visit" dots.
+const changedAt: Record<string, string> = {}
+for (const set of (changes[trip.slug] ?? []).toReversed())
+  for (const e of set.events) if (e.kind !== 'removed' && e.kind !== 'ideaRemoved') changedAt[e.id] = set.date
 ---
 
 <BaseLayout
@@ -83,8 +88,34 @@ const current = t(`nav.${section}`)
     <div class:list={[bare ? 'bare' : 'container content']}>
       <slot />
     </div>
+    <script
+      type="application/json"
+      data-changed-at={trip.slug}
+      data-label={t('changes.since')}
+      set:html={JSON.stringify(changedAt)}
+    />
   </div>
 </BaseLayout>
+
+<script>
+  import { sinceLastVisit } from '@/scripts/seen'
+
+  // A dot on every plan and idea that changed since this browser's last visit.
+  document.addEventListener('astro:page-load', () => {
+    const data = document.querySelector<HTMLElement>('[data-changed-at]')
+    if (!data) return
+    const since = sinceLastVisit(data.dataset.changedAt!)
+    if (!since) return
+    const at = JSON.parse(data.textContent ?? '{}') as Record<string, string>
+    for (const [id, when] of Object.entries(at)) {
+      if (when <= since) continue
+      for (const el of document.querySelectorAll<HTMLElement>(`#item-${CSS.escape(id)}, #idea-${CSS.escape(id)}`)) {
+        el.dataset.changed = ''
+        el.querySelector('h3')?.setAttribute('data-tip', data.dataset.label!)
+      }
+    }
+  })
+</script>
 
 <style>
   .trip-header {

@@ -1,5 +1,6 @@
 ---
 import Avatars from '@/components/Avatars.astro'
+import Changes from '@/components/Changes.astro'
 import Icon, { type IconName } from '@/components/Icon.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import ProgressRing from '@/components/ProgressRing.astro'
@@ -230,6 +231,8 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       )}
     </section>
   )}
+
+  <Changes trip={trip} i18n={i18n} />
 
   {trip.bases.length > 0 && (
     <section class="section">

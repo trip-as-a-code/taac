@@ -67,6 +67,12 @@ export function exportSite(inputPath) {
   return { ...JSON.parse(wasm.exportSite(JSON.stringify(files), key)), paths }
 }
 
+/** Exports files already in memory (keyed relative to one root), such as a past version from git. */
+export function exportFiles(files, key) {
+  init()
+  return JSON.parse(wasm.exportSite(JSON.stringify(files), key))
+}
+
 /** Diagnostics only. */
 export function validate(inputPath) {
   const { files, key } = collectFiles(inputPath)

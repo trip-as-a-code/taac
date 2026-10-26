@@ -1,0 +1,209 @@
+---
+import type { TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+import { changes } from '@/lib/build'
+import type { ChangeEvent } from '@/lib/changes'
+import { site } from '@/lib/build'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+}
+
+const { trip, i18n } = Astro.props
+const { t, date, money, path } = i18n
+const sets = changes[trip.slug] ?? []
+const SHOWN = 6
+const repo = site.site.source?.repo.replace(/\/$/, '')
+const ideas = new Set(trip.ideas.map((i) => i.id))
+const items = new Set(trip.items.map((i) => i.id))
+const href = (e: ChangeEvent) =>
+  items.has(e.id)
+    ? path(`/trips/${trip.slug}/itinerary/#item-${e.id}`)
+    : ideas.has(e.id)
+      ? path(`/trips/${trip.slug}/ideas/#idea-${e.id}`)
+      : undefined
+// "2026-12-20 10:00" → "20 дек. 10:00"; "560 EUR + 3000 JPY" → "560 € + ¥3,000".
+const value = (text?: string) => {
+  const m = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?$/.exec(text ?? '')
+  if (m) return [date(m[1]!, { day: 'numeric', month: 'short' }), m[2]].filter(Boolean).join(' ')
+  if (!text) return '—'
+  return text
+    .split(' + ')
+    .map((part) => {
+      const [amount, currency] = part.split(' ')
+      return currency ? money(Number(amount), currency) : part
+    })
+    .join(' + ')
+}
+---
+
+{sets.length > 0 && (
+  <section class="section changes" id="changes" data-changes={trip.slug}>
+    <div class="section-header">
+      <h2>{t('changes.title')}</h2>
+      <span class="badge" data-tone="blue" data-changes-new hidden data-template={t('changes.new')}></span>
+    </div>
+    <ol class="card list">
+      {sets.map((set, index) => (
+        <li
+          class="set"
+          data-change-at={set.date}
+          hidden={index >= SHOWN || undefined}
+          data-more={index >= SHOWN ? '' : undefined}
+        >
+          <p class="who footnote secondary">
+            <span class="author">{set.author}</span>
+            <time data-relative={set.date.slice(0, 10)} data-template="{rel}" />
+            {set.pr && repo && (
+              <a href={`${repo}/pull/${set.pr}`} target="_blank" rel="noopener noreferrer">
+                #{set.pr} ↗
+              </a>
+            )}
+          </p>
+          <ul class="events">
+            {set.events.slice(0, 8).map((e) => (
+              <li class="subhead">
+                <span class="kind footnote" data-kind={e.kind}>
+                  {t(`changes.${e.kind}`)}
+                </span>
+                {e.kind === 'renamed' ? (
+                  <span lang={trip.locale}>
+                    <s>{e.from}</s> → {href(e) ? <a href={href(e)}>{e.to}</a> : e.to}
+                  </span>
+                ) : (
+                  <span>
+                    {href(e) ? (
+                      <a href={href(e)} lang={trip.locale}>
+                        {e.title}
+                      </a>
+                    ) : (
+                      <span lang={trip.locale}>{e.title}</span>
+                    )}
+                    {(e.kind === 'moved' || e.kind === 'price') && (
+                      <span class="secondary tabular">
+                        {' '}
+                        · {value(e.from)} → {value(e.to)}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+            {set.events.length > 8 && (
+              <li class="footnote secondary">{t('changes.more', { n: set.events.length - 8 })}</li>
+            )}
+          </ul>
+        </li>
+      ))}
+    </ol>
+    {sets.length > SHOWN && (
+      <button class="button button-plain more" type="button" data-changes-more>
+        <Icon name="chevronDown" size={14} />
+        {t('changes.all', { n: sets.length })}
+      </button>
+    )}
+  </section>
+)}
+
+<script>
+  import { onPage } from '@/scripts/page'
+  import { sinceLastVisit } from '@/scripts/seen'
+
+  onPage('overview', () => {
+    const root = document.querySelector<HTMLElement>('[data-changes]')
+    if (!root) return
+    const since = sinceLastVisit(root.dataset.changes!)
+    const fresh = [...root.querySelectorAll<HTMLElement>('[data-change-at]')].filter(
+      (el) => since && el.dataset.changeAt! > since,
+    )
+    for (const el of fresh) el.classList.add('fresh')
+    const badge = root.querySelector<HTMLElement>('[data-changes-new]')!
+    badge.hidden = fresh.length === 0
+    badge.textContent = badge.dataset.template!.replace('{n}', String(fresh.length))
+    root.querySelector('[data-changes-more]')?.addEventListener('click', (event) => {
+      for (const el of root.querySelectorAll<HTMLElement>('[data-more]')) el.hidden = false
+      ;(event.currentTarget as HTMLElement).remove()
+    })
+  })
+</script>
+
+<style>
+  .changes ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .set {
+    display: grid;
+    gap: 6px;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .set + .set {
+    border-top: 0.5px solid var(--separator);
+  }
+
+  /* Since your last visit: a rail on the left. */
+  .set.fresh {
+    box-shadow: inset 3px 0 0 var(--tint);
+  }
+
+  .who {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 0;
+  }
+
+  .author {
+    font-weight: 600;
+    color: var(--label);
+  }
+
+  .events {
+    list-style: none;
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .events li {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .kind {
+    margin-right: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-weight: 600;
+    background: var(--fill);
+  }
+
+  .kind[data-kind='added'],
+  .kind[data-kind='ideaAdded'],
+  .kind[data-kind='booked'] {
+    color: var(--green);
+  }
+
+  .kind[data-kind='removed'],
+  .kind[data-kind='ideaRemoved'],
+  .kind[data-kind='cancelled'] {
+    color: var(--red);
+  }
+
+  .kind[data-kind='moved'],
+  .kind[data-kind='price'] {
+    color: var(--orange);
+  }
+
+  .more {
+    margin-top: var(--space-2);
+    gap: 4px;
+  }
+</style>
