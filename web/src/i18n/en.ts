@@ -44,6 +44,7 @@ export const en = {
   'trip.nightsShort': { one: '{n} night', other: '{n} nights' },
   'trip.nightAt': 'Night at {place}',
   'trip.checkIn': 'check-in {time}',
+  'trip.kept': 'still yours',
   'trip.upNext': 'Up next',
   'changes.title': 'Recent changes',
   'changes.new': '{n} new',

@@ -9,7 +9,7 @@ import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { baseById, daysBetween, homeOffset, itemById, partyEmoji, partyHue, partyLabel, people } from '@/lib/trip'
+import { baseById, homeOffset, itemById, partyEmoji, partyHue, partyLabel, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -82,7 +82,6 @@ trip.days.forEach((day, index) => {
 // Short, without the year: a run never spans more than a few weeks.
 const span = (from: string, to: string) =>
   `${date(from, { day: 'numeric', month: 'short' })} – ${date(to, { day: 'numeric', month: 'short' })}`
-const checkIn = (stay: string, day: string) => items.get(stay)!.local.date === day
 ---
 
 <TripLayout trip={trip} lang={lang} section="itinerary">
