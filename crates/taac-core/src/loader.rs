@@ -12,7 +12,8 @@ use chrono::NaiveDate;
 
 use crate::model::{
     Access, Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
-    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, TripFile, TripKind, TripMetadata,
+    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, TripFile, TripKind,
+    TripMetadata,
 };
 
 pub type Files = BTreeMap<String, String>;
@@ -21,6 +22,7 @@ pub type Files = BTreeMap<String, String>;
 pub struct Site {
     pub metadata: SiteMetadata,
     pub access: Option<Access>,
+    pub source: Option<SourceRepo>,
     pub trips: Vec<Trip>,
 }
 
@@ -298,6 +300,7 @@ pub fn load_site(files: &Files, site_path: &str) -> (Option<Site>, Vec<Diagnosti
     let site = Site {
         metadata: site_file.metadata,
         access: site_file.access,
+        source: site_file.source,
         trips,
     };
     (Some(site), diagnostics)
@@ -312,6 +315,7 @@ pub fn load_standalone_trip(files: &Files, path: &str) -> (Option<Site>, Vec<Dia
             description: trip.metadata.summary.clone().map(Into::into),
         },
         access: None,
+        source: None,
         trips: vec![trip],
     });
     (site, diagnostics)
@@ -405,7 +409,23 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         access: None,
     };
 
-    for (file, doc) in std::iter::once((main_path, root)).chain(parts) {
+    for (file, mut doc) in std::iter::once((main_path, root)).chain(parts) {
+        let lines = Lines::of(&files[&file]);
+        let at = |list: &[u64], i: usize| {
+            list.get(i).map(|&line| Source {
+                file: file.clone(),
+                line,
+            })
+        };
+        for (i, item) in doc.itinerary.iter_mut().enumerate() {
+            item.source = at(&lines.itinerary, i);
+        }
+        for (i, idea) in doc.ideas.iter_mut().enumerate() {
+            idea.source = at(&lines.ideas, i);
+        }
+        for (i, base) in doc.bases.iter_mut().enumerate() {
+            base.source = at(&lines.bases, i);
+        }
         if doc.kind == TripKind::TripPart && (doc.metadata.is_some() || doc.currency.is_some()) {
             diagnostics.push(
                 Diagnostic::error(
@@ -719,6 +739,40 @@ pub fn overlay_paths(trip_content: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// The line each list entry starts on, read in a second, lenient pass.
+#[derive(Default)]
+struct Lines {
+    itinerary: Vec<u64>,
+    ideas: Vec<u64>,
+    bases: Vec<u64>,
+}
+
+impl Lines {
+    fn of(content: &str) -> Self {
+        use serde_saphyr::Spanned;
+        #[derive(serde::Deserialize)]
+        struct Doc {
+            #[serde(default)]
+            itinerary: Vec<Spanned<serde::de::IgnoredAny>>,
+            #[serde(default)]
+            ideas: Vec<Spanned<serde::de::IgnoredAny>>,
+            #[serde(default)]
+            bases: Vec<Spanned<serde::de::IgnoredAny>>,
+        }
+        let lines = |list: Vec<Spanned<serde::de::IgnoredAny>>| {
+            list.iter().map(|e| e.defined.line()).collect()
+        };
+        parse::<Doc>(content).map_or_else(
+            |_| Self::default(),
+            |doc| Self {
+                itinerary: lines(doc.itinerary),
+                ideas: lines(doc.ideas),
+                bases: lines(doc.bases),
+            },
+        )
+    }
+}
+
 fn parse<T: DeserializeOwned>(content: &str) -> Result<T, String> {
     serde_saphyr::from_str(content).map_err(|err| err.to_string())
 }
@@ -816,6 +870,10 @@ places:
         assert_eq!(places[0].0, "Home");
         assert_eq!(places[0].1.name, "Home");
         assert_eq!(places[1].0, "first~1");
+        // Sorted, but still pointing at where each is written.
+        let at = |i: usize| trip.itinerary[i].source.clone().map(|s| (s.file, s.line));
+        assert_eq!(at(0), Some(("trips/lisbon/trip.yaml".into(), 15)));
+        assert_eq!(at(1), Some(("trips/lisbon/trip.yaml".into(), 12)));
     }
 
     #[test]

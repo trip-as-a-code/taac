@@ -81,6 +81,14 @@ impl Validator<'_> {
         self.push(Diagnostic::warning(code, message), item);
     }
 
+    /// Adds the specifics and a pasteable fix to the diagnostic just pushed.
+    fn detail(&mut self, params: &[(&'static str, String)], fix: Option<String>) {
+        if let Some(last) = self.out.last_mut() {
+            last.params.extend(params.iter().cloned());
+            last.fix = fix;
+        }
+    }
+
     fn push(&mut self, diagnostic: Diagnostic, item: Option<&str>) {
         let mut diagnostic = diagnostic.in_trip(&self.trip.slug);
         if let Some(item) = item {
@@ -301,6 +309,7 @@ impl Validator<'_> {
                     named.join(", ")
                 ),
             );
+            self.detail(&[("who", named.join(", "))], None);
         }
     }
 
@@ -441,6 +450,7 @@ impl Validator<'_> {
                     "no `who`, so it counts as everyone: list members or groups, or `everyone`"
                         .into(),
                 );
+                self.detail(&[], Some("who: [everyone]".into()));
             }
             self.who(&idea.id, idea.who.as_deref());
             self.title_names(&idea.id, &idea.title);
@@ -523,6 +533,18 @@ impl Validator<'_> {
             } else {
                 self.warn("blocker.conflict", Some(&conflict.item.id), message);
             }
+            let names: Vec<&str> = conflict
+                .members
+                .iter()
+                .map(|m| trip.member(m).map_or(m.as_str(), |m| m.name.as_str()))
+                .collect();
+            self.detail(
+                &[
+                    ("blocker", conflict.blocker.title.clone()),
+                    ("who", names.join(", ")),
+                ],
+                Some(format!("overrides: [{}]", conflict.blocker.title)),
+            );
         }
     }
 
@@ -613,6 +635,7 @@ impl Validator<'_> {
                     id,
                     format!("no `who`, so it counts as everyone{why}: list members or groups, or `everyone`"),
                 );
+                self.detail(&[], Some("who: [everyone]".into()));
             } else if !absent.is_empty() {
                 self.warn(
                     "item.absent",
@@ -621,6 +644,10 @@ impl Validator<'_> {
                         "{} {verb} not on the trip on {day}: fix `who` or the dates",
                         absent.join(", ")
                     ),
+                );
+                self.detail(
+                    &[("who", absent.join(", ")), ("day", day.to_string())],
+                    None,
                 );
             }
             if item.kind == ItemKind::Lodging && item.places.is_empty() {
@@ -637,16 +664,19 @@ impl Validator<'_> {
                     continue;
                 };
                 // With several reservations, say which one.
-                let whose = match part.who {
-                    Some(who) if several => {
-                        let names: Vec<&str> = trip
-                            .who(Some(who))
-                            .into_iter()
-                            .map(|m| trip.member(m).map_or(m, |m| m.name.as_str()))
-                            .collect();
-                        format!(" ({})", names.join(", "))
-                    }
+                let whose_names = match part.who {
+                    Some(who) if several => trip
+                        .who(Some(who))
+                        .into_iter()
+                        .map(|m| trip.member(m).map_or(m, |m| m.name.as_str()))
+                        .collect::<Vec<_>>()
+                        .join(", "),
                     _ => String::new(),
+                };
+                let whose = if whose_names.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({whose_names})")
                 };
                 let confirmed = item.kind.is_transport() || item.kind == ItemKind::Lodging;
                 if confirmed && booking.reference.is_none() {
@@ -655,6 +685,7 @@ impl Validator<'_> {
                         id,
                         format!("booked{whose} without a confirmation number (`reference`)"),
                     );
+                    self.detail(&[("whose", whose_names.clone())], None);
                 }
                 let shared = booking
                     .reference
@@ -666,6 +697,13 @@ impl Validator<'_> {
                         id,
                         format!("booked{whose} without a cost: add `costs`, or share a `reference` with a reservation that has them"),
                     );
+                    self.detail(
+                        &[("whose", whose_names.clone())],
+                        Some(format!(
+                            "costs:\n  - {{ amount: 0, currency: {} }} # the price",
+                            trip.base_currency()
+                        )),
+                    );
                 }
                 if part.costs.iter().any(|c| c.estimate) {
                     self.warn(
@@ -673,6 +711,7 @@ impl Validator<'_> {
                         id,
                         format!("booked{whose}, but a cost is still marked `estimate`"),
                     );
+                    self.detail(&[("whose", whose_names.clone())], None);
                 }
             }
         }
@@ -1229,5 +1268,10 @@ ideas:
             .filter_map(|d| d.item.as_deref())
             .collect();
         assert_eq!(conflicts, ["dinner"], "{d:?}");
+        let fix = d
+            .iter()
+            .find(|d| d.code == "blocker.conflict")
+            .and_then(|d| d.fix.clone());
+        assert!(fix.is_some_and(|f| f.starts_with("overrides: [")), "{d:?}");
     }
 }

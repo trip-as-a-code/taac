@@ -6,6 +6,7 @@ import ProgressRing from '@/components/ProgressRing.astro'
 import RouteStrip from '@/components/RouteStrip.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { isLabelled } from '@/lib/facts'
+import { sourceHref, sourceLabel } from '@/lib/source'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { bookable, homeOffset, initials, memberHue } from '@/lib/trip'
 
@@ -28,13 +29,29 @@ const offset = homeOffset(trip)
 // Everything the validator flagged, plans first, in plan order.
 const titles = new Map([...trip.items, ...trip.ideas].map((i) => [i.id, i.title]))
 const order = new Map(trip.items.map((i, n) => [i.id, n]))
+// One snippet per entry: clashes with two blockers allow both at once.
+function fixes(group: typeof trip.diagnostics) {
+  const all = [...new Set(group.flatMap((d) => (d.fix ? [d.fix] : [])))]
+  const allowed = all.map((f) => /^overrides: \[(.*)\]$/.exec(f)?.[1])
+  return allowed.length > 1 && allowed.every(Boolean) ? [`overrides: [${allowed.join(', ')}]`] : all
+}
 // One entry per plan and kind of issue: a clash for two people is one clash.
 const issues = [
   ...Map.groupBy(
     trip.diagnostics.toSorted((a, b) => (order.get(a.item ?? '') ?? Infinity) - (order.get(b.item ?? '') ?? Infinity)),
     (d) => `${d.item ?? ''}\u0000${d.code}${d.item ? '' : d.message}`,
   ).values(),
-].map((group) => ({ ...group[0], messages: group.map((d) => d.message) }))
+].map((group) => ({ ...group[0], all: group, fixes: fixes(group) }))
+const sources = new Map([...trip.items, ...trip.ideas].map((i) => [i.id, i.source]))
+// The interface's own words when the validator gave the specifics; its
+// English message otherwise.
+const detail = (d: (typeof trip.diagnostics)[number]) => {
+  const key = `issue.${d.code}.detail`
+  if (!d.params && !d.fix) return undefined
+  if (!i18n.has(key)) return undefined
+  const whose = d.params?.whose ? ` (${d.params.whose})` : ''
+  return t(key, { ...d.params, whose })
+}
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
 const issueHref = (id?: string) =>
   id && order.has(id)
@@ -149,11 +166,15 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
                     </span>
                   )}
                 </span>
-                {d.messages.map((message) => (
-                  <span class="footnote secondary" lang="en">
-                    {message}
-                  </span>
-                ))}
+                {d.all.map((x) =>
+                  detail(x) ? (
+                    <span class="footnote secondary">{detail(x)}</span>
+                  ) : (
+                    <span class="footnote secondary" lang="en">
+                      {x.message}
+                    </span>
+                  ),
+                )}
               </span>
             </>
           )
@@ -169,6 +190,32 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
                 </a>
               ) : (
                 <div class="row issue">{body}</div>
+              )}
+              {(d.fixes.length > 0 || (d.item && sourceHref(sources.get(d.item)))) && (
+                <div class="fix">
+                  {d.fixes.map((fix) => (
+                    <div class="snippet">
+                      <pre lang="en"><code>{fix}</code></pre>
+                      <button type="button" class="button button-plain copy" data-copy={fix}>
+                        <Icon name="check" size={13} class="copied" />
+                        <span data-label={t('issues.copy')} data-done={t('issues.copied')}>
+                          {t('issues.copy')}
+                        </span>
+                      </button>
+                    </div>
+                  ))}
+                  {d.item && sourceHref(sources.get(d.item)) && (
+                    <a
+                      class="footnote source"
+                      href={sourceHref(sources.get(d.item))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Icon name="code" size={13} />
+                      {t('issues.openSource', { file: sourceLabel(sources.get(d.item)!) })}
+                    </a>
+                  )}
+                </div>
               )}
             </li>
           )
@@ -453,8 +500,29 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     requestAnimationFrame(() => entry.scrollIntoView({ block: 'center' }))
   }
 
+  /** Fix snippets copy with one tap. */
+  function copyButtons() {
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+      button.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(button.dataset.copy!)
+        } catch {
+          return
+        }
+        const label = button.querySelector<HTMLElement>('[data-label]')!
+        button.classList.add('done')
+        label.textContent = label.dataset.done!
+        setTimeout(() => {
+          button.classList.remove('done')
+          label.textContent = label.dataset.label!
+        }, 1600)
+      })
+    }
+  }
+
   onPage('overview', () => {
     status()
+    copyButtons()
     // `webcal://` (set in follow) makes calendar apps subscribe, not import once.
     setupFilters((state) => follow(state.lens))
     issuesList()
@@ -700,6 +768,68 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     display: grid;
     gap: 2px;
     min-width: 0;
+  }
+
+  .fix {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    gap: var(--space-2);
+    padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + 22px);
+  }
+
+  .snippet {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .snippet pre {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    overflow-x: auto;
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    background: var(--fill);
+  }
+
+  .copy {
+    flex: none;
+    gap: 4px;
+    min-height: 28px;
+    padding-inline: 8px;
+    font-size: 13px;
+  }
+
+  @media (max-width: 640px) {
+    .snippet {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .copy {
+      align-self: flex-start;
+    }
+  }
+
+  .copy :global(.copied) {
+    display: none;
+  }
+
+  .copy.done :global(.copied) {
+    display: inline;
+  }
+
+  .source {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    justify-self: start;
   }
 
   .issues .more {

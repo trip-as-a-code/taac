@@ -19,6 +19,12 @@ pub struct Diagnostic {
     pub trip: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub item: Option<String>,
+    /// The specifics, for interfaces that phrase the message themselves.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub params: std::collections::BTreeMap<&'static str, String>,
+    /// YAML that fixes it, ready to paste into the entry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fix: Option<String>,
 }
 
 impl Diagnostic {
@@ -30,6 +36,8 @@ impl Diagnostic {
             file: None,
             trip: None,
             item: None,
+            params: std::collections::BTreeMap::new(),
+            fix: None,
         }
     }
 

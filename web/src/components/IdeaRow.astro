@@ -6,6 +6,7 @@ import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { ideaFacts, isLabelled, issuesOf } from '@/lib/facts'
+import { sourceHref, sourceLabel } from '@/lib/source'
 import {
   echoesPlace,
   kindIcon,
@@ -51,7 +52,9 @@ const emoji = partyEmoji(trip, idea.party)
 const issues = [...new Map(issuesOf(trip, idea.id).map((d) => [d.code, d])).values()]
 const unassigned = issues.some((d) => d.code === 'item.unassigned')
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
-const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.some((p) => p.url))
+const hasDetails = Boolean(
+  issues.length || idea.notes || idea.url || places.some((p) => p.url) || sourceHref(idea.source),
+)
 ---
 
 <article
@@ -145,6 +148,13 @@ const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.som
         )}
         {idea.notes && <div class="prose" lang={trip.locale} set:html={markdown(idea.notes)} />}
         <div class="links">
+          {/* The line in the trip files that says all this. */}
+          {sourceHref(idea.source) && (
+            <a class="button" href={sourceHref(idea.source)} target="_blank" rel="noopener noreferrer">
+              <Icon name="code" size={15} />
+              <span class="tabular">{sourceLabel(idea.source!)}</span>
+            </a>
+          )}
           {idea.url && (
             <a class="button" href={idea.url} target="_blank" rel="noopener noreferrer">
               <Icon name="link" size={15} />
