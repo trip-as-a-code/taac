@@ -137,11 +137,6 @@ export function partyEmoji(trip: TripExport, partyId: string): string | undefine
   return party?.group ? trip.groups.find((g) => g.id === party.group)?.emoji : undefined
 }
 
-/** Stable hue per party, for rails and lane headers. */
-export function partyHue(partyId: string): number {
-  return (memberHue(partyId) + 200) % 360
-}
-
 export function baseById(trip: TripExport): Map<string, Base> {
   return new Map(trip.bases.map((b) => [b.id, b]))
 }

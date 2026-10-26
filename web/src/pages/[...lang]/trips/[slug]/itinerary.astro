@@ -1,35 +1,22 @@
 ---
 import Avatars from '@/components/Avatars.astro'
-import Blockers from '@/components/Blockers.astro'
+import DayBody from '@/components/DayBody.astro'
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
-import IdeaRow from '@/components/IdeaRow.astro'
-import OpenDay from '@/components/OpenDay.astro'
-import Whereabouts from '@/components/Whereabouts.astro'
-import ItemRow from '@/components/ItemRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { baseById, homeOffset, itemById, partyEmoji, partyHue, partyLabel, people } from '@/lib/trip'
+import { homeOffset, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t, date, plural } = i18n
-const bases = baseById(trip)
-// Each base a day is spent in, and whether its people have nothing planned.
-// When the group is split, a free base gets a lane of its own.
-const dayParts = (day: (typeof trip.days)[number]) =>
-  day.bases.map((p) => {
-    const free = !day.items.some((id) => items.get(id)!.members.some((m) => p.members.includes(m)))
-    return { p, base: bases.get(p.id)!, free, laned: free && p.party !== 'everyone' && !trip.basesDerived }
-  })
 // Ideas with a date show on that day as proposed, by time.
 const proposals = Map.groupBy(
   trip.ideas.filter((i) => i.local).sort((a, b) => (a.local!.time ?? '').localeCompare(b.local!.time ?? '')),
   (i) => i.local!.date,
 )
-const items = itemById(trip)
 const offset = homeOffset(trip)
 
 // Who is on the trip, day by day: from the bases and the plans that name
@@ -144,24 +131,7 @@ const span = (from: string, to: string) =>
             )}
             <span class="badge">{t('trip.daysN', { from: index + 1, to: index + days.length })}</span>
           </header>
-          <Blockers trip={trip} i18n={i18n} blockers={day.blockers} />
-          <Whereabouts trip={trip} i18n={i18n} date={day.date} span={days.length} bases={day.bases} stays={day.stays} />
-          {dayParts(day).some((part) => part.laned) && (
-            <div class="card list" data-lanes>
-              {dayParts(day)
-                .filter((part) => part.laned)
-                .map((part) => (
-                  <div class="row-wrap free-lane" data-party={part.p.party} data-free>
-                    <OpenDay trip={trip} i18n={i18n} part={part.p} base={part.base} free split />
-                  </div>
-                ))}
-            </div>
-          )}
-          {dayParts(day)
-            .filter((part) => !part.laned)
-            .map((part) => (
-              <OpenDay trip={trip} i18n={i18n} part={part.p} base={part.base} free split={day.bases.length > 1} />
-            ))}
+          <DayBody trip={trip} i18n={i18n} day={day} span={days.length} homeOffset={offset} />
         </section>
       ) : (
         <Fragment>
@@ -199,46 +169,7 @@ const span = (from: string, to: string) =>
               )}
               <span class="badge">{t('trip.dayN', { n: index + 1 })}</span>
             </header>
-            <Blockers trip={trip} i18n={i18n} blockers={day.blockers} />
-            <Whereabouts trip={trip} i18n={i18n} date={day.date} bases={day.bases} stays={day.stays} />
-            {(day.items.length > 0 || dayParts(day).some((part) => part.laned)) && (
-              <div class="card list" data-lanes>
-                {day.items.map((id) => (
-                  <div class="row-wrap" data-party={items.get(id)!.party}>
-                    <ItemRow trip={trip} item={items.get(id)!} i18n={i18n} homeOffset={offset} />
-                  </div>
-                ))}
-                {/* A group with nothing planned keeps its own lane for its free day. */}
-                {dayParts(day)
-                  .filter((part) => part.laned)
-                  .map((part) => (
-                    <div class="row-wrap free-lane" data-party={part.p.party} data-free>
-                      <OpenDay trip={trip} i18n={i18n} part={part.p} base={part.base} free split />
-                    </div>
-                  ))}
-              </div>
-            )}
-            {proposals.has(day.date) && (
-              <div class="proposals" aria-label={t('ideas.proposed')}>
-                {proposals.get(day.date)!.map((idea) => (
-                  <IdeaRow trip={trip} idea={idea} i18n={i18n} proposed />
-                ))}
-              </div>
-            )}
-            {day.bases.length > 0 && !trip.basesDerived
-              ? dayParts(day)
-                  .filter((part) => !part.laned)
-                  .map((part) => (
-                    <OpenDay
-                      trip={trip}
-                      i18n={i18n}
-                      part={part.p}
-                      base={part.base}
-                      free={part.free}
-                      split={day.bases.length > 1}
-                    />
-                  ))
-              : day.items.length === 0 && <p class="free footnote secondary">{t('trip.freeDay')}</p>}
+            <DayBody trip={trip} i18n={i18n} day={day} proposals={proposals.get(day.date)} homeOffset={offset} />
           </section>
           {leaving(day.date).length > 0 && onTrip(nextDay(day.date)).length > 0 && (
             <p class="edge footnote" data-presence data-people={people(leaving(day.date).map((m) => m.id))}>
@@ -250,22 +181,6 @@ const span = (from: string, to: string) =>
       )
     })}
   </div>
-  <script
-    type="application/json"
-    id="parties"
-    set:html={JSON.stringify(
-      Object.fromEntries(
-        trip.parties.map((p) => [
-          p.id,
-          {
-            label:
-              `${partyEmoji(trip, p.id) ?? ''} ${partyLabel(trip, p.id, t('lens.everyone'), t('party.and'))}`.trim(),
-            hue: partyHue(p.id),
-          },
-        ]),
-      ),
-    ).replace(/</g, '\\u003c')}
-  />
   <p class="empty secondary" data-filter-empty hidden>
     {t('filter.empty')}
   </p>
@@ -273,17 +188,14 @@ const span = (from: string, to: string) =>
 
 <script>
   import { revealTarget, setupFilters } from '@/scripts/filters'
-  import { setupLanes, type PartyInfo } from '@/scripts/lanes'
   import { onPage, todayUTC } from '@/scripts/page'
 
-  let stopLanes: (() => void) | undefined
-
   onPage('itinerary', () => {
-    stopLanes?.()
-    const parties = JSON.parse(document.getElementById('parties')?.textContent ?? '{}') as Record<string, PartyInfo>
-    stopLanes = setupLanes(parties)
-    // Days the filters emptied drop out of the strip too.
+    // Days the filters emptied drop out of the strip too; so do group
+    // sections with nothing left in them.
     setupFilters(() => {
+      for (const group of document.querySelectorAll<HTMLElement>('[data-group]'))
+        group.hidden = !group.querySelector('[data-item]:not([hidden]), [data-presence]:not([hidden])')
       for (const chip of document.querySelectorAll<HTMLElement>('[data-day-link]'))
         chip.hidden = Boolean(
           document.getElementById(chip.dataset.dayLink!)?.closest<HTMLElement>('[data-day-section]')?.hidden,
@@ -419,81 +331,9 @@ const span = (from: string, to: string) =>
     font-weight: 500;
   }
 
-  .card.list > .row-wrap + .row-wrap {
-    position: relative;
-    border-top: 0;
-  }
-
-  .row-wrap + .row-wrap::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 128px;
-    right: 0;
-    border-top: 0.5px solid var(--separator);
-  }
-
-  .row-wrap:has([data-item][hidden]) {
-    display: none;
-  }
-
-  /* Lanes (laid out by scripts/lanes.ts on wide screens). */
-  .card.list.laned {
-    display: grid;
-  }
-
-  .laned > .row-wrap::before {
-    display: none;
-  }
-
-  .laned > .row-wrap {
-    border-top: 0.5px solid var(--separator);
-  }
-
-  .laned > .row-wrap:not([style*='-1']) + .row-wrap:not([style*='-1']) {
-    box-shadow: inset 0.5px 0 0 var(--separator);
-  }
-
-  .laned > :global(.lane-head) {
-    padding: 10px var(--space-4) 8px 15px;
-    font-weight: 600;
-    color: hsl(var(--party-hue) 55% 38%);
-    background: hsl(var(--party-hue) 70% 50% / 0.08);
-    box-shadow: inset 3px 0 0 hsl(var(--party-hue) 65% 55%);
-  }
-
-  :global(:root[data-theme='dark']) .laned > :global(.lane-head) {
-    color: hsl(var(--party-hue) 80% 72%);
-  }
-
-  /* In lanes the column header names the party already. */
-  .laned :global(.party-pill) {
-    display: none;
-  }
-
-  .free {
-    padding: var(--space-4);
-    border-radius: var(--radius-lg);
-    border: 1px dashed var(--separator-strong);
-    text-align: center;
-  }
-
   .empty {
     padding: var(--space-12) 0;
     text-align: center;
-  }
-
-  @media (max-width: 560px) {
-    .row-wrap + .row-wrap::before {
-      left: 0;
-    }
-  }
-
-  /* Proposed, not planned: separate dashed cards rather than one list. */
-  .proposals {
-    display: grid;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
   }
 
   /* Someone joins or heads home: a quiet line across the timeline. */

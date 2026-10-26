@@ -4,7 +4,7 @@ import type { Presence, TripExport } from '@taac/core'
 import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import type { I18n } from '@/i18n'
-import { baseById, daysBetween, itemById, partyLabel, people } from '@/lib/trip'
+import { baseById, daysBetween, itemById, partyEmoji, partyLabel, people } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -15,11 +15,13 @@ interface Props {
   span?: number
   bases: Presence[]
   stays: Presence[]
+  /** Heading a group's section: name the group and take the full width. */
+  named?: boolean
 }
 
 const nextDay = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
 
-const { trip, i18n, date, span = 1, bases, stays } = Astro.props
+const { trip, i18n, date, span = 1, bases, stays, named } = Astro.props
 const { t } = i18n
 const byId = baseById(trip)
 const items = itemById(trip)
@@ -57,7 +59,7 @@ const bed = (s: Presence) => {
 
 <!-- Where each group is: one card per base, the place on top, the bed below. -->
 {(shown.length > 0 || stays.length > 0) && (
-  <ul class="whereabouts">
+  <ul class:list={['whereabouts', { named }]}>
     {shown.map((p) => {
       const base = byId.get(p.id)!
       const from = daysBetween(base.from, date) + 1
@@ -109,6 +111,11 @@ const bed = (s: Presence) => {
           </div>
           {p.party !== 'everyone' && (
             <span class="who" title={label(p.party)}>
+              {named && (
+                <span class="group-name footnote">
+                  {partyEmoji(trip, p.party)} {label(p.party)}
+                </span>
+              )}
               <Avatars members={membersOf(p.members)} size={20} />
             </span>
           )}
@@ -163,6 +170,19 @@ const bed = (s: Presence) => {
   /* Split groups share the row like the lanes below; one alone stays compact. */
   .where:only-child {
     max-width: 440px;
+  }
+
+  .named .where {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    max-width: none;
+  }
+
+  /* As a section heading: who first, on a line of their own. */
+  .named .who {
+    order: -1;
+    justify-content: space-between;
+    width: 100%;
   }
 
   .lines {
@@ -220,6 +240,14 @@ const bed = (s: Presence) => {
   }
 
   .who {
+    display: flex;
     flex: none;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .group-name {
+    font-weight: 600;
+    color: var(--label-secondary);
   }
 </style>
