@@ -22,6 +22,11 @@
   // binding, logins are not rate-limited.
   "ratelimits": [{ "name": "LOGIN_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
 
+  // Shares packing ticks between everyone on a trip. Optional: without the
+  // binding, each device keeps its own ticks.
+  "durable_objects": { "bindings": [{ "name": "PACKING", "class_name": "PackingState" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PackingState"] }],
+
   // Passwords are optional and configured in site.yaml (`access.password.secret`
   // for the whole site, `trips[].access.password.secret` per trip). Each named
   // secret, plus SESSION_SECRET (`openssl rand -hex 32`, signs login cookies

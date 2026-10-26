@@ -149,5 +149,6 @@ packing:
         costs: [{ amount: 24, currency: EUR, paidBy: Sam, label: 3-pack }]
   - category: Clothes
     items:
-      - Comfortable walking shoes — the hills are steep
-      - Light jacket for the evenings
+      - { name: Comfortable walking shoes, bag: suitcase, notes: The hills are steep. }
+      - { name: Light jacket, bag: carry-on, notes: For the evenings by the river. }
+      - { name: T-shirts, qty: 4, bag: suitcase }

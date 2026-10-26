@@ -288,7 +288,18 @@ export interface TripExport {
   blockers: Blocker[]
   days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[]; blockers: DayBlocker[] }[]
   budget: Budget
-  packing: { category: string; items: { id: string; name: string; members: string[]; bought: boolean }[] }[]
+  packing: {
+    category: string
+    items: {
+      id: string
+      name: string
+      members: string[]
+      bought: boolean
+      qty?: number
+      bag?: string
+      notes?: string
+    }[]
+  }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
   artifacts: { ics: string; icsByMember: Record<string, string>; geojson: string; beancount: string; markdown: string }
   diagnostics: Diagnostic[]

@@ -909,6 +909,14 @@ pub enum PackingItem {
         /// Already bought: its costs count as committed.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         bought: bool,
+        /// How many, when more than one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        qty: Option<u32>,
+        /// Which bag it goes in, such as `carry-on` or `suitcase`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bag: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notes: Option<String>,
     },
 }
 
@@ -935,6 +943,16 @@ impl PackingItem {
 
     pub fn bought(&self) -> bool {
         matches!(self, Self::Detailed { bought: true, .. })
+    }
+
+    /// Quantity, bag and notes, when given.
+    pub fn details(&self) -> (Option<u32>, Option<&str>, Option<&str>) {
+        match self {
+            Self::Name(_) => (None, None, None),
+            Self::Detailed {
+                qty, bag, notes, ..
+            } => (*qty, bag.as_deref(), notes.as_deref()),
+        }
     }
 }
 

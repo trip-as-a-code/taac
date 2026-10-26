@@ -117,6 +117,8 @@ export function taac(): AstroIntegration {
               .filter((t) => t.passwordSecret)
               .map((t) => [t.slug, { secret: t.passwordSecret, title: t.title }]),
           ),
+          // Every trip, protected or not: the worker serves shared state only for these.
+          slugs: site.trips.map((t) => t.slug),
           locales: ['en', 'ru'],
           defaultLocale: 'en',
         }

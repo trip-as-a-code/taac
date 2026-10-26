@@ -1217,6 +1217,28 @@
             "bought": {
               "description": "Already bought: its costs count as committed.",
               "type": "boolean"
+            },
+            "qty": {
+              "description": "How many, when more than one.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0
+            },
+            "bag": {
+              "description": "Which bag it goes in, such as `carry-on` or `suitcase`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
