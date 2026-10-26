@@ -1,0 +1,322 @@
+---
+import type { TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+import { itemById } from '@/lib/trip'
+import type { TodayData, TodayItem, TodayPlace } from '@/scripts/today'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+}
+
+const { trip, i18n } = Astro.props
+const { t, path } = i18n
+const items = itemById(trip)
+const place = (id?: string): TodayPlace | undefined => {
+  const p = id ? trip.places[id] : undefined
+  return p && { name: p.name, address: p.address, geo: p.geo }
+}
+const href = (id: string) => path(`/trips/${trip.slug}/itinerary/#item-${id}`)
+const data: TodayData = {
+  timezone: trip.timezone,
+  days: trip.days.map((day, index) => {
+    const next = trip.days[index + 1]?.date
+    return {
+      n: index + 1,
+      date: day.date,
+      items: day.items.map((id): TodayItem => {
+        const item = items.get(id)!
+        return {
+          id,
+          title: item.title,
+          kind: item.kind,
+          time: item.local.date === day.date ? item.local.time : undefined,
+          part: item.local.part,
+          start: item.start,
+          end: item.end,
+          place: place(item.places[0]),
+          members: item.members,
+          href: href(id),
+        }
+      }),
+      stays: day.stays.map((s) => {
+        const stay = items.get(s.id)!
+        return {
+          title: stay.title,
+          place: place(stay.places[0]),
+          members: s.members,
+          until: stay.local.endDate && stay.local.endDate !== next ? stay.local.endDate : undefined,
+          href: href(s.id),
+        }
+      }),
+      present: [
+        ...new Set([...day.bases.flatMap((b) => b.members), ...day.items.flatMap((id) => items.get(id)!.members)]),
+      ],
+    }
+  }),
+}
+const strings = {
+  today: t('today.title'),
+  day: t('trip.dayN'),
+  now: t('today.now'),
+  next: t('trip.upNext'),
+  tonight: t('today.tonight'),
+  until: t('today.until'),
+  tomorrow: t('today.tomorrow'),
+  free: t('today.free'),
+  done: t('today.done'),
+  map: t('today.map'),
+  morning: t('part.morning'),
+  afternoon: t('part.afternoon'),
+  evening: t('part.evening'),
+}
+---
+
+<!-- Filled in on the device: only it knows what day it is where the trip is. -->
+<section class="today card" data-today hidden aria-labelledby="today-title">
+  <header class="today-head">
+    <span class="eyebrow footnote">{t('today.title')}</span>
+    <h2 class="headline" id="today-title" data-today-date></h2>
+  </header>
+  <ul class="rows" data-today-stays></ul>
+  <ul class="rows" data-today-items></ul>
+  <p class="footnote secondary tomorrow" data-today-tomorrow hidden></p>
+  <template data-today-stay>
+    <li class="row">
+      <span class="tile stay">
+        <Icon name="lodging" size={16} />
+      </span>
+      <a class="text" data-href>
+        <span class="subhead" data-title></span>
+        <span class="footnote secondary" data-sub></span>
+      </a>
+      <a class="button map" data-map target="_blank" rel="noopener noreferrer">
+        <Icon name="map" size={14} />
+        <span>{t('today.map')}</span>
+      </a>
+    </li>
+  </template>
+  <template data-today-item>
+    <li class="row">
+      <span class="when tabular" data-when></span>
+      <a class="text" data-href>
+        <span class="subhead" data-title lang={trip.locale}></span>
+        <span class="footnote secondary" data-sub></span>
+      </a>
+      <a class="button map" data-map target="_blank" rel="noopener noreferrer">
+        <Icon name="map" size={14} />
+        <span>{t('today.map')}</span>
+      </a>
+    </li>
+  </template>
+  <script type="application/json" data-today-data set:html={JSON.stringify(data).replace(/</g, '\\u003c')} />
+  <script type="application/json" data-today-strings set:html={JSON.stringify(strings)} />
+</section>
+
+<script>
+  import { getLens, onLens } from '@/scripts/lens'
+  import { onPage } from '@/scripts/page'
+  import { mapsHref, todayView, tripDate, type TodayData, type TodayItem, type TodayPlace } from '@/scripts/today'
+
+  let stop: (() => void) | undefined
+
+  function render() {
+    const root = document.querySelector<HTMLElement>('[data-today]')
+    if (!root) return
+    const data = JSON.parse(root.querySelector('[data-today-data]')!.textContent!) as TodayData
+    const s = JSON.parse(root.querySelector('[data-today-strings]')!.textContent!) as Record<string, string>
+    const lang = document.documentElement.lang
+    // `?today=2026-12-23` previews a day of the trip; then nothing has started yet.
+    const preview = new URLSearchParams(location.search).get('today')
+    const now = preview ? undefined : Date.now()
+    const date = preview ?? tripDate(data.timezone, new Date())
+    const view = todayView(data, date, getLens().people, now)
+    root.hidden = !view
+    if (!view) return
+
+    const day = new Date(`${date}T00:00:00Z`).toLocaleDateString(lang, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC',
+    })
+    root.querySelector('[data-today-date]')!.textContent = `${s.day.replace('{n}', String(view.day.n))} · ${day}`
+    const short = (iso: string) =>
+      new Date(`${iso}T00:00:00Z`).toLocaleDateString(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' })
+    const rel = new Intl.RelativeTimeFormat(lang, { numeric: 'auto', style: 'short' })
+    const fromNow = (iso: string) => {
+      const minutes = Math.round((Date.parse(iso) - Date.now()) / 60_000)
+      return Math.abs(minutes) < 90 ? rel.format(minutes, 'minute') : rel.format(Math.round(minutes / 60), 'hour')
+    }
+
+    const fill = (
+      template: HTMLTemplateElement,
+      opts: { title: string; sub: string; href: string; place?: TodayPlace; when?: string; live?: boolean },
+    ) => {
+      const row = template.content.firstElementChild!.cloneNode(true) as HTMLElement
+      row.querySelector('[data-title]')!.textContent = opts.title
+      row.querySelector('[data-sub]')!.textContent = opts.sub
+      row.querySelector<HTMLAnchorElement>('[data-href]')!.href = opts.href
+      const when = row.querySelector('[data-when]')
+      if (when) when.textContent = opts.when ?? ''
+      row.toggleAttribute('data-live', Boolean(opts.live))
+      const map = row.querySelector<HTMLAnchorElement>('[data-map]')!
+      if (opts.place) map.href = mapsHref(opts.place.geo)
+      else map.remove()
+      return row
+    }
+
+    const stays = root.querySelector('[data-today-stays]')!
+    stays.replaceChildren(
+      ...view.stays.map((stay) =>
+        fill(root.querySelector('[data-today-stay]')!, {
+          title: `${s.tonight} ${stay.place?.name ?? stay.title}`,
+          sub: [stay.place?.address, stay.until && s.until.replace('{date}', short(stay.until))]
+            .filter(Boolean)
+            .join(' · '),
+          href: stay.href,
+          place: stay.place,
+        }),
+      ),
+    )
+
+    const itemRow = (item: TodayItem, live: boolean) =>
+      fill(root.querySelector('[data-today-item]')!, {
+        title: item.title,
+        sub: [live ? s.now : item.start && now !== undefined ? fromNow(item.start) : '', item.place?.name]
+          .filter(Boolean)
+          .join(' · '),
+        href: item.href,
+        place: item.place,
+        when: item.time ?? (item.part ? s[item.part] : ''),
+        live,
+      })
+    const list = root.querySelector('[data-today-items]')!
+    const rows = [...view.now.map((i) => itemRow(i, true)), ...view.next.map((i) => itemRow(i, false))]
+    if (!rows.length) {
+      const free = document.createElement('li')
+      free.className = 'row footnote secondary'
+      free.textContent = view.done ? s.done : s.free
+      rows.push(free)
+    }
+    list.replaceChildren(...rows)
+
+    const tomorrow = root.querySelector<HTMLElement>('[data-today-tomorrow]')!
+    tomorrow.hidden = !view.tomorrow
+    if (view.tomorrow)
+      tomorrow.textContent = `${s.tomorrow} · ${[view.tomorrow.time, view.tomorrow.title].filter(Boolean).join(' ')}`
+  }
+
+  onPage('overview', () => {
+    stop?.()
+    render()
+    const offLens = onLens(() => render())
+    // Countdowns move on while the page is open.
+    const timer = setInterval(render, 60_000)
+    stop = () => {
+      offLens()
+      clearInterval(timer)
+    }
+  })
+</script>
+
+<style>
+  .today {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+    padding: var(--space-4) var(--space-4) var(--space-3);
+    border: 1px solid hsl(var(--hue) 70% 50% / 0.35);
+  }
+
+  .today[hidden] {
+    display: none;
+  }
+
+  .today-head {
+    display: grid;
+    gap: 2px;
+  }
+
+  .eyebrow {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: hsl(var(--hue) 70% 55%);
+  }
+
+  .rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .rows:empty {
+    display: none;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+  }
+
+  .row + .row {
+    border-top: 0.5px solid var(--separator);
+  }
+
+  .row[data-live] .when,
+  .row[data-live] [data-sub] {
+    color: hsl(var(--hue) 70% 55%);
+    font-weight: 600;
+  }
+
+  .when {
+    flex: none;
+    width: 3.2em;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .tile {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 3.2em;
+    height: 30px;
+    color: var(--purple);
+  }
+
+  .text {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    color: var(--label);
+    text-decoration: none;
+  }
+
+  .text:hover [data-title] {
+    text-decoration: underline;
+  }
+
+  .text > * {
+    overflow-wrap: anywhere;
+  }
+
+  .map {
+    flex: none;
+    gap: 4px;
+    min-height: 30px;
+    padding-inline: 10px;
+    font-size: 13px;
+  }
+
+  .tomorrow {
+    margin: 0;
+    padding-top: var(--space-2);
+    border-top: 0.5px solid var(--separator);
+  }
+</style>
