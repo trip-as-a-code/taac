@@ -4,9 +4,10 @@ import DayBody from '@/components/DayBody.astro'
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
-import { issuesOf, itemFacts } from '@/lib/facts'
+import { itemFacts } from '@/lib/facts'
+import { nextDay, spans } from '@/lib/presence'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { homeOffset, people } from '@/lib/trip'
+import { homeOffset, kindIcon, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -19,31 +20,21 @@ const proposals = Map.groupBy(
 )
 const offset = homeOffset(trip)
 
-// Who is on the trip, day by day: from the bases and the plans that name
-// them (a plan nobody was assigned to says nothing about it).
-const nextDay = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
-const spans = new Map<string, { first: string; last: string }>()
-const extend = (member: string, from: string, to: string) => {
-  const span = spans.get(member)
-  spans.set(member, {
-    first: span && span.first < from ? span.first : from,
-    last: span && span.last > to ? span.last : to,
-  })
-}
-for (const base of trip.bases) for (const m of base.members) extend(m, base.from, nextDay(base.to))
-for (const item of trip.items)
-  if (!issuesOf(trip, item.id).some((d) => d.code === 'item.unassigned'))
-    for (const m of item.members) extend(m, item.local.date, item.local.endDate ?? item.local.date)
+// Who is on the trip, day by day (lib/presence).
+const presence = spans(trip)
 const firstDay = trip.days[0]?.date
 const lastDay = trip.days.at(-1)?.date
 const onTrip = (day: string) =>
   trip.members.filter((m) => {
-    const span = spans.get(m.id)
+    const span = presence.get(m.id)
     return !span || (span.first <= day && day <= span.last)
   })
-const joining = (day: string) => trip.members.filter((m) => day !== firstDay && spans.get(m.id)?.first === day)
-const leaving = (day: string) => trip.members.filter((m) => day !== lastDay && spans.get(m.id)?.last === day)
+const joining = (day: string) => trip.members.filter((m) => day !== firstDay && presence.get(m.id)?.first === day)
+const leaving = (day: string) => trip.members.filter((m) => day !== lastDay && presence.get(m.id)?.last === day)
 const names = (members: { name: string }[]) => members.map((m) => m.name).join(', ')
+// Plans still going at midnight (stays aside: their beds show every night).
+const overnight = (day: string) =>
+  trip.items.filter((i) => i.kind !== 'lodging' && i.local.date <= day && (i.local.endDate ?? i.local.date) > day)
 
 // Runs of identical quiet days (nothing planned, nobody arriving or leaving,
 // same bases, beds and blockers) fold into one block: a week of "free day in
@@ -171,6 +162,29 @@ const span = (from: string, to: string) =>
             </header>
             <DayBody trip={trip} i18n={i18n} day={day} proposals={proposals.get(day.date)} homeOffset={offset} />
           </section>
+          {/* Something running past midnight: a line down into the next day. */}
+          {overnight(day.date).map((i) => (
+            <a class="overnight footnote" href={`#item-${i.id}`} data-presence data-people={people(i.members)}>
+              <Icon name={kindIcon[i.kind] ?? 'clock'} size={14} />
+              <span class="ellipsis" lang={trip.locale}>
+                {i.title}
+              </span>
+              <span class="secondary tabular">
+                {t('trip.until', {
+                  when: [date(i.local.endDate!, { day: 'numeric', month: 'short' }), i.local.endTime]
+                    .filter(Boolean)
+                    .join(' '),
+                })}
+              </span>
+            </a>
+          ))}
+          {/* The last day: whoever is still here heads home. */}
+          {day.date === lastDay && onTrip(day.date).length > 0 && (
+            <p class="edge footnote" data-presence data-people={people(onTrip(day.date).map((m) => m.id))}>
+              <Icon name="home" size={14} />
+              {t('trip.ends', { names: names(onTrip(day.date)) })}
+            </p>
+          )}
           {leaving(day.date).length > 0 && onTrip(nextDay(day.date)).length > 0 && (
             <p class="edge footnote" data-presence data-people={people(leaving(day.date).map((m) => m.id))}>
               <Icon name="flight" size={14} />
@@ -334,6 +348,38 @@ const span = (from: string, to: string) =>
   .empty {
     padding: var(--space-12) 0;
     text-align: center;
+  }
+
+  /* A plan running past midnight: a dashed line down from one day into the next. */
+  .overnight {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: calc(-1 * var(--space-4)) 0 0 var(--rail);
+    padding: var(--space-5) 0 var(--space-5) var(--space-5);
+    border-left: 2px dashed var(--separator-strong);
+    color: var(--label-secondary);
+    text-decoration: none;
+  }
+
+  /* Under the plan card's icon, on both sides of midnight (DayBody's arrival too). */
+  .days {
+    --rail: 91px;
+  }
+
+  @media (max-width: 560px) {
+    .days {
+      --rail: 74px;
+    }
+  }
+
+  .overnight:hover {
+    color: var(--label);
+  }
+
+  .overnight :global(svg) {
+    flex: none;
   }
 
   /* Someone joins or heads home: a quiet line across the timeline. */
