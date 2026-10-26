@@ -1,7 +1,9 @@
 // Recent changes per trip, from git: each first-parent commit on the current
 // branch that touched a trip's files (a merged PR is one), loaded as it was
 // and diffed against the version before. Without git or history (a shallow
-// clone, a tarball) there are simply no changes to show.
+// clone, a tarball) there are simply no changes to show. On GitHub, authors
+// are their accounts (the trip member of that name, else `@login`); without
+// API access, the name on the commit.
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -34,8 +36,63 @@ function tripAt(root: string, sha: string, path: string): TripExport | undefined
   return result.ok ? result.export.trips[0] : undefined
 }
 
+/** `owner/name` of the GitHub repository: `source.repo`, else the `origin` remote. */
+function githubRepo(root: string, site: SiteExport): string | undefined {
+  let url = site.site.source?.repo
+  try {
+    url ??= git(root, ['remote', 'get-url', 'origin']).trim()
+  } catch {
+    return undefined
+  }
+  return /github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?\/?$/.exec(url ?? '')?.[1]
+}
+
+/** A token for the GitHub API: CI's, else the local `gh` login; none is fine for public repositories. */
+function githubToken(): string | undefined {
+  const env = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN
+  if (env) return env
+  try {
+    return (
+      execFileSync('gh', ['auth', 'token'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() ||
+      undefined
+    )
+  } catch {
+    return undefined
+  }
+}
+
+/** Replaces commit names with GitHub accounts: the PR's author, else the commit's. */
+async function withAccounts(sets: ChangeSet[], repo: string, members: string[]): Promise<void> {
+  const token = githubToken()
+  const logins = new Map<string, Promise<string | undefined>>()
+  const ask = (path: string, pick: (body: Record<string, { login?: string } | undefined>) => string | undefined) => {
+    let login = logins.get(path)
+    if (!login) {
+      login = fetch(`https://api.github.com/repos/${repo}/${path}`, {
+        headers: { Accept: 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        signal: AbortSignal.timeout(8000),
+      })
+        .then(async (r) =>
+          r.ok ? pick((await r.json()) as Record<string, { login?: string } | undefined>) : undefined,
+        )
+        .catch(() => undefined)
+      logins.set(path, login)
+    }
+    return login
+  }
+  await Promise.all(
+    sets.map(async (set) => {
+      const login = set.pr
+        ? await ask(`pulls/${set.pr}`, (b) => b.user?.login)
+        : await ask(`commits/${set.sha}`, (b) => b.author?.login)
+      if (!login) return
+      set.author = members.find((m) => m.toLowerCase() === login.toLowerCase()) ?? `@${login}`
+    }),
+  )
+}
+
 /** `slug` → recent change sets, newest first. */
-export function tripChanges(sitePath: string, site: SiteExport): Record<string, ChangeSet[]> {
+export async function tripChanges(sitePath: string, site: SiteExport): Promise<Record<string, ChangeSet[]>> {
   const dir = dirname(sitePath)
   let root: string
   try {
@@ -46,6 +103,7 @@ export function tripChanges(sitePath: string, site: SiteExport): Record<string, 
   // Trip paths as site.yaml lists them, in the order the export keeps.
   const listed = [...readFileSync(sitePath, 'utf8').matchAll(/^\s*-\s*path:\s*(\S+)\s*$/gm)].map((m) => m[1]!)
   const out: Record<string, ChangeSet[]> = {}
+  const repo = githubRepo(root, site)
   site.trips.forEach((trip, index) => {
     const listedPath = listed[index]
     if (!listedPath) return
@@ -88,5 +146,15 @@ export function tripChanges(sitePath: string, site: SiteExport): Record<string, 
       out[trip.slug] = []
     }
   })
+  if (repo)
+    await Promise.all(
+      site.trips.map((trip) =>
+        withAccounts(
+          out[trip.slug] ?? [],
+          repo,
+          trip.members.map((m) => m.name),
+        ),
+      ),
+    )
   return out
 }
