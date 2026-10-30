@@ -11,10 +11,22 @@ export interface Debt {
 
 const CENT = 0.005
 
-/** Debts one expense of `amount` creates. Settled lines (paid = shares) create none. */
-export function lineDebts(shares: Record<string, number>, paid: Record<string, number>, amount: number): Debt[] {
-  const members = [...new Set([...Object.keys(shares), ...Object.keys(paid)])]
-  const net = members.map((m) => [m, ((paid[m] ?? 0) - (shares[m] ?? 0)) * amount] as const)
+/**
+ * Debts one expense of `amount` creates. Settled lines (paid = shares) create
+ * none. With `owedBy`, everyone else's debt is that member's.
+ */
+export function lineDebts(
+  shares: Record<string, number>,
+  paid: Record<string, number>,
+  amount: number,
+  owedBy?: string,
+): Debt[] {
+  const members = [...new Set([...Object.keys(shares), ...Object.keys(paid), ...(owedBy ? [owedBy] : [])])]
+  let net = members.map((m) => [m, ((paid[m] ?? 0) - (shares[m] ?? 0)) * amount] as const)
+  if (owedBy) {
+    const owed = net.filter(([m, v]) => m !== owedBy && v < 0).reduce((sum, [, v]) => sum + v, 0)
+    net = net.map(([m, v]) => [m, m === owedBy ? v + owed : v < 0 ? 0 : v] as const)
+  }
   const owed = net.filter(([, v]) => v > CENT)
   const owing = net.filter(([, v]) => v < -CENT)
   const total = owed.reduce((sum, [, v]) => sum + v, 0)

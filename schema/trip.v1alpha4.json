@@ -750,6 +750,13 @@
           "description": "A guess rather than a quote.",
           "type": "boolean"
         },
+        "owedBy": {
+          "description": "The one member who pays the payer back for everyone's share (say,\nfor their partner too), instead of each person their own. Shares stay\nas they are; only who owes whom changes. Needs `settled: false`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "settled": {
           "description": "Whether the others have paid the payer back. Travellers usually\nsquare up on the spot, so a paid cost is settled unless this says\n`false`: only then does someone owe someone for it.",
           "type": "boolean"

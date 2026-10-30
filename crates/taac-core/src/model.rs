@@ -750,6 +750,11 @@ pub struct Cost {
     /// A guess rather than a quote.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub estimate: bool,
+    /// The one member who pays the payer back for everyone's share (say,
+    /// for their partner too), instead of each person their own. Shares stay
+    /// as they are; only who owes whom changes. Needs `settled: false`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owed_by: Option<String>,
     /// Whether the others have paid the payer back. Travellers usually
     /// square up on the spot, so a paid cost is settled unless this says
     /// `false`: only then does someone owe someone for it.

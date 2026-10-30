@@ -65,7 +65,8 @@ itinerary:
     costs:
       - { amount: 138, currency: GBP, paidBy: Sam } # split: equal (default), personal, { shares: … }, { exact: … }
       # without paidBy: not paid yet (add estimate: true for a guess); paidBy: each — everyone paid their own part;
-      # paid costs count as paid back — settled: false when someone still owes the payer;
+      # paid costs count as paid back — settled: false when someone still owes the payer
+      # (owedBy: Sam — one person pays back for everyone's share);
       # paid in another currency: charged: { amount: 152.4, currency: EUR } — what left the payer's account
     # Booked separately by different people? Use `bookings:` instead of `booking:` — a list of
     # reservations, each with its own who, status, reference, deadline and costs.

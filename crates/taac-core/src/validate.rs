@@ -914,6 +914,17 @@ impl Validator<'_> {
                 );
             }
             self.who(owner, cost.who.as_deref());
+            if let Some(debtor) = &cost.owed_by {
+                self.who(owner, Some(std::slice::from_ref(debtor)));
+                if !cost.owed() {
+                    self.warn(
+                        "cost.owedBy",
+                        id,
+                        "`owedBy` only matters while someone still owes the payer: add `settled: false` (and `paidBy`)"
+                            .into(),
+                    );
+                }
+            }
             // A booking is a fact: record what it actually cost the payer.
             let payer_currency = match payers.as_slice() {
                 [one] => trip.member(one).and_then(|m| m.currency.clone()),
@@ -954,8 +965,10 @@ impl Validator<'_> {
                 .who
                 .as_deref()
                 .map_or_else(|| participants.to_vec(), |w| trip.who(Some(w)));
+            // Paying for others is fine when they still owe it back.
             if let [payer] = payers.as_slice()
                 && cost.split == Split::Equal
+                && !cost.owed()
                 && !beneficiaries.contains(&payer.as_str())
                 && trip.member(payer).is_some()
             {
