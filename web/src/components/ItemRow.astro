@@ -278,6 +278,11 @@ const offsetLabel =
                 <span class="secondary">· {t('item.for', { names: names(c.who) })}</span>
               )}
               {c.label && <span class="secondary">· {c.label}</span>}
+              {c.due && !c.charged && (
+                <span class="secondary">
+                  · {i18n.t('item.due', { date: i18n.date(c.due, { day: 'numeric', month: 'short' }) })}
+                </span>
+              )}
               {!c.settled && <span class="owed">· {t('item.owed')}</span>}
             </li>
           ))}

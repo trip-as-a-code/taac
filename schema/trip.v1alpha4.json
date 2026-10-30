@@ -760,6 +760,14 @@
             }
           ]
         },
+        "due": {
+          "description": "Booked at this price but charged later, on this date (pay at the\nproperty, a deposit's balance): until `charged` is added, what it costs\nin the payer's currency is an estimate.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
         "paidBy": {
           "description": "Who paid: a member, a list of members and/or groups sharing the\npayment equally, or `each` — everyone paid their own share. Omitted\nmeans nobody has paid yet: it counts as planned spend and nobody\nowes anybody for it.",
           "anyOf": [

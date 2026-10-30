@@ -852,6 +852,12 @@ pub struct Cost {
     /// the website estimates with the current rate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charged: Option<Money>,
+    /// Booked at this price but charged later, on this date (pay at the
+    /// property, a deposit's balance): until `charged` is added, what it costs
+    /// in the payer's currency is an estimate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date"))]
+    pub due: Option<NaiveDate>,
     /// Who paid: a member, a list of members and/or groups sharing the
     /// payment equally, or `each` — everyone paid their own share. Omitted
     /// means nobody has paid yet: it counts as planned spend and nobody

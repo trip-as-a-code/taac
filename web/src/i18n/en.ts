@@ -272,6 +272,7 @@ export const en = {
   'item.contact': 'Contact',
   'item.paidBy': 'Paid by {name}',
   'item.onMap': 'On the map',
+  'item.due': 'charged {date}',
   'item.website': 'Website',
   'item.bookingLink': 'Book',
   'item.pricedWith': 'Price in the {title} booking',
