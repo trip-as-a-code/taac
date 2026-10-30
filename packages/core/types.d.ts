@@ -167,6 +167,8 @@ export interface Item {
   kind: ItemKind
   title: string
   source?: Source
+  /** Booked under the same reference as this plan, which carries the price. */
+  pricedWith?: string
   start?: ISODateTime
   end?: ISODateTime
   local: {

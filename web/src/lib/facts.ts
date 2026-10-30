@@ -48,6 +48,7 @@ export const ISSUE_CODES = [
   'booking.reference',
   'booking.deadline',
   'cost.estimate',
+  'cost.charged',
   'title.who',
 ] as const
 export type IssueCode = (typeof ISSUE_CODES)[number]

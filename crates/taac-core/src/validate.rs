@@ -826,15 +826,27 @@ impl Validator<'_> {
                 _ => None,
             }
             .unwrap_or_else(|| trip.base_currency().to_owned());
-            if booked && cost.is_paid() && cost.charged.is_none() && cost.currency != payer_currency
+            // Until then the site converts at today's rate: worth a warning, not a failed build.
+            if booked
+                && cost.is_paid()
+                && !cost.estimate
+                && cost.charged.is_none()
+                && cost.currency != payer_currency
             {
-                self.error(
+                self.warn(
                     "cost.charged",
                     id,
                     format!(
                         "booked, priced in {} — add `charged:` with what was actually paid in {payer_currency}",
                         cost.currency
                     ),
+                );
+                self.detail(
+                    &[
+                        ("amount", format!("{} {}", cost.amount, cost.currency)),
+                        ("currency", payer_currency.clone()),
+                    ],
+                    Some(format!("charged: {{ amount: 0, currency: {payer_currency} }} # what left the account")),
                 );
             }
             if let Some(charged) = cost.charged.as_ref().filter(|c| c.amount < Decimal::ZERO) {
@@ -1126,6 +1138,28 @@ ideas:
         assert_eq!(at("split"), ["item.unassigned"], "{d:?}");
         assert_eq!(at("late"), ["item.absent"], "{d:?}");
         assert!(at("fine").is_empty(), "{d:?}");
+    }
+
+    #[test]
+    fn foreign_prices_ask_for_what_was_charged() {
+        let d = check(
+            "  - { kind: activity, title: paid, date: 2027-01-01, who: [a], booking: { status: booked, reference: { secret: R } },
+      costs: [{ amount: 1000, currency: JPY, paidBy: a }] }
+  - { kind: activity, title: guessed, date: 2027-01-01, who: [a], booking: { status: booked, reference: { secret: S } },
+      costs: [{ amount: 1000, currency: JPY, paidBy: a, estimate: true }] }
+  - { kind: activity, title: known, date: 2027-01-01, who: [a], booking: { status: booked, reference: { secret: T } },
+      costs: [{ amount: 1000, currency: JPY, paidBy: a, charged: { amount: 6.1, currency: EUR } }] }",
+        );
+        let charged: Vec<_> = d.iter().filter(|x| x.code == "cost.charged").collect();
+        assert_eq!(charged.len(), 1, "{d:?}");
+        assert_eq!(charged[0].item.as_deref(), Some("paid"));
+        assert!(!charged[0].is_error());
+        assert!(
+            charged[0]
+                .fix
+                .as_deref()
+                .is_some_and(|f| f.starts_with("charged:"))
+        );
     }
 
     #[test]
