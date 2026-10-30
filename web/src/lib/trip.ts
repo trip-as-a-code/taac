@@ -245,3 +245,6 @@ export function echoesPlace(title: string, places: { name: string }[]): boolean 
   const said = words(title)
   return [...words(places[0].name)].every((w) => said.has(w))
 }
+
+/** A party id as it appears in file names: `a+b` → `a~b` (`+` reads as a space in some URLs). */
+export const fileKey = (party: string) => party.replaceAll('+', '~')

@@ -26,6 +26,19 @@ fn demo_exports_without_diagnostics() {
     assert_eq!(trip.slug, "lisbon");
     assert!(trip.diagnostics.is_empty(), "{:?}", trip.diagnostics);
     assert_eq!(trip.days.len(), 4);
+    // Every member and group gets their own files, each holding less than the whole trip.
+    let parties: Vec<&str> = trip.artifacts.by_party.keys().map(String::as_str).collect();
+    let expected: Vec<&str> = trip
+        .members
+        .iter()
+        .map(|m| m.id.as_str())
+        .chain(trip.groups.iter().map(|g| g.id.as_str()))
+        .collect();
+    assert_eq!(parties, expected);
+    for files in trip.artifacts.by_party.values() {
+        assert!(files.ics.len() <= trip.artifacts.ics.len());
+        assert!(files.markdown.len() <= trip.artifacts.markdown.len());
+    }
     // The return flight is booked with the outbound, which carries the price.
     let back = trip
         .items
