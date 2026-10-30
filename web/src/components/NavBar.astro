@@ -102,7 +102,10 @@ const pathname = Astro.url.pathname
     padding-inline: var(--gutter);
   }
 
+  /* Flex, not a line box: an inline-flex link on a text line sits on its baseline, above centre. */
   .nav-leading {
+    display: flex;
+    align-items: center;
     min-width: 0;
   }
 
