@@ -224,6 +224,9 @@ export const en = {
     '{who}: it ends at {from}, but the night is at {to} (“{night}”), and no plan takes them back. Add the journey:',
   'issue.area.radius': 'Area without a radius',
   'issue.area.radius.detail': '“{place}” is used as an area but has no `radius`, so only that very spot is in it:',
+  'issue.route.station': 'Boards away from a station',
+  'issue.route.station.detail':
+    'It runs {end} “{place}”, which isn’t a station or a stop. Walk to it as a leg of its own:',
   'issue.other': 'Worth a look',
   'issues.title': 'Issues',
   'issues.lede': 'Things in the plan that look wrong. Fix them in the trip files.',

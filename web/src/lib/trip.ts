@@ -53,6 +53,8 @@ export function placeEmoji(category?: string): string {
   const table: Record<string, string> = {
     airport: '✈️',
     station: '🚉',
+    stop: '🚏',
+    port: '⛴️',
     hotel: '🛏️',
     ryokan: '♨️',
     onsen: '♨️',
