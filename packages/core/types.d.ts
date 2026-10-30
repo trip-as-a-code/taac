@@ -110,6 +110,8 @@ export interface Cost {
   who: string[]
   label?: string
   estimate: boolean
+  /** Charged later, on this date: until then the converted amount is an estimate. */
+  due?: ISODate
   /** Nobody has paid yet: an estimate or a price to pay later. */
   unpaid: boolean
   /** Paid by `each`: everyone paid their own share. */

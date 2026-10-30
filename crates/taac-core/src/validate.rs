@@ -1170,6 +1170,7 @@ impl Validator<'_> {
             if booked
                 && cost.is_paid()
                 && !cost.estimate
+                && cost.due.is_none()
                 && cost.charged.is_none()
                 && cost.currency != payer_currency
             {
@@ -1676,7 +1677,9 @@ ideas:
   - { kind: activity, title: guessed, date: 2027-01-01, who: [a], booking: { status: booked, reference: { secret: S } },
       costs: [{ amount: 1000, currency: JPY, paidBy: a, estimate: true }] }
   - { kind: activity, title: known, date: 2027-01-01, who: [a], booking: { status: booked, reference: { secret: T } },
-      costs: [{ amount: 1000, currency: JPY, paidBy: a, charged: { amount: 6.1, currency: EUR } }] }",
+      costs: [{ amount: 1000, currency: JPY, paidBy: a, charged: { amount: 6.1, currency: EUR } }] }
+  - { kind: activity, title: later, date: 2027-01-01, who: [a], booking: { status: booked, reference: { secret: U } },
+      costs: [{ amount: 1000, currency: JPY, paidBy: a, due: 2026-12-05 }] }",
         );
         let charged: Vec<_> = d.iter().filter(|x| x.code == "cost.charged").collect();
         assert_eq!(charged.len(), 1, "{d:?}");
