@@ -257,6 +257,34 @@ impl Validator<'_> {
                     "transport items should list origin and destination".into(),
                 );
             }
+            // A vehicle boards and leaves at a station, stop, port or
+            // airport; getting there from a hotel or a temple is its own leg.
+            if item.kind.is_transport() && item.kind != ItemKind::Transfer {
+                let places = trip.item_places(item);
+                for (end, place) in [("from", places.first()), ("to", places.last())] {
+                    let Some((_, place)) = place else { continue };
+                    // A whole area (`radius`) is a coarse plan, not a door.
+                    if place.radius.is_none()
+                        && !matches!(
+                            place.category.as_deref(),
+                            Some("station" | "stop" | "port" | "airport")
+                        )
+                    {
+                        self.warn(
+                            "route.station",
+                            id,
+                            format!(
+                                "`{}` runs {end} {}, which isn't a station, stop, port or airport — walk (or ride, or take a taxi) between them as a leg of its own",
+                                item.title, place.name
+                            ),
+                        );
+                        self.detail(
+                            &[("end", end.to_owned()), ("place", place.name.clone())],
+                            None,
+                        );
+                    }
+                }
+            }
             self.who(&item.id, item.who.as_deref());
             self.title_names(&item.id, &item.title);
             if item
@@ -1651,6 +1679,27 @@ ideas:
             !fine.iter().any(|d| d.code.starts_with("route.")),
             "{fine:?}"
         );
+    }
+
+    #[test]
+    fn vehicles_board_at_stations() {
+        let d = check(
+            "  - { kind: train, title: metro, start: 2027-01-01T09:00:00+09:00, end: 2027-01-01T09:30:00+09:00, who: [everyone],
+      places: [flat, { name: Station, geo: [35.68, 139.77], category: station }] }
+  - { kind: transfer, title: taxi, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T10:30:00+09:00, who: [everyone], places: [{ name: Station, geo: [35.68, 139.77], category: station }, flat] }",
+        );
+        let stations: Vec<_> = d
+            .iter()
+            .filter(|d| d.code == "route.station")
+            .map(|d| {
+                (
+                    d.item.as_deref().unwrap_or(""),
+                    d.params.get("end").map(String::as_str),
+                )
+            })
+            .collect();
+        // The metro starts at a flat; a taxi may go door to door.
+        assert_eq!(stations, [("metro", Some("from"))], "{d:?}");
     }
 
     #[test]

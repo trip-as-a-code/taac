@@ -160,8 +160,10 @@ pub struct Place {
     /// `[latitude, longitude]`, WGS 84.
     pub geo: [f64; 2],
     /// Free-form; well-known values get dedicated icons: airport, station,
-    /// hotel, ryokan, temple, shrine, garden, nature, museum, shopping,
-    /// food, historic, attraction, viewpoint, onsen.
+    /// stop, port, hotel, ryokan, temple, shrine, garden, nature, museum,
+    /// shopping, food, historic, attraction, viewpoint, onsen. Trains, buses,
+    /// ferries and flights run between `station`, `stop`, `port` and
+    /// `airport` places only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
