@@ -36,7 +36,13 @@ const debts = [...owed.values()].filter((d) => d.amount > 0.005)
         <span class="ellipsis">{memberName(trip, d.from)}</span>
         <Icon name="arrowRight" size={12} />
         <span class="ellipsis">{memberName(trip, d.to)}</span>
-        <Money amount={Math.round(d.amount * 100) / 100} currency={d.currency} lang={i18n.lang} class="amount" />
+        <Money
+          display={trip.currency?.base ?? 'EUR'}
+          amount={Math.round(d.amount * 100) / 100}
+          currency={d.currency}
+          lang={i18n.lang}
+          class="amount"
+        />
       </li>
     ))}
   </ul>

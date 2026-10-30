@@ -29,7 +29,9 @@ const current = options.find((o) => o.value === value) ?? options[0]
 
 <!--
   The native select stays the source of truth (value, change events,
-  no-JS fallback); scripts/picker.ts swaps in the custom trigger and list.
+  no-JS fallback). The trigger is there from the first paint, sized like the
+  enhanced control, with the select invisible on top of it until
+  scripts/picker.ts takes over.
 -->
 <div
   class:list={['picker', variant, className]}
@@ -46,7 +48,7 @@ const current = options.find((o) => o.value === value) ?? options[0]
   </select>
   <button type="button" class="picker-trigger" role="combobox" aria-label={label} aria-expanded="false" tabindex="-1">
     <span class="picker-value ellipsis" lang={current?.lang}>
-      {current?.label}
+      {current?.short ?? current?.label}
     </span>
   </button>
   <Icon name="chevronDown" size={14} />

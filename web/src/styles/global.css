@@ -517,7 +517,14 @@ p {
   font-weight: 600;
 }
 
-.picker:not(.enhanced) .picker-trigger,
+/* Until scripts/picker.ts runs: the trigger sets the size, the native select
+   (invisible, on top) still takes the click. */
+.picker:not(.enhanced) > select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
 .picker.enhanced > select {
   display: none;
 }
@@ -720,4 +727,55 @@ p {
   border-radius: 50%;
   vertical-align: middle;
   background: var(--tint);
+}
+
+/* Skeletons (components/Skeleton.astro): a placeholder shaped like what it
+   stands in for, breathing slowly. The loading region says aria-busy. */
+.skeleton {
+  display: block;
+  width: var(--skeleton-width, 100%);
+  height: var(--skeleton-height, 1em);
+  border-radius: 6px;
+  background: var(--fill-strong);
+  animation: skeleton-breath 1.6s var(--ease) infinite alternate;
+}
+
+.skeleton[data-variant='line'] {
+  height: var(--skeleton-height, 0.8lh);
+  margin-block: 0.1lh;
+  border-radius: 999px;
+}
+
+.skeleton[data-variant='block'] {
+  height: var(--skeleton-height, 4rem);
+  border-radius: var(--radius-sm);
+}
+
+.skeleton[data-variant='inline'] {
+  display: inline-block;
+  width: var(--skeleton-width, 3rem);
+  height: var(--skeleton-height, 1em);
+  vertical-align: middle;
+  border-radius: 999px;
+}
+
+@keyframes skeleton-breath {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Until a remembered filter is applied (BaseLayout, scripts/filters.ts). */
+html[data-filter-pending] .trip .content {
+  opacity: 0;
 }

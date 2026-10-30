@@ -154,7 +154,13 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
                   {passCosts(pass.id).map((l) => (
                     <span class="footnote">
                       {l.estimate && '≈ '}
-                      <Money amount={l.amount} currency={l.currency} charged={l.charged} lang={lang} />
+                      <Money
+                        display={trip.currency?.base ?? 'EUR'}
+                        amount={l.amount}
+                        currency={l.currency}
+                        charged={l.charged}
+                        lang={lang}
+                      />
                     </span>
                   ))}
                   {pass.status !== 'notRequired' && (
