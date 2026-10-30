@@ -122,14 +122,24 @@ export function people(members: string[]): string {
   return members.join(' ')
 }
 
+/** "A, B & C" from member ids. */
+export function memberNames(trip: TripExport, ids: string[], and: string): string {
+  const names = ids.map((id) => memberName(trip, id))
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')}${and}${names.at(-1)}` : (names[0] ?? '')
+}
+
+/** A group's name, or its members' when it has none. */
+export function groupLabel(trip: TripExport, group: { name?: string; members: string[] }, and: string): string {
+  return group.name ?? memberNames(trip, group.members, and)
+}
+
 /** Human name of a party: everyone, a group, or "A & B". */
 export function partyLabel(trip: TripExport, partyId: string, everyone: string, and: string): string {
   if (partyId === 'everyone') return everyone
   const party = trip.parties.find((p) => p.id === partyId)
   const group = party?.group ? trip.groups.find((g) => g.id === party.group) : undefined
-  if (group) return group.name
-  const names = (party?.members ?? partyId.split('+')).map((id) => memberName(trip, id))
-  return names.length > 1 ? `${names.slice(0, -1).join(', ')}${and}${names.at(-1)}` : (names[0] ?? partyId)
+  if (group) return groupLabel(trip, group, and)
+  return memberNames(trip, party?.members ?? partyId.split('+'), and) || partyId
 }
 
 export function partyEmoji(trip: TripExport, partyId: string): string | undefined {
@@ -187,10 +197,13 @@ export function ideasAt(trip: TripExport, base: Base): Idea[] {
 }
 
 /** Route rows: one per group when groups go separate ways, else one. */
-export function routeRows(trip: TripExport): { label?: string; emoji?: string; members: string[]; bases: Base[] }[] {
+export function routeRows(
+  trip: TripExport,
+  and: string,
+): { label?: string; emoji?: string; members: string[]; bases: Base[] }[] {
   const ordered = [...trip.bases].sort((a, b) => a.from.localeCompare(b.from))
   const rows = trip.groups.map((g) => ({
-    label: g.name,
+    label: groupLabel(trip, g, and),
     emoji: g.emoji,
     members: g.members,
     bases: ordered.filter((b) => g.members.every((m) => b.members.includes(m))),

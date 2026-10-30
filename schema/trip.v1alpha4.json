@@ -241,8 +241,11 @@
       "type": "object",
       "properties": {
         "name": {
-          "description": "Usable in `who` and `paidBy` like a person's name.",
-          "type": "string"
+          "description": "Usable in `who` and `paidBy` like a person's name. Without one the\ngroup still ties its members together (sections, the people lens),\nshown by their names; refer to it by listing them.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "emoji": {
           "type": [
@@ -266,7 +269,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "name",
         "members"
       ]
     },

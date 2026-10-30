@@ -572,13 +572,13 @@ fn resolve_names(trip: &mut Trip) {
         member.id = slug(&member.name);
     }
     for group in &mut trip.groups {
-        group.id = slug(&group.name);
+        group.id = group.name.as_deref().map(slug).unwrap_or_default();
     }
     let mut people: HashMap<String, String> = HashMap::new();
     for (name, id) in trip
         .groups
         .iter()
-        .map(|g| (&g.name, &g.id))
+        .filter_map(|g| Some((g.name.as_ref()?, &g.id)))
         .chain(trip.members.iter().map(|m| (&m.name, &m.id)))
     {
         people.insert(name.to_lowercase(), id.clone());
@@ -639,6 +639,10 @@ fn resolve_names(trip: &mut Trip) {
     for group in &mut trip.groups {
         for name in &mut group.members {
             *name = person(name);
+        }
+        // Unnamed: known by its members, like any party of them.
+        if group.name.is_none() {
+            group.id = group.members.join("+");
         }
     }
 
@@ -921,6 +925,28 @@ groups: [{ name: Duo, members: [a, B] }]
         assert_eq!(trip.party(&["a", "b"]).id, "duo");
         assert_eq!(trip.party(&["a", "b", "c"]).id, "everyone");
         assert_eq!(trip.party(&["a", "c"]).id, "a+c");
+    }
+
+    #[test]
+    fn groups_need_no_name() {
+        let trip_yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+members: [{ name: A }, { name: B }, { name: C }]
+groups: [{ description: The two of them, members: [A, B] }]
+";
+        let fs = files(&[("trip.yaml", trip_yaml)]);
+        let (site, diagnostics) = load_standalone_trip(&fs, "trip.yaml");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let trip = &site.unwrap().trips[0];
+        // Known by its members: the party of exactly them is the group.
+        assert_eq!(trip.groups[0].id, "a+b");
+        let party = trip.party(&["a", "b"]);
+        assert_eq!(
+            (party.id.as_str(), party.group.as_deref()),
+            ("a+b", Some("a+b"))
+        );
     }
 
     #[test]

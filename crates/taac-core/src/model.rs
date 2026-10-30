@@ -130,8 +130,11 @@ pub struct Group {
     #[serde(skip_deserializing)]
     #[schemars(skip)]
     pub id: String,
-    /// Usable in `who` and `paidBy` like a person's name.
-    pub name: String,
+    /// Usable in `who` and `paidBy` like a person's name. Without one the
+    /// group still ties its members together (sections, the people lens),
+    /// shown by their names; refer to it by listing them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub emoji: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
