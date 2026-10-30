@@ -79,11 +79,19 @@ const span = (from: string, to: string) =>
 
   <nav class="day-strip" aria-label={t('filter.day')}>
     {trip.days.map((day, index) => (
-      <a href={`#${day.date}`} class="day-chip" data-day-link={day.date}>
-        <span class="dow">{date(day.date, { weekday: 'short' })}</span>
-        <span class="dom tabular">{date(day.date, { day: 'numeric' })}</span>
-        <span class="visually-hidden">{t('trip.dayN', { n: index + 1 })}</span>
-      </a>
+      <>
+        {/* Where a month starts (and at the first day): 31 → 1 reads as a new month, not a typo. */}
+        {(index === 0 || day.date.slice(5, 7) !== trip.days[index - 1]!.date.slice(5, 7)) && (
+          <span class="month footnote" aria-hidden="true">
+            {date(day.date, { month: 'short' })}
+          </span>
+        )}
+        <a href={`#${day.date}`} class="day-chip" data-day-link={day.date}>
+          <span class="dow">{date(day.date, { weekday: 'short' })}</span>
+          <span class="dom tabular">{date(day.date, { day: 'numeric' })}</span>
+          <span class="visually-hidden">{t('trip.dayN', { n: index + 1 })}</span>
+        </a>
+      </>
     ))}
   </nav>
 
@@ -213,7 +221,16 @@ const span = (from: string, to: string) =>
       for (const chip of document.querySelectorAll<HTMLElement>('[data-day-link]'))
         chip.hidden = Boolean(
           document.getElementById(chip.dataset.dayLink!)?.closest<HTMLElement>('[data-day-section]')?.hidden,
-        )
+        ) // A month marker goes when none of its days are left.
+      for (const month of document.querySelectorAll<HTMLElement>('.day-strip .month')) {
+        let next = month.nextElementSibling as HTMLElement | null
+        let any = false
+        while (next && !next.classList.contains('month')) {
+          any ||= !next.hidden
+          next = next.nextElementSibling as HTMLElement | null
+        }
+        month.hidden = !any
+      }
     })
     revealTarget()
     // Dim past days and bring today into view while the trip is underway.
@@ -247,6 +264,27 @@ const span = (from: string, to: string) =>
 
   .day-strip::-webkit-scrollbar {
     display: none;
+  }
+
+  /* With a mouse there is no swipe: every day in view, on as many rows as it takes. */
+  @media (min-width: 761px) {
+    .day-strip {
+      flex-wrap: wrap;
+      margin-inline: 0;
+      padding-inline: 0;
+      overflow: visible;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+  }
+
+  .month {
+    flex: none;
+    align-self: center;
+    padding: 0 2px 0 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--label-tertiary);
   }
 
   .day-chip {
