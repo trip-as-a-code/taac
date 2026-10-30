@@ -366,8 +366,18 @@ pub struct OverlayExport {
 #[serde(rename_all = "camelCase")]
 pub struct Artifacts {
     pub ics: String,
-    /// One calendar per member, with only their plans.
-    pub ics_by_member: IndexMap<String, String>,
+    pub geojson: String,
+    pub beancount: String,
+    pub markdown: String,
+    /// The same files for each member and each group (by id), with only
+    /// what they take part in.
+    pub by_party: IndexMap<String, PartyArtifacts>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartyArtifacts {
+    pub ics: String,
     pub geojson: String,
     pub beancount: String,
     pub markdown: String,
@@ -652,19 +662,29 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
             .collect(),
         artifacts: Artifacts {
             ics: generators::ics::generate(trip, None, None),
-            ics_by_member: trip
-                .members
-                .iter()
-                .map(|m| {
-                    (
-                        m.id.clone(),
-                        generators::ics::generate(trip, None, Some(&m.id)),
-                    )
-                })
-                .collect(),
             geojson: generators::geojson::generate(trip),
             beancount: generators::beancount::generate(trip),
             markdown: generators::markdown::generate(trip, None),
+            by_party: trip
+                .members
+                .iter()
+                .map(|m| (m.id.clone(), vec![m.id.as_str()]))
+                .chain(
+                    trip.groups
+                        .iter()
+                        .map(|g| (g.id.clone(), g.members.iter().map(String::as_str).collect())),
+                )
+                .map(|(id, people)| {
+                    let mine = trip.for_people(&people);
+                    let artifacts = PartyArtifacts {
+                        ics: generators::ics::generate(&mine, None, None),
+                        geojson: generators::geojson::generate(&mine),
+                        beancount: generators::beancount::generate(&mine),
+                        markdown: generators::markdown::generate(&mine, None),
+                    };
+                    (id, artifacts)
+                })
+                .collect(),
         },
         diagnostics,
     }

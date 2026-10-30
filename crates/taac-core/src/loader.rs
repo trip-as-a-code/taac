@@ -93,6 +93,28 @@ impl Trip {
     }
 
     /// Effective participants of an item; see [`Trip::who`].
+    /// The trip as some of the people see it: the plans, ideas, bases,
+    /// blockers and packing any of them take part in. Members, groups and
+    /// places stay, so names and shares still resolve.
+    #[must_use]
+    pub fn for_people(&self, people: &[&str]) -> Self {
+        let mine = |members: Vec<&str>| members.iter().any(|m| people.contains(m));
+        let mut trip = self.clone();
+        trip.itinerary.retain(|i| mine(self.participants(i)));
+        trip.ideas.retain(|i| mine(self.who(i.who.as_deref())));
+        trip.declared_bases
+            .retain(|b| mine(self.who(b.who.as_deref())));
+        trip.blockers.retain(|b| mine(self.who(b.who.as_deref())));
+        for category in &mut trip.packing {
+            let default = category.who.clone();
+            category
+                .items
+                .retain(|i| mine(self.who(i.who().or(default.as_deref()))));
+        }
+        trip.packing.retain(|c| !c.items.is_empty());
+        trip
+    }
+
     pub fn participants(&self, item: &Item) -> Vec<&str> {
         self.who(item.who.as_deref())
     }

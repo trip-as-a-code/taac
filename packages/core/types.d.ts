@@ -304,6 +304,13 @@ export interface TripExport {
     }[]
   }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
-  artifacts: { ics: string; icsByMember: Record<string, string>; geojson: string; beancount: string; markdown: string }
+  artifacts: {
+    ics: string
+    geojson: string
+    beancount: string
+    markdown: string
+    /** The same files per member and per group (by id), with only what they take part in. */
+    byParty: Record<string, { ics: string; geojson: string; beancount: string; markdown: string }>
+  }
   diagnostics: Diagnostic[]
 }

@@ -10,7 +10,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { isLabelled } from '@/lib/facts'
 import { sourceHref, sourceLabel } from '@/lib/source'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { bookable, groupLabel, homeOffset, initials, memberHue } from '@/lib/trip'
+import { bookable, fileKey, groupLabel, homeOffset, initials, memberHue } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -69,16 +69,19 @@ const issueHref = (id?: string) =>
       ? path(`${base}/ideas/#idea-${id}`)
       : undefined
 
-const downloads: { icon: IconName; label: string; href: string; file: string }[] = [
-  { icon: 'calendar', label: t('trip.downloadIcs'), href: `${base}/calendar.ics`, file: `${trip.slug}.ics` },
-  { icon: 'map', label: t('trip.downloadGeojson'), href: `${base}/map.geojson`, file: `${trip.slug}.geojson` },
-  {
-    icon: 'wallet',
-    label: t('trip.downloadBeancount'),
-    href: `${base}/budget.beancount`,
-    file: `${trip.slug}.beancount`,
-  },
-  { icon: 'note', label: t('trip.downloadMarkdown'), href: `${base}/itinerary.md`, file: `${trip.slug}.md` },
+// Each file comes whole and per member or group (`<stem>-<who>.<ext>`); the
+// page points at the one the people lens picks.
+const files: { icon: IconName; label: string; stem: string; ext: string; one: string }[] = [
+  { icon: 'calendar', label: t('trip.downloadIcs'), stem: 'calendar', ext: 'ics', one: t('trip.downloadIcsFor') },
+  { icon: 'map', label: t('trip.downloadGeojson'), stem: 'map', ext: 'geojson', one: '' },
+  { icon: 'wallet', label: t('trip.downloadBeancount'), stem: 'budget', ext: 'beancount', one: '' },
+  { icon: 'note', label: t('trip.downloadMarkdown'), stem: 'itinerary', ext: 'md', one: '' },
+]
+const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { label: d.label }) }))
+// The members and groups that have files of their own.
+const exportParties = [
+  ...trip.members.map((m) => ({ id: fileKey(m.id), members: [m.id], label: m.name })),
+  ...trip.groups.map((g) => ({ id: fileKey(g.id), members: g.members, label: groupLabel(trip, g, t('party.and')) })),
 ]
 ---
 
@@ -330,7 +333,14 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       <h2>{t('trip.export')}</h2>
     </div>
     <div class="card list exports">
-      <a class="row subscribe" href={`${base}/calendar.ics`} data-calendar-feed={trip.slug} data-subscribe>
+      <a
+        class="row subscribe"
+        href={`${base}/calendar.ics`}
+        data-calendar-feed={trip.slug}
+        data-subscribe
+        data-export="calendar"
+        data-ext="ics"
+      >
         <span class="tile">
           <Icon name="calendar" size={18} />
         </span>
@@ -345,18 +355,17 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       {downloads.map((d) => (
         <a
           class="row"
-          href={d.href}
-          download={d.file}
-          data-calendar-feed={d.icon === 'calendar' ? trip.slug : undefined}
+          href={`${base}/${d.stem}.${d.ext}`}
+          download={`${trip.slug}.${d.ext}`}
+          data-calendar-feed={d.stem === 'calendar' ? trip.slug : undefined}
+          data-export={d.stem}
+          data-ext={d.ext}
         >
           <span class="tile muted">
             <Icon name={d.icon} size={18} />
           </span>
           <span class="export-text">
-            <span
-              data-label-all={d.icon === 'calendar' ? d.label : undefined}
-              data-label-one={d.icon === 'calendar' ? t('trip.downloadIcsFor') : undefined}
-            >
+            <span data-label-all={d.label} data-label-one={d.one}>
               {d.label}
             </span>
           </span>
@@ -364,6 +373,16 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
         </a>
       ))}
     </div>
+    {/* The files follow the people lens; say so, and say when a selection has none of its own. */}
+    <p
+      class="footnote secondary hint"
+      data-export-hint
+      data-pick={t('trip.exportPick')}
+      data-for={t('trip.exportOnly')}
+      data-none={t('trip.exportNone')}
+    >
+      {t('trip.exportPick')}
+    </p>
     <p class="footnote tertiary hint">{t('trip.exportHint')}</p>
   </section>
   <script
@@ -372,6 +391,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
     set:html={JSON.stringify({
       currency,
       names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),
+      parties: exportParties,
       items: trip.items.map((i) => ({
         people: i.members,
         places: i.places,
@@ -402,6 +422,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
   interface OverviewData {
     currency: string
     names: Record<string, string>
+    parties: { id: string; members: string[]; label: string }[]
     items: { people: string[]; places: string[]; status: string; deadline?: string }[]
     days: { people: string[] }[]
     budget: BudgetData
@@ -453,22 +474,33 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
       el.hidden = lens.people.length > 0 && !lens.people.some((p) => row.includes(p))
     }
 
-    // One person selected: their own calendar.
-    const one = lens.people.length === 1 ? lens.people[0] : undefined
-    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-calendar-feed]')) {
-      const file = one ? `calendar-${one}.ics` : 'calendar.ics'
+    // A person or a group selected: their own files, where there are any.
+    const picked = lens.people
+    const party = data.parties.find(
+      (p) => p.members.length === picked.length && p.members.every((m) => picked.includes(m)),
+    )
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-export]')) {
+      const file = party
+        ? `${link.dataset.export}-${party.id}.${link.dataset.ext}`
+        : `${link.dataset.export}.${link.dataset.ext}`
       const url = new URL(link.href, location.href)
       url.protocol = location.protocol
-      url.pathname = url.pathname.replace(/calendar(-[^/]*)?\.ics$/, file)
+      url.pathname = url.pathname.replace(/[^/]*$/, file)
       if (link.dataset.calendarKey) url.searchParams.set('key', link.dataset.calendarKey)
       link.href = link.hasAttribute('data-subscribe') ? url.href.replace(/^https?:/, 'webcal:') : url.href
-      if (link.hasAttribute('download')) link.download = file
+      if (link.hasAttribute('download'))
+        link.download = `${link.dataset.calendarFeed ?? document.querySelector<HTMLElement>('[data-calendar-feed]')?.dataset.calendarFeed ?? 'trip'}${party ? `-${party.id}` : ''}.${link.dataset.ext}`
       const label = link.querySelector<HTMLElement>('[data-label-all]')
       if (label)
-        label.textContent = one
-          ? label.dataset.labelOne!.replace('{name}', data.names[one] ?? one)
-          : label.dataset.labelAll!
+        label.textContent = party ? label.dataset.labelOne!.replace('{name}', party.label) : label.dataset.labelAll!
     }
+    const hint = document.querySelector<HTMLElement>('[data-export-hint]')
+    if (hint)
+      hint.textContent = !picked.length
+        ? hint.dataset.pick!
+        : party
+          ? hint.dataset.for!.replace('{name}', party.label)
+          : hint.dataset.none!
   }
 
   function status() {
