@@ -80,7 +80,7 @@ export const en = {
   'trip.export': 'Take it with you',
   'trip.exportHint': 'Generated from the same source as this page.',
   'trip.exportFor': '{label} · {name}',
-  'trip.exportPick': 'Pick a person or group above, and these files hold only their plans.',
+  'trip.exportPick': 'The people filter above applies to these files too: pick someone and only their plans stay.',
   'trip.exportOnly': 'Only {name}’s plans. Pick “Everyone” for the whole trip.',
   'trip.exportNone': 'This selection has no files of its own: these are for the whole trip.',
   'trip.subscribe': 'Subscribe to calendar',
