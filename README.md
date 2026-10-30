@@ -86,7 +86,7 @@ itinerary:
     who: [everyone]
     date: 2027-05-14 # no fixed time
     part: evening # morning, afternoon, evening
-  - kind: ride # or walk: every move between two places needs a way there
+  - kind: ride # or walk, metro, bus: every move between two places is a leg
     title: Bike to Belém
     who: [everyone]
     start: 2027-05-15T09:15:00+01:00
@@ -94,7 +94,7 @@ itinerary:
     places: [Cais do Sodré, Belém]
     transport: { vehicle: bicycle, carrier: GIRA } # bicycle or scooter; a rental is its carrier
     costs: [{ amount: 6, currency: EUR, estimate: true }]
-passes: # a ticket or rental covering an area: moves inside it need no plan
+passes: # a ticket or rental paying for the legs in an area; each move is still a leg
   - title: Viva Viagem day passes
     area: Lisbon # a place with a radius
     periods: [{ from: 2027-05-14, to: 2027-05-17 }] # several for a card used on each stay

@@ -58,7 +58,7 @@ itinerary:
   - kind: lodging
     title: Casa do Bairro
     who: [everyone]
-    start: 2027-05-14T15:00:00+01:00
+    start: 2027-05-14T16:30:00+01:00
     end: 2027-05-17T11:00:00+01:00
     places: [Casa do Bairro]
     booking:
@@ -150,6 +150,82 @@ itinerary:
     places: [Lisbon Airport (LIS), London Gatwick (LGW)]
     transport: { carrier: TAP Air Portugal, number: TP1338 }
     booking: { status: booked, reference: { secret: DEMO_PNR } }
+  # Every move between two places is a leg; the Viva Viagem pass pays the fares.
+  - {
+      kind: train,
+      title: Metro and Tram 28 to the castle,
+      who: [everyone],
+      start: 2027-05-14T10:30:00+01:00,
+      end: 2027-05-14T11:45:00+01:00,
+      places: [Lisbon Airport (LIS), Castelo de São Jorge],
+      transport: { carrier: Metro / Carris },
+    }
+  - {
+      kind: walk,
+      title: Down to Casa do Bairro,
+      who: [everyone],
+      start: 2027-05-14T16:00:00+01:00,
+      end: 2027-05-14T16:25:00+01:00,
+      places: [Castelo de São Jorge, Casa do Bairro],
+    }
+  - {
+      kind: walk,
+      title: Up to the miradouro,
+      who: [Alex, Robin],
+      start: 2027-05-14T18:30:00+01:00,
+      end: 2027-05-14T18:55:00+01:00,
+      places: [Casa do Bairro, Miradouro da Senhora do Monte],
+    }
+  - {
+      kind: walk,
+      title: Back to Casa do Bairro,
+      who: [Alex, Robin],
+      start: 2027-05-14T21:30:00+01:00,
+      end: 2027-05-14T21:55:00+01:00,
+      places: [Miradouro da Senhora do Monte, Casa do Bairro],
+    }
+  - {
+      kind: walk,
+      title: To Rossio,
+      who: [Early birds],
+      start: 2027-05-15T07:50:00+01:00,
+      end: 2027-05-15T08:05:00+01:00,
+      places: [Casa do Bairro, Rossio Station],
+    }
+  - {
+      kind: walk,
+      title: Rossio to Casa do Bairro,
+      who: [Early birds],
+      start: 2027-05-15T17:25:00+01:00,
+      end: 2027-05-15T17:40:00+01:00,
+      places: [Rossio Station, Casa do Bairro],
+    }
+  - {
+      kind: walk,
+      title: Down to Cais do Sodré,
+      who: [everyone],
+      start: 2027-05-16T08:50:00+01:00,
+      end: 2027-05-16T09:10:00+01:00,
+      places: [Casa do Bairro, Cais do Sodré],
+    }
+  - {
+      kind: train,
+      title: Tram 15E back from Belém,
+      who: [everyone],
+      start: 2027-05-16T11:15:00+01:00,
+      end: 2027-05-16T11:50:00+01:00,
+      places: [Jerónimos Monastery, Casa do Bairro],
+      transport: { carrier: Carris },
+    }
+  - {
+      kind: train,
+      title: Metro to the airport,
+      who: [everyone],
+      start: 2027-05-17T16:30:00+01:00,
+      end: 2027-05-17T17:10:00+01:00,
+      places: [Casa do Bairro, Lisbon Airport (LIS)],
+      transport: { carrier: Metro de Lisboa },
+    }
 ideas:
   - title: LX Factory market
     who: [everyone]
@@ -177,8 +253,7 @@ ideas:
     part: evening
     booking: { status: notRequired }
     costs: [{ amount: 60, currency: EUR, estimate: true }]
-# Getting around Lisbon: inside its area on these days, moves between plans
-# need no journey of their own.
+# Pays the metro, trams and buses of the legs in Lisbon on these days.
 passes:
   - title: Viva Viagem day passes
     area: Lisbon
