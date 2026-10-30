@@ -10,7 +10,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { isLabelled } from '@/lib/facts'
 import { sourceHref, sourceLabel } from '@/lib/source'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { bookable, fileKey, groupLabel, homeOffset, initials, memberHue } from '@/lib/trip'
+import { bookable, groupLabel, homeOffset, initials, memberHue } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -78,11 +78,6 @@ const files: { icon: IconName; label: string; stem: string; ext: string; one: st
   { icon: 'note', label: t('trip.downloadMarkdown'), stem: 'itinerary', ext: 'md', one: '' },
 ]
 const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { label: d.label }) }))
-// The members and groups that have files of their own.
-const exportParties = [
-  ...trip.members.map((m) => ({ id: fileKey(m.id), members: [m.id], label: m.name })),
-  ...trip.groups.map((g) => ({ id: fileKey(g.id), members: g.members, label: groupLabel(trip, g, t('party.and')) })),
-]
 ---
 
 <TripLayout trip={trip} lang={lang} section="overview">
@@ -391,7 +386,10 @@ const exportParties = [
     set:html={JSON.stringify({
       currency,
       names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),
-      parties: exportParties,
+      // Selections with files of their own (`a`, `a~b` any of them, `a_b` together).
+      exportKeys: Object.keys(trip.artifacts.byParty),
+      together: t('lens.together').toLowerCase(),
+      and: t('party.and'),
       items: trip.items.map((i) => ({
         people: i.members,
         places: i.places,
@@ -422,7 +420,9 @@ const exportParties = [
   interface OverviewData {
     currency: string
     names: Record<string, string>
-    parties: { id: string; members: string[]; label: string }[]
+    exportKeys: string[]
+    together: string
+    and: string
     items: { people: string[]; places: string[]; status: string; deadline?: string }[]
     days: { people: string[] }[]
     budget: BudgetData
@@ -474,11 +474,24 @@ const exportParties = [
       el.hidden = lens.people.length > 0 && !lens.people.some((p) => row.includes(p))
     }
 
-    // A person or a group selected: their own files, where there are any.
-    const picked = lens.people
-    const party = data.parties.find(
-      (p) => p.members.length === picked.length && p.members.every((m) => picked.includes(m)),
-    )
+    // Whoever is selected, in either mode: their own files, where there are any.
+    const order = Object.keys(data.names)
+    const picked = order.filter((id) => lens.people.includes(id))
+    const together = lens.mode === 'together' && picked.length > 1
+    const key =
+      picked.length === 1
+        ? picked[0]!
+        : picked.length === order.length && !together
+          ? ''
+          : picked.join(together ? '_' : '~')
+    const whole = !picked.length || key === ''
+    const party = !whole && data.exportKeys.includes(key) ? { id: key, label: '' } : undefined
+    if (party) {
+      const names = picked.map((id) => data.names[id] ?? id)
+      party.label =
+        (names.length > 1 ? `${names.slice(0, -1).join(', ')}${data.and}${names.at(-1)}` : names[0]!) +
+        (together ? ` (${data.together})` : '')
+    }
     for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-export]')) {
       const file = party
         ? `${link.dataset.export}-${party.id}.${link.dataset.ext}`
@@ -496,7 +509,7 @@ const exportParties = [
     }
     const hint = document.querySelector<HTMLElement>('[data-export-hint]')
     if (hint)
-      hint.textContent = !picked.length
+      hint.textContent = whole
         ? hint.dataset.pick!
         : party
           ? hint.dataset.for!.replace('{name}', party.label)

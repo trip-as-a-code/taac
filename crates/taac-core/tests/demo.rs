@@ -26,15 +26,11 @@ fn demo_exports_without_diagnostics() {
     assert_eq!(trip.slug, "lisbon");
     assert!(trip.diagnostics.is_empty(), "{:?}", trip.diagnostics);
     assert_eq!(trip.days.len(), 4);
-    // Every member and group gets their own files, each holding less than the whole trip.
-    let parties: Vec<&str> = trip.artifacts.by_party.keys().map(String::as_str).collect();
-    let expected: Vec<&str> = trip
-        .members
-        .iter()
-        .map(|m| m.id.as_str())
-        .chain(trip.groups.iter().map(|g| g.id.as_str()))
-        .collect();
-    assert_eq!(parties, expected);
+    // Every combination of the demo's three people: singles, any-of pairs,
+    // together pairs and trio (everyone any-of is the whole trip).
+    let keys: Vec<&str> = trip.artifacts.by_party.keys().map(String::as_str).collect();
+    assert_eq!(keys.len(), 3 + 3 + 3 + 1, "{keys:?}");
+    assert!(keys.iter().all(|k| !k.contains('+')));
     for files in trip.artifacts.by_party.values() {
         assert!(files.ics.len() <= trip.artifacts.ics.len());
         assert!(files.markdown.len() <= trip.artifacts.markdown.len());

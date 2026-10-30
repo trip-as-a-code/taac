@@ -369,9 +369,53 @@ pub struct Artifacts {
     pub geojson: String,
     pub beancount: String,
     pub markdown: String,
-    /// The same files for each member and each group (by id), with only
-    /// what they take part in.
+    /// The same files for a selection of people, keyed by their ids in
+    /// member order: `a` for one, `a~b` for what any of them take part in,
+    /// `a_b` for what they do together. Every combination for trips of up to
+    /// [`EVERY_SELECTION_UP_TO`] people; beyond that, each member and group.
     pub by_party: IndexMap<String, PartyArtifacts>,
+}
+
+/// Trips this small get files for every combination of people (2ⁿ grows fast).
+pub const EVERY_SELECTION_UP_TO: usize = 6;
+
+/// Selections that get their own files: (key, member ids, together).
+fn selections(trip: &Trip) -> Vec<(String, Vec<&str>, bool)> {
+    let ids: Vec<&str> = trip.members.iter().map(|m| m.id.as_str()).collect();
+    let sets: Vec<Vec<&str>> = if ids.len() <= EVERY_SELECTION_UP_TO {
+        (1..1usize << ids.len())
+            .map(|mask| {
+                ids.iter()
+                    .enumerate()
+                    .filter(|(i, _)| mask & (1 << i) != 0)
+                    .map(|(_, id)| *id)
+                    .collect()
+            })
+            .collect()
+    } else {
+        ids.iter()
+            .map(|id| vec![*id])
+            .chain(trip.groups.iter().map(|g| {
+                ids.iter()
+                    .copied()
+                    .filter(|id| g.members.iter().any(|m| m == id))
+                    .collect()
+            }))
+            .collect()
+    };
+    let mut out = Vec::new();
+    for set in sets {
+        if set.len() == 1 {
+            out.push((set[0].to_owned(), set, false));
+            continue;
+        }
+        // Everyone, any of them, is the whole trip: no copy of it.
+        if set.len() < ids.len() {
+            out.push((set.join("~"), set.clone(), false));
+        }
+        out.push((set.join("_"), set, true));
+    }
+    out
 }
 
 #[derive(Debug, Serialize)]
@@ -665,24 +709,17 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
             geojson: generators::geojson::generate(trip),
             beancount: generators::beancount::generate(trip),
             markdown: generators::markdown::generate(trip, None),
-            by_party: trip
-                .members
-                .iter()
-                .map(|m| (m.id.clone(), vec![m.id.as_str()]))
-                .chain(
-                    trip.groups
-                        .iter()
-                        .map(|g| (g.id.clone(), g.members.iter().map(String::as_str).collect())),
-                )
-                .map(|(id, people)| {
-                    let mine = trip.for_people(&people);
+            by_party: selections(trip)
+                .into_iter()
+                .map(|(key, people, together)| {
+                    let mine = trip.for_people(&people, together);
                     let artifacts = PartyArtifacts {
                         ics: generators::ics::generate(&mine, None, None),
                         geojson: generators::geojson::generate(&mine),
                         beancount: generators::beancount::generate(&mine),
                         markdown: generators::markdown::generate(&mine, None),
                     };
-                    (id, artifacts)
+                    (key, artifacts)
                 })
                 .collect(),
         },
