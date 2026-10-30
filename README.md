@@ -97,8 +97,8 @@ itinerary:
 passes: # a ticket or rental covering an area: moves inside it need no plan
   - title: Viva Viagem day passes
     area: Lisbon # a place with a radius
-    from: 2027-05-14
-    to: 2027-05-17
+    periods: [{ from: 2027-05-14, to: 2027-05-17 }] # several for a card used on each stay
+    # or held per party, like a plan's reservations: bookings: [{ who, periods, costs }, …]
     mode: transit # transit (default), bicycle, scooter
     provider: Carris / Metro de Lisboa
     costs: [{ amount: 84, currency: EUR, paidBy: each, estimate: true }]

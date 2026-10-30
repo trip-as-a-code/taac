@@ -717,16 +717,33 @@ p {
   }
 }
 
-/* Changed since the last visit (TripLayout). */
-[data-changed] h3::after {
+/* Changed since the last visit (TripLayout): a still dot to the left of the
+   card's controls (copy link, disclosure arrow), never in the arrow's place. */
+[data-changed][data-item] summary {
+  position: relative;
+}
+
+[data-changed][data-item] summary > h3 {
+  padding-right: 42px;
+}
+
+[data-changed][data-item] [data-expandable] > summary > h3 {
+  padding-right: 64px;
+}
+
+[data-changed][data-item] summary > h3::before {
   content: '';
-  display: inline-block;
+  position: absolute;
+  top: 7px;
+  right: 28px;
   width: 8px;
   height: 8px;
-  margin-left: 6px;
   border-radius: 50%;
-  vertical-align: middle;
   background: var(--tint);
+}
+
+[data-changed][data-item] [data-expandable] > summary > h3::before {
+  right: 50px;
 }
 
 /* Skeletons (components/Skeleton.astro): a placeholder shaped like what it

@@ -331,19 +331,29 @@ pub struct PassExport {
     pub mode: &'static str,
     /// Place id of the area it covers.
     pub area: String,
-    pub from: NaiveDate,
-    pub to: NaiveDate,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// `notRequired` without a `booking`; its costs are budget lines
-    /// with `item` = this id.
+    /// Who holds it on which days, at what cost: one per `bookings` entry, or
+    /// the pass itself.
+    pub shares: Vec<PassShareExport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PassShareExport {
+    pub members: Vec<String>,
+    pub party: String,
+    /// Inclusive stretches of days.
+    pub periods: Vec<crate::model::Period>,
     pub status: crate::model::BookingStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deadline: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
+    /// Also budget lines with `item` = the pass's id.
+    pub costs: Vec<CostExport>,
 }
 
 #[derive(Debug, Serialize)]
@@ -755,15 +765,25 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     members,
                     mode: pass.mode.as_str(),
                     area: pass.area.clone(),
-                    from: pass.from,
-                    to: pass.to,
                     provider: pass.provider.clone(),
                     url: pass.url.clone(),
-                    status: pass
-                        .booking
-                        .as_ref()
-                        .map_or(crate::model::BookingStatus::NotRequired, |b| b.status),
-                    deadline: pass.booking.as_ref().and_then(|b| b.deadline),
+                    shares: pass
+                        .shares()
+                        .iter()
+                        .map(|share| {
+                            let people = trip.who(share.who);
+                            let members: Vec<String> =
+                                people.iter().map(|m| (*m).to_owned()).collect();
+                            PassShareExport {
+                                party: party_of(trip, &members),
+                                members,
+                                periods: share.periods.to_vec(),
+                                status: share.status,
+                                deadline: share.deadline,
+                                costs: cost_exports(trip, share.costs, &people),
+                            }
+                        })
+                        .collect(),
                     notes: pass.notes.clone(),
                 }
             })

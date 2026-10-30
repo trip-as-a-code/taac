@@ -1,13 +1,12 @@
 ---
 import FilterBar from '@/components/FilterBar.astro'
-import Icon from '@/components/Icon.astro'
 import IdeaRow from '@/components/IdeaRow.astro'
 import ItemRow from '@/components/ItemRow.astro'
-import Money from '@/components/Money.astro'
+import PassRow from '@/components/PassRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { ideaFacts, issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { bookable, homeOffset, partyLabel, people, statusTone } from '@/lib/trip'
+import { bookable, homeOffset } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -26,8 +25,9 @@ const options = trip.ideas
   .filter((i) => i.booking?.status === 'required')
   .sort((a, b) => (a.booking!.deadline ?? '9999').localeCompare(b.booking!.deadline ?? '9999'))
 // Getting around: tickets and rentals, soonest first, with what they cost.
-const passes = trip.passes.toSorted((a, b) => a.from.localeCompare(b.from))
-const passCosts = (id: string) => trip.budget.lines.filter((l) => l.kind === 'pass' && l.item === id)
+const firstDay = (pass: (typeof trip.passes)[number]) =>
+  pass.shares.flatMap((share) => share.periods.map((p) => p.from)).sort()[0] ?? ''
+const passes = trip.passes.toSorted((a, b) => firstDay(a).localeCompare(firstDay(b)))
 const total = bookable(trip).length
 const ratio = total ? done.length / total : 1
 // Bookings the validator flagged: filter to them here, or read why in the list.
@@ -123,55 +123,11 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
             <h2>{t('passes.title')}</h2>
             <span class="badge">{passes.length}</span>
           </div>
-          <ul class="card list">
+          <div class="card list">
             {passes.map((pass) => (
-              <li class="row pass" id={`pass-${pass.id}`} data-presence data-people={people(pass.members)}>
-                <span class="pass-icon" aria-hidden="true">
-                  <Icon name="pass" size={18} />
-                </span>
-                <span class="pass-text">
-                  <span class="subhead" lang={trip.locale}>
-                    {pass.url ? (
-                      <a href={pass.url} target="_blank" rel="noopener noreferrer">
-                        {pass.title}
-                      </a>
-                    ) : (
-                      pass.title
-                    )}
-                  </span>
-                  <span class="footnote secondary">
-                    {[
-                      trip.places[pass.area]?.name ?? pass.area,
-                      i18n.dateRange(pass.from, pass.to),
-                      pass.provider,
-                      partyLabel(trip, pass.party, t('lens.everyone'), t('party.and')),
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                </span>
-                <span class="pass-side">
-                  {passCosts(pass.id).map((l) => (
-                    <span class="footnote">
-                      {l.estimate && '≈ '}
-                      <Money
-                        display={trip.currency?.base ?? 'EUR'}
-                        amount={l.amount}
-                        currency={l.currency}
-                        charged={l.charged}
-                        lang={lang}
-                      />
-                    </span>
-                  ))}
-                  {pass.status !== 'notRequired' && (
-                    <span class="badge" data-tone={statusTone[pass.status]}>
-                      {t(`status.${pass.status}`)}
-                    </span>
-                  )}
-                </span>
-              </li>
+              <PassRow trip={trip} pass={pass} i18n={i18n} />
             ))}
-          </ul>
+          </div>
         </section>
       )}
 
@@ -314,32 +270,5 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
 
   .due-head > :last-child {
     margin-left: auto;
-  }
-
-  .pass {
-    gap: var(--space-3);
-  }
-
-  .pass-icon {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
-    color: var(--teal);
-    background: color-mix(in srgb, var(--teal) 14%, transparent);
-  }
-
-  .pass-text {
-    display: grid;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .pass-side {
-    display: grid;
-    justify-items: end;
-    gap: 2px;
   }
 </style>
