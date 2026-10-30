@@ -211,6 +211,18 @@ export interface Blocker {
   time?: { start: string; end: string; timezone?: string }
 }
 
+/** Something to get done before the trip; `required` means the trip depends on it. */
+export interface Task {
+  id: string
+  title: string
+  members: string[]
+  party: string
+  required: boolean
+  due?: ISODate
+  done?: ISODate
+  notes?: string
+}
+
 export interface DayBlocker {
   id: string
   members: string[]
@@ -291,6 +303,7 @@ export interface TripExport {
   items: Item[]
   ideas: Idea[]
   blockers: Blocker[]
+  tasks: Task[]
   days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[]; blockers: DayBlocker[] }[]
   budget: Budget
   packing: {

@@ -72,6 +72,7 @@ pub struct TripExport {
     pub items: Vec<ItemExport>,
     pub ideas: Vec<IdeaExport>,
     pub blockers: Vec<BlockerExport>,
+    pub tasks: Vec<TaskExport>,
     pub days: Vec<DayExport>,
     pub budget: Budget,
     pub packing: Vec<PackingCategoryExport>,
@@ -296,6 +297,23 @@ pub struct ContactExport {
     pub role: Option<String>,
     pub has_phone: bool,
     pub has_email: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskExport {
+    pub id: String,
+    pub title: String,
+    pub members: Vec<String>,
+    /// Id into [`TripExport::parties`].
+    pub party: String,
+    pub required: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub due: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub done: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -667,6 +685,27 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     strict: b.strict,
                     notes: b.notes.clone(),
                     time: b.time.clone(),
+                }
+            })
+            .collect(),
+        tasks: trip
+            .tasks
+            .iter()
+            .map(|task| {
+                let members: Vec<String> = trip
+                    .who(task.who.as_deref())
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect();
+                TaskExport {
+                    id: task.id.clone(),
+                    title: task.title.clone(),
+                    party: party_of(trip, &members),
+                    members,
+                    required: task.required,
+                    due: task.due,
+                    done: task.done,
+                    notes: task.notes.clone(),
                 }
             })
             .collect(),

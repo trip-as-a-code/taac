@@ -135,6 +135,18 @@ ideas:
     part: evening
     booking: { status: notRequired }
     costs: [{ amount: 60, currency: EUR, estimate: true }]
+tasks:
+  - title: Renew passport
+    who: [Robin]
+    required: true
+    done: 2027-03-02
+  - title: Book the Sintra palace slots
+    due: 2027-05-01
+  - title: Buy Viva Viagem cards
+    who: [Early birds]
+    due: 2027-05-14
+  - title: Split the shared bills
+    due: 2027-05-20
 packing:
   - category: Essentials
     items:

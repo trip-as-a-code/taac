@@ -164,6 +164,36 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
         out.push('\n');
     }
 
+    if !trip.tasks.is_empty() {
+        let _ = writeln!(out, "## Tasks\n");
+        for task in &trip.tasks {
+            let check = if task.done.is_some() { 'x' } else { ' ' };
+            let mut line = format!("- [{check}] {}", task.title);
+            if task.required {
+                line.push_str(" (required)");
+            }
+            let who = trip.who(task.who.as_deref());
+            if who.len() < trip.members.len() {
+                let names: Vec<&str> = who
+                    .iter()
+                    .map(|id| trip.member(id).map_or(*id, |m| m.name.as_str()))
+                    .collect();
+                let _ = write!(line, " — {}", names.join(", "));
+            }
+            match (task.done, task.due) {
+                (Some(done), _) => {
+                    let _ = write!(line, " · done {done}");
+                }
+                (None, Some(due)) => {
+                    let _ = write!(line, " · due {due}");
+                }
+                _ => {}
+            }
+            let _ = writeln!(out, "{line}");
+        }
+        out.push('\n');
+    }
+
     if !trip.packing.is_empty() {
         let _ = writeln!(out, "## Packing\n");
         for category in &trip.packing {

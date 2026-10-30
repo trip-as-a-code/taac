@@ -29,7 +29,7 @@ const placeCount = new Set(trip.items.flatMap((i) => i.places)).size
 const currency = trip.currency?.base ?? 'EUR'
 const offset = homeOffset(trip)
 // Everything the validator flagged, plans first, in plan order.
-const titles = new Map([...trip.items, ...trip.ideas].map((i) => [i.id, i.title]))
+const titles = new Map([...trip.items, ...trip.ideas, ...trip.tasks].map((i) => [i.id, i.title]))
 const order = new Map(trip.items.map((i, n) => [i.id, n]))
 // One snippet per entry: clashes with two blockers allow both at once.
 function fixes(group: typeof trip.diagnostics) {
@@ -62,12 +62,15 @@ const detail = (d: (typeof trip.diagnostics)[number]) => {
   return t(key, { ...params, whose })
 }
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
+const taskIds = new Set(trip.tasks.map((x) => x.id))
 const issueHref = (id?: string) =>
   id && order.has(id)
     ? path(`${base}/itinerary/#item-${id}`)
-    : id && titles.has(id)
-      ? path(`${base}/ideas/#idea-${id}`)
-      : undefined
+    : id && taskIds.has(id)
+      ? path(`${base}/tasks/#task-${id}`)
+      : id && titles.has(id)
+        ? path(`${base}/ideas/#idea-${id}`)
+        : undefined
 
 // Each file comes whole and per member or group (`<stem>-<who>.<ext>`); the
 // page points at the one the people lens picks.

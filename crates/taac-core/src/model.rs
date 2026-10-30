@@ -19,7 +19,7 @@ pub enum ApiVersion {
 /// blockers are referred to by name or title, places by their key (which is
 /// their name). A trip is a single `kind: Trip` file, or a
 /// directory holding one `kind: Trip` file plus any number of `kind: TripPart`
-/// files whose bases, places, itinerary, ideas, packing and overlays are
+/// files whose bases, places, itinerary, ideas, tasks, packing and overlays are
 /// merged into it.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -51,6 +51,10 @@ pub struct TripFile {
     /// Time someone is unavailable (work, a call): whole days or a window.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blockers: Vec<Blocker>,
+    /// What has to get done before, during or after the trip: a visa, a
+    /// pass to pick up, expenses to file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tasks: Vec<Task>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packing: Vec<PackingCategory>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -347,6 +351,35 @@ pub struct Blocker {
     /// Conflicts are errors rather than warnings.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub strict: bool,
+    /// Markdown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+/// Something to get done, before, during or after the trip; its date says
+/// which.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Task {
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
+    pub id: String,
+    pub title: String,
+    /// Names of members and/or groups, or `everyone`; omitted means everyone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
+    /// The trip can't go ahead without it, such as a visa: due by the start at
+    /// the latest.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub required: bool,
+    /// Get it done by this date.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date"))]
+    pub due: Option<NaiveDate>,
+    /// When it got done; omitted means still open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date"))]
+    pub done: Option<NaiveDate>,
     /// Markdown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
