@@ -251,6 +251,8 @@ export interface CostLine {
   shares: Record<string, number>
   /** Fraction each member paid (sums to 1). */
   paid: Record<string, number>
+  /** Pays the payer back for everyone's share. */
+  owedBy?: string
 }
 
 export interface Budget {

@@ -639,6 +639,9 @@ fn resolve_names(trip: &mut Trip) {
                 None => {}
             }
             who(&mut cost.who);
+            if let Some(name) = &mut cost.owed_by {
+                *name = person(name);
+            }
             if let crate::model::Split::Shares(map) | crate::model::Split::Exact(map) =
                 &mut cost.split
             {

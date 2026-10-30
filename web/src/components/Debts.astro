@@ -19,7 +19,7 @@ const { trip, id, i18n } = Astro.props
 const owed = new Map<string, { from: string; to: string; amount: number; currency: string }>()
 // Only what was paid and not yet paid back is owed.
 for (const line of trip.budget.lines.filter((l) => l.item === id && !l.settled)) {
-  for (const d of lineDebts(line.shares, line.paid, line.settledAmount)) {
+  for (const d of lineDebts(line.shares, line.paid, line.settledAmount, line.owedBy)) {
     const key = `${d.from}\u0000${d.to}\u0000${line.settledCurrency}`
     const entry = owed.get(key) ?? { ...d, amount: 0, currency: line.settledCurrency }
     entry.amount += d.amount

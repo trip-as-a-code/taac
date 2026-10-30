@@ -62,6 +62,9 @@ pub struct CostLine {
     pub shares: IndexMap<String, f64>,
     /// Fraction of the cost each member paid (sums to 1).
     pub paid: IndexMap<String, f64>,
+    /// Pays the payer back for everyone's share (`owedBy`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owed_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -286,6 +289,7 @@ fn line(
         settled: !cost.owed(),
         shares: fractions(&allocation.shares, allocation.settled_amount),
         paid: fractions(&allocation.paid, allocation.settled_amount),
+        owed_by: cost.owed_by.clone(),
     };
     (line, allocation)
 }
@@ -311,22 +315,41 @@ impl Budget {
                 settlements: Vec::new(),
             });
         currency.total.add(allocation.settled_amount, committed);
+        let get =
+            |map: &IndexMap<String, Decimal>, m: &str| map.get(m).copied().unwrap_or_default();
+        // What each owes (negative) or is owed on this line; with `owedBy`,
+        // everyone else's debt is that member's.
+        let mut net: IndexMap<String, Decimal> = currency
+            .members
+            .iter()
+            .map(|b| {
+                let m = b.member.as_str();
+                (
+                    m.to_owned(),
+                    get(&allocation.paid, m) - get(&allocation.shares, m),
+                )
+            })
+            .collect();
+        if let Some(debtor) = line.owed_by.as_deref() {
+            let owed: Decimal = net
+                .iter_mut()
+                .filter(|(m, v)| m.as_str() != debtor && **v < Decimal::ZERO)
+                .map(|(_, v)| std::mem::take(v))
+                .sum();
+            if let Some(v) = net.get_mut(debtor) {
+                *v += owed;
+            }
+        }
         for balance in &mut currency.members {
-            let paid = allocation
+            balance
                 .paid
-                .get(&balance.member)
-                .copied()
-                .unwrap_or_default();
-            let share = allocation
-                .shares
-                .get(&balance.member)
-                .copied()
-                .unwrap_or_default();
-            balance.paid.add(paid, committed);
-            balance.share.add(share, committed);
+                .add(get(&allocation.paid, &balance.member), committed);
+            balance
+                .share
+                .add(get(&allocation.shares, &balance.member), committed);
             // Only what was paid and not yet paid back is owed.
             if !line.settled {
-                balance.balance += paid - share;
+                balance.balance += net.get(&balance.member).copied().unwrap_or_default();
             }
         }
         self.lines.push(line);
@@ -570,6 +593,29 @@ packing:
         assert!(adapter.committed);
         assert_eq!(adapter.shares.keys().collect::<Vec<_>>(), ["a", "c"]);
         assert_eq!(b.by_currency["EUR"].total.committed, dec("42"));
+    }
+
+    #[test]
+    fn one_person_can_owe_for_everyone() {
+        let b = compute(&trip(
+            "      - { amount: 100, currency: EUR, who: [b, c], paidBy: a, settled: false, owedBy: b }",
+        ));
+        let eur = &b.by_currency["EUR"];
+        let balance = |id: &str| eur.members.iter().find(|m| m.member == id).unwrap().balance;
+        // Shares stay half each; the whole debt is B's.
+        assert_eq!(b.lines[0].shares["c"], 0.5);
+        assert_eq!(
+            (balance("a"), balance("b"), balance("c")),
+            (dec("100"), dec("-100"), dec("0"))
+        );
+        assert_eq!(eur.settlements.len(), 1);
+        assert_eq!(
+            (
+                eur.settlements[0].from.as_str(),
+                eur.settlements[0].to.as_str()
+            ),
+            ("b", "a")
+        );
     }
 
     #[test]

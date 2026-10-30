@@ -13,6 +13,11 @@ describe('debts', () => {
     ])
   })
 
+  it('lets one person owe for everyone', () => {
+    const debts = lineDebts({ b: 0.5, c: 0.5 }, { a: 1 }, 100, 'b')
+    expect(debts.map((d) => [d.from, d.to, Math.round(d.amount)])).toEqual([['b', 'a', 100]])
+  })
+
   it('owes nothing when everyone paid their part', () => {
     expect(lineDebts({ a: 0.5, b: 0.5 }, { a: 0.5, b: 0.5 }, 100)).toEqual([])
   })
