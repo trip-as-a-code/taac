@@ -108,7 +108,7 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
   <section class="stats">
     <a class="stat card" href={path(`${base}/bookings/`)}>
       <Icon name="clock" size={20} />
-      <span class="value tabular" data-stat="deadline">
+      <span class="value tabular" data-fit data-stat="deadline">
         {next ? date(next, { day: 'numeric', month: 'short' }) : '—'}
       </span>
       <span
@@ -122,14 +122,14 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
     </a>
     <a class="stat card" href={path(`${base}/map/`)}>
       <Icon name="pin" size={20} />
-      <span class="value tabular" data-stat="places">
+      <span class="value tabular" data-fit data-stat="places">
         {number(placeCount)}
       </span>
       <span class="label footnote secondary">{plural('trip.places', placeCount).replace(/^[\d\s ]+/, '')}</span>
     </a>
     <a class="stat card" href={path(`${base}/bookings/`)}>
       <ProgressRing value={booked} total={needsBooking.length} />
-      <span class="value tabular">
+      <span class="value tabular" data-fit>
         <span data-stat="booked">{booked}</span>
         <span class="of" data-stat="bookable">
           /{needsBooking.length}
@@ -140,7 +140,7 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
     <a class="stat card" href={path(`${base}/budget/`)}>
       <Icon name="wallet" size={20} />
       {/* Totalled for whoever the people lens selects, once the script knows. */}
-      <span class="value tabular" data-stat="budget" aria-busy="true">
+      <span class="value tabular" data-fit data-stat="budget" aria-busy="true">
         <Skeleton variant="inline" width="4.5em" height="0.9em" />
       </span>
       <span class="label footnote secondary">{t('trip.totalBudget')}</span>

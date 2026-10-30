@@ -37,14 +37,14 @@ const dash = '—'
       <section class="totals">
         <div class="total card card-pad">
           <span class="footnote secondary label">{t('budget.planned')}</span>
-          <span class="amount tabular" data-total="planned">
+          <span data-fit class="amount tabular" data-total="planned">
             {dash}
           </span>
           <span class="footnote tertiary">{t('budget.plannedHint')}</span>
         </div>
         <div class="total card card-pad">
           <span class="footnote secondary label">{t('budget.committed')}</span>
-          <span class="amount tabular committed" data-total="committed">
+          <span data-fit class="amount tabular committed" data-total="committed">
             {dash}
           </span>
           <span class="footnote tertiary">{t('budget.committedHint')}</span>
@@ -52,7 +52,7 @@ const dash = '—'
         {budget.ideas.length > 0 && (
           <div class="total card card-pad">
             <span class="footnote secondary label">{t('budget.possible')}</span>
-            <span class="amount tabular possible" data-total="possible">
+            <span data-fit class="amount tabular possible" data-total="possible">
               {dash}
             </span>
             <span class="footnote tertiary">{t('budget.possibleHint')}</span>
@@ -92,11 +92,15 @@ const dash = '—'
               <dl class="tabular">
                 <div>
                   <dt class="footnote secondary">{t('budget.paid')}</dt>
-                  <dd data-person-paid>{dash}</dd>
+                  <dd data-fit data-person-paid>
+                    {dash}
+                  </dd>
                 </div>
                 <div>
                   <dt class="footnote secondary">{t('budget.share')}</dt>
-                  <dd data-person-share>{dash}</dd>
+                  <dd data-fit data-person-share>
+                    {dash}
+                  </dd>
                 </div>
               </dl>
               <p
@@ -450,6 +454,7 @@ const dash = '—'
   .person {
     display: grid;
     gap: var(--space-3);
+    container-type: inline-size;
   }
 
   .person header {
@@ -468,9 +473,16 @@ const dash = '—'
 
   dl {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
     margin: 0;
+  }
+
+  /* A narrow card stacks paid and share, so long amounts keep their size. */
+  @container (max-width: 300px) {
+    dl {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   dd {

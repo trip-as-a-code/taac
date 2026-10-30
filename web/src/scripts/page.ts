@@ -1,6 +1,7 @@
 // Per-navigation setup shared by every page (runs on `astro:page-load`).
 
 import { revealTarget } from '@/scripts/filters'
+import { fitAll } from '@/scripts/fit'
 import { onMoney, renderMoney } from '@/scripts/money'
 import { setupPickers } from '@/scripts/picker'
 import { setupTooltips } from '@/scripts/tooltip'
@@ -25,6 +26,7 @@ export function setupPage() {
   trackScroll()
   renderRelativeDates()
   renderMoney()
+  fitAll()
   setupPickers()
   setupTooltips()
   if (!once) {
