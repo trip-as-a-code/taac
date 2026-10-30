@@ -91,6 +91,12 @@ blockers: # time someone is unavailable; plans inside it are flagged
     days: [mon, tue, wed, thu, fri] # omit for every day
     time: { start: '09:00', end: '17:00', timezone: Europe/London } # omit for whole days
     # strict: true turns warnings into errors; a plan opts out with `overrides: [Work]`
+tasks: # to do before, during or after the trip; the date says which
+  - title: Get a visa
+    who: [Robin]
+    required: true # the trip can't go ahead without it: due by the start
+    due: 2027-04-01
+    done: 2027-03-20 # omit while open
 ideas: # proposals: anything that could become a plan, never booked or paid yet
   - title: Fado night in Alfama # no date: suggested on free days nearby
     who: [everyone] # like plans, ideas say who they're for

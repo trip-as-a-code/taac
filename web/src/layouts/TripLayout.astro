@@ -10,7 +10,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro'
 import { changes } from '@/lib/build'
 import { tripHue } from '@/lib/trip'
 
-export type Section = 'overview' | 'itinerary' | 'ideas' | 'map' | 'bookings' | 'packing' | 'budget'
+export type Section = 'overview' | 'itinerary' | 'ideas' | 'map' | 'bookings' | 'tasks' | 'packing' | 'budget'
 
 interface Props {
   trip: TripExport
@@ -33,6 +33,8 @@ const sections: { id: Section; icon: IconName; href: string }[] = [
   { id: 'itinerary', icon: 'itinerary', href: path(`${base}/itinerary/`) },
   { id: 'map', icon: 'map', href: path(`${base}/map/`) },
   { id: 'bookings', icon: 'bookings', href: path(`${base}/bookings/`) },
+  // What to get done around the plans (a visa first), then what to pack.
+  { id: 'tasks', icon: 'tasks', href: path(`${base}/tasks/`) },
   // Some things get bought before they can be packed: the budget comes last.
   { id: 'packing', icon: 'packing', href: path(`${base}/packing/`) },
   { id: 'budget', icon: 'budget', href: path(`${base}/budget/`) },
@@ -352,7 +354,7 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
     }
   }
 
-  /* Seven tabs on the narrowest phones: the labels tighten to fit. */
+  /* Eight tabs on the narrowest phones: the labels tighten to fit. */
   @media (max-width: 360px) {
     .tab-bar {
       padding-inline: 2px;

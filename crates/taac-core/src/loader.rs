@@ -12,8 +12,8 @@ use chrono::NaiveDate;
 
 use crate::model::{
     Access, Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
-    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, TripFile, TripKind,
-    TripMetadata,
+    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Task, TripFile,
+    TripKind, TripMetadata,
 };
 
 pub type Files = BTreeMap<String, String>;
@@ -42,6 +42,7 @@ pub struct Trip {
     pub itinerary: Vec<Item>,
     pub ideas: Vec<Idea>,
     pub blockers: Vec<Blocker>,
+    pub tasks: Vec<Task>,
     pub packing: Vec<PackingCategory>,
     pub overlays: Vec<LoadedOverlay>,
     pub access: Option<Access>,
@@ -94,7 +95,7 @@ impl Trip {
 
     /// Effective participants of an item; see [`Trip::who`].
     /// The trip as some of the people see it: the plans, ideas, bases,
-    /// blockers and packing any of them take part in — or, `together`, only
+    /// blockers, tasks and packing any of them take part in — or, `together`, only
     /// what all of them do. Members, groups and places stay, so names and
     /// shares still resolve.
     #[must_use]
@@ -112,6 +113,7 @@ impl Trip {
         trip.declared_bases
             .retain(|b| mine(self.who(b.who.as_deref())));
         trip.blockers.retain(|b| mine(self.who(b.who.as_deref())));
+        trip.tasks.retain(|t| mine(self.who(t.who.as_deref())));
         for category in &mut trip.packing {
             let default = category.who.clone();
             category
@@ -433,6 +435,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         itinerary: Vec::new(),
         ideas: Vec::new(),
         blockers: Vec::new(),
+        tasks: Vec::new(),
         packing: Vec::new(),
         overlays: Vec::new(),
         access: None,
@@ -523,6 +526,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         trip.itinerary.extend(doc.itinerary);
         trip.ideas.extend(doc.ideas);
         trip.blockers.extend(doc.blockers);
+        trip.tasks.extend(doc.tasks);
         trip.packing.extend(doc.packing);
         for overlay in doc.map.unwrap_or_default().overlays {
             let overlay_path = join(&dir, &overlay.file);
@@ -682,6 +686,11 @@ fn resolve_names(trip: &mut Trip) {
     for blocker in &mut trip.blockers {
         blocker.id = unique(&[slug(&blocker.title)], &mut taken);
         who(&mut blocker.who);
+    }
+    let mut taken = HashSet::new();
+    for task in &mut trip.tasks {
+        task.id = unique(&[slug(&task.title)], &mut taken);
+        who(&mut task.who);
     }
     let blockers: HashMap<String, String> = trip
         .blockers

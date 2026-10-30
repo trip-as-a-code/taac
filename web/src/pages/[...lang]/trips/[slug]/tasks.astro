@@ -1,0 +1,172 @@
+---
+import Icon from '@/components/Icon.astro'
+import TripLayout from '@/layouts/TripLayout.astro'
+import { tripPaths, tripPage } from '@/lib/paths'
+import { partyLabel, people } from '@/lib/trip'
+
+export const getStaticPaths = tripPaths
+
+const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+const { t, date } = i18n
+// Before, during or after the trip by when it's due or got done; a
+// required task with no date is due by the start.
+const phases = ['before', 'during', 'after', 'undated'] as const
+const phaseOf = (task: (typeof trip.tasks)[number]) => {
+  const day = task.done ?? task.due
+  if (!day) return task.required ? 'before' : 'undated'
+  if (trip.startDate && day < trip.startDate) return 'before'
+  if (trip.endDate && day > trip.endDate) return 'after'
+  return 'during'
+}
+// Each phase: open first, soonest due; then what got done, in order.
+const byPhase = phases
+  .map((phase) => ({
+    phase,
+    tasks: [
+      ...trip.tasks
+        .filter((x) => phaseOf(x) === phase && !x.done)
+        .sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999')),
+      ...trip.tasks.filter((x) => phaseOf(x) === phase && x.done).sort((a, b) => a.done!.localeCompare(b.done!)),
+    ],
+  }))
+  .filter((p) => p.tasks.length > 0)
+const tasksDone = trip.tasks.filter((x) => x.done).length
+const long = (day: string) => date(day, { day: 'numeric', month: 'long' })
+const example = [
+  'tasks:',
+  `  - title: ${t('tasks.exampleTitle')}`,
+  '    who: [everyone]',
+  '    required: true',
+  ...(trip.startDate ? [`    due: ${trip.startDate}`] : []),
+].join('\n')
+---
+
+<TripLayout trip={trip} lang={lang} section="tasks">
+  {trip.tasks.length === 0 ? (
+    <div class="card card-pad none">
+      <p class="secondary" set:html={t('tasks.none').replace(/`([^`]+)`/g, '<code>$1</code>')} />
+      <pre class="example" lang="en"><code>{example}</code></pre>
+    </div>
+  ) : (
+    <>
+      <p class="lede secondary">
+        {t('tasks.lede')}{' '}
+        <span class="badge" data-tone={tasksDone === trip.tasks.length ? 'green' : undefined}>
+          {t('tasks.progress', { done: tasksDone, all: trip.tasks.length })}
+        </span>
+      </p>
+      {byPhase.map(({ phase, tasks }) => (
+        <section class="section" id={`tasks-${phase}`} data-day-section>
+          <div class="section-header">
+            <h2>{t(`tasks.${phase}`)}</h2>
+          </div>
+          <ul class="card list">
+            {tasks.map((task) => (
+              <li
+                id={`task-${task.id}`}
+                class="row task"
+                data-presence
+                data-people={people(task.members)}
+                data-done={task.done ? '' : undefined}
+              >
+                <span class="task-mark" data-required={task.required && !task.done ? '' : undefined} aria-hidden="true">
+                  {task.done && <Icon name="check" size={13} />}
+                </span>
+                <span class="task-text">
+                  <span class="subhead" lang={trip.locale}>
+                    {task.title}
+                  </span>
+                  <span class="footnote secondary">
+                    {partyLabel(trip, task.party, t('lens.everyone'), t('party.and'))}
+                    {' · '}
+                    {task.done
+                      ? t('tasks.done', { date: long(task.done) })
+                      : task.due
+                        ? t('tasks.due', { date: long(task.due) })
+                        : task.required
+                          ? t('tasks.beforeStart')
+                          : t('tasks.open')}
+                  </span>
+                  {task.notes && (
+                    <span class="footnote secondary" lang={trip.locale}>
+                      {task.notes}
+                    </span>
+                  )}
+                </span>
+                {task.required && (
+                  <span class="badge" data-tone={task.done ? undefined : 'orange'} title={t('tasks.requiredHint')}>
+                    {t('tasks.required')}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </>
+  )}
+</TripLayout>
+
+<script>
+  import { onPage } from '@/scripts/page'
+  import { setupFilters } from '@/scripts/filters'
+
+  onPage('tasks', () => setupFilters(() => {}))
+</script>
+
+<style>
+  .none {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .example {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    background: var(--fill);
+  }
+
+  .lede {
+    max-width: 60ch;
+    margin-bottom: var(--space-5);
+  }
+
+  .task {
+    gap: var(--space-3);
+  }
+
+  .task-text {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .task-mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid var(--separator-strong);
+    border-radius: 50%;
+  }
+
+  .task-mark[data-required] {
+    border-color: var(--orange);
+  }
+
+  .task[data-done] .task-mark {
+    color: white;
+    background: var(--green);
+    border-color: var(--green);
+  }
+
+  .task[data-done] .subhead {
+    color: var(--label-secondary);
+  }
+</style>

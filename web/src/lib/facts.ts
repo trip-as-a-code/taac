@@ -51,6 +51,7 @@ export const ISSUE_CODES = [
   'cost.charged',
   'route.gap',
   'title.who',
+  'task.due',
 ] as const
 export type IssueCode = (typeof ISSUE_CODES)[number]
 

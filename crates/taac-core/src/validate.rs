@@ -36,6 +36,7 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.bases();
     v.ideas();
     v.blockers();
+    v.tasks();
     v.overlaps();
     v.nights();
     v.routes();
@@ -1064,6 +1065,36 @@ impl Validator<'_> {
         }
     }
 
+    fn tasks(&mut self) {
+        let trip = self.trip;
+        let start = crate::export::date_range(trip).0;
+        let mut titles = HashSet::new();
+        for task in &trip.tasks {
+            let id = Some(task.id.as_str());
+            self.who(&task.id, task.who.as_deref());
+            if !titles.insert(task.title.to_lowercase()) {
+                self.error(
+                    "task.duplicate",
+                    id,
+                    format!("two tasks are called `{}`", task.title),
+                );
+            }
+            if let (true, Some(due), Some(start)) = (task.required, task.due, start)
+                && due > start
+            {
+                self.warn(
+                    "task.due",
+                    id,
+                    format!("the trip needs it, but it is due {due}, after it starts on {start}"),
+                );
+                self.detail(
+                    &[("due", due.to_string()), ("start", start.to_string())],
+                    Some(format!("due: {start}")),
+                );
+            }
+        }
+    }
+
     fn packing(&mut self) {
         for category in &self.trip.packing {
             for member in category.who.iter().flatten() {
@@ -1448,5 +1479,28 @@ ideas:
             .find(|d| d.code == "blocker.conflict")
             .and_then(|d| d.fix.clone());
         assert!(fix.is_some_and(|f| f.starts_with("overrides: [")), "{d:?}");
+    }
+
+    #[test]
+    fn required_tasks_are_due_by_the_start() {
+        let d = check_with(
+            "tasks:
+  - { title: visa, who: [a], required: true, done: 2026-10-19 }
+  - { title: late visa, who: [b], required: true, due: 2027-01-02 }
+  - { title: souvenirs, due: 2027-01-02 }
+  - { title: pass, who: [c] }",
+            "  - { kind: activity, title: x, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00 }",
+        );
+        let due: Vec<_> = d
+            .iter()
+            .filter(|d| d.code == "task.due")
+            .filter_map(|d| d.item.as_deref())
+            .collect();
+        assert_eq!(due, ["late-visa"], "{d:?}");
+        assert!(
+            d.iter()
+                .any(|d| d.code == "who.unknown" && d.item.as_deref() == Some("pass")),
+            "{d:?}"
+        );
     }
 }
