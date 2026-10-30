@@ -304,8 +304,15 @@ function circle([lon, lat]: [number, number], radius: number): [number, number][
  * Compass bearing from one point to another as drawn on the (Web Mercator)
  * map, in degrees clockwise from north.
  */
+const merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+const unmerc = (y: number) => (Math.atan(Math.sinh(y)) * 180) / Math.PI
+
+/** The point a fraction `t` of the way along a leg, on the straight line the map draws (Mercator). */
+export function along([x1, y1]: [number, number], [x2, y2]: [number, number], t: number): [number, number] {
+  return [x1 + (x2 - x1) * t, unmerc(merc(y1) + (merc(y2) - merc(y1)) * t)]
+}
+
 export function bearing([x1, y1]: [number, number], [x2, y2]: [number, number]): number {
-  const merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
   const dx = ((x2 - x1) * Math.PI) / 180
   const dy = merc(y2) - merc(y1)
   return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
@@ -337,14 +344,10 @@ function arrowData(data: MapData, items: string[]): FeatureCollection {
       .flatMap((r) =>
         r.coords.slice(1).map((to, i) => {
           const from = r.coords[i]!
-          const at = 0.82
           return {
             type: 'Feature' as const,
             properties: { color: resolveColor(r.color), bearing: bearing(from, to) },
-            geometry: {
-              type: 'Point' as const,
-              coordinates: [from[0] + (to[0] - from[0]) * at, from[1] + (to[1] - from[1]) * at],
-            },
+            geometry: { type: 'Point' as const, coordinates: along(from, to, 0.82) },
           }
         }),
       ),
