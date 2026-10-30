@@ -1,4 +1,4 @@
-import type { Base, BookingStatus, Idea, Item, ItemKind, Member, TripExport } from '@taac/core'
+import type { Base, BookingStatus, Idea, Item, ItemKind, Member, Pass, TripExport } from '@taac/core'
 import { marked } from 'marked'
 
 import { issuesOf } from '@/lib/facts'
@@ -254,3 +254,72 @@ export function echoesPlace(title: string, places: { name: string }[]): boolean 
 
 /** A party id as it appears in file names: `a+b` → `a~b` (`+` reads as a space in some URLs). */
 export const fileKey = (party: string) => party.replaceAll('+', '~')
+
+type Days = { from: string; to: string }[]
+
+/** A plan, or something shown like one (a pass): what ItemRow renders. */
+export type RowItem = Omit<Item, 'kind' | 'bookings'> & {
+  kind: ItemKind | 'pass'
+  /** The days it covers, when that's what it has rather than a time. */
+  periods?: Days
+  bookings?: (NonNullable<Item['bookings']>[number] & { periods?: Days })[]
+}
+
+/**
+ * A pass in a plan's shape, so it renders as a booking card like any other:
+ * its shares become reservations (each with its own days) once it is held
+ * per party. `until` labels the last day, shown where a plan has its time.
+ */
+export function passItem(pass: Pass, until: string): RowItem {
+  const days = pass.shares.flatMap((s) => s.periods)
+  const first = days.map((p) => p.from).sort()[0] ?? ''
+  const statuses = pass.shares.map((s) => s.status)
+  const status: BookingStatus = statuses.includes('required')
+    ? 'required'
+    : statuses.includes('booked')
+      ? 'booked'
+      : statuses.every((st) => st === 'cancelled')
+        ? 'cancelled'
+        : 'notRequired'
+  const deadline = pass.shares.flatMap((s) => (s.status === 'required' && s.deadline ? [s.deadline] : [])).sort()[0]
+  const split = pass.shares.length > 1
+  return {
+    id: pass.id,
+    kind: 'pass',
+    title: pass.title,
+    local: { date: first, time: `– ${until}` },
+    places: [pass.area],
+    members: pass.members,
+    party: pass.party,
+    transport: pass.provider ? { carrier: pass.provider } : undefined,
+    booking: { status, deadline, hasReference: false },
+    bookings: split
+      ? pass.shares.map((s) => ({
+          status: s.status,
+          deadline: s.deadline,
+          hasReference: false,
+          members: s.members,
+          costs: s.costs,
+          periods: s.periods,
+        }))
+      : undefined,
+    periods: split ? undefined : days,
+    costs: pass.shares.flatMap((s) => s.costs),
+    contacts: [],
+    notes: pass.notes,
+    url: pass.url,
+    tags: [],
+    overrides: [],
+    conflicts: [],
+  }
+}
+
+/** The last day any share of a pass covers. */
+export function passUntil(pass: Pass): string {
+  return (
+    pass.shares
+      .flatMap((s) => s.periods.map((p) => p.to))
+      .sort()
+      .at(-1) ?? ''
+  )
+}
