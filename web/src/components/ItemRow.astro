@@ -19,12 +19,16 @@ import {
   partyLabel,
   people,
   statusTone,
+  type RowItem,
 } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
-  item: Item
+  /** A plan, or a pass in a plan's shape (lib/trip `passItem`). */
+  item: RowItem
   i18n: I18n
+  /** The card's anchor: `item` for plans, `pass` for passes. */
+  anchor?: 'item' | 'pass'
   /** Show the date instead of only the time, and link to the plan in the
    * itinerary (lists outside the day view). */
   withDate?: boolean
@@ -36,7 +40,10 @@ interface Props {
   grouped?: boolean
 }
 
-const { trip, item, i18n, withDate, homeOffset, dueShown, grouped } = Astro.props
+const { trip, item, i18n, withDate, homeOffset, dueShown, grouped, anchor = 'item' } = Astro.props
+// A pass isn't on a day or at a point: no links into the itinerary or map.
+const plan = anchor === 'item'
+const days = (periods: { from: string; to: string }[]) => periods.map((p) => i18n.dateRange(p.from, p.to)).join(' · ')
 const { t, money, date } = i18n
 const places = item.places.map((id) => trip.places[id]).filter(Boolean)
 const everyone = item.members.length === trip.members.length
@@ -73,13 +80,13 @@ const offsetLabel =
 ---
 
 <article
-  id={`item-${item.id}`}
+  id={`${anchor}-${item.id}`}
   data-item
   data-people={people(item.members)}
   data-party={item.party}
   data-status={item.booking.status}
   data-day={item.local.date}
-  data-facts={JSON.stringify(itemFacts(trip, item))}
+  data-facts={JSON.stringify(itemFacts(trip, item as Item))}
   style={`--kind:${kindTint[item.kind]}`}
   class:list={['item', { shared: everyone || grouped }]}
 >
@@ -123,6 +130,7 @@ const offsetLabel =
               : t(`kind.${item.kind}`)}
         </span>
         {transport && <span class="footnote secondary">{transport}</span>}
+        {item.periods && <span class="footnote secondary">{days(item.periods)}</span>}
         {isStay && item.local.endDate && (
           <span class="footnote secondary">
             {t('item.until', { date: date(item.local.endDate, { day: 'numeric', month: 'short' }) })}
@@ -140,6 +148,7 @@ const offsetLabel =
                     <span class="ellipsis">{whose}</span>
                     <span>· {t(`status.${b.status}`)}</span>
                   </span>
+                  {b.periods && <span class="footnote secondary">{days(b.periods)}</span>}
                   {b.costs.map((c) => (
                     <Money
                       display={trip.currency?.base ?? 'EUR'}
@@ -290,13 +299,13 @@ const offsetLabel =
           ))}
         </ul>
         <div class="links">
-          {withDate && (
+          {withDate && plan && (
             <a class="button" href={i18n.path(`/trips/${trip.slug}/itinerary/#item-${item.id}`)}>
               <Icon name="itinerary" size={15} />
               <span>{t('item.inItinerary')}</span>
             </a>
           )}
-          {places.length > 0 && (
+          {places.length > 0 && plan && (
             <a class="button" href={i18n.path(`/trips/${trip.slug}/map/#item-${item.id}`)}>
               <Icon name="map" size={15} />
               <span>{t('item.onMap')}</span>
@@ -336,7 +345,7 @@ const offsetLabel =
      within a control. Positioned beside the title. */}
   <a
     class="anchor card-anchor"
-    href={`#item-${item.id}`}
+    href={`#${anchor}-${item.id}`}
     data-anchor
     aria-label={t('item.copyLink')}
     title={t('item.copyLink')}
