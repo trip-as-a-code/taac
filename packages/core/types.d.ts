@@ -60,7 +60,8 @@ export interface Member {
 
 export interface Group {
   id: string
-  name: string
+  /** Unnamed groups are shown by their members' names. */
+  name?: string
   emoji?: string
   description?: string
   members: string[]

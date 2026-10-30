@@ -11,7 +11,7 @@ interface Props {
 
 const { trip, i18n } = Astro.props
 const { plural, dateRange, date, path } = i18n
-const rows = routeRows(trip)
+const rows = routeRows(trip, i18n.t('party.and'))
 // One shared day grid, so parallel tracks line up in time.
 const start = trip.startDate ?? rows[0]?.bases[0]?.from ?? ''
 const columns = trip.days.length || 1

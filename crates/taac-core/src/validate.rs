@@ -136,7 +136,10 @@ impl Validator<'_> {
                 self.error(
                     "group.duplicate",
                     None,
-                    format!("two groups are called `{}`", group.name),
+                    format!(
+                        "two groups are called `{}`",
+                        group.name.as_deref().unwrap_or(&group.id)
+                    ),
                 );
             }
             if group.id == EVERYONE {
@@ -150,7 +153,10 @@ impl Validator<'_> {
                 self.error(
                     "group.id",
                     None,
-                    format!("group `{}` has the same name as a member", group.name),
+                    format!(
+                        "group `{}` has the same name as a member",
+                        group.name.as_deref().unwrap_or(&group.id)
+                    ),
                 );
             }
             for member in &group.members {

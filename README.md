@@ -43,6 +43,7 @@ members:
   - { name: Sam, currency: GBP } # the money Sam pays with
 groups:
   - { name: Early birds, emoji: 🌅, members: [Alex] } # a saved set of people
+  - { members: [Sam, Robin] } # no name: shown as "Sam & Robin"; plans list them
 bases: # where everyone is each night, planned or not
   - { title: Lisbon, place: Lisbon, from: 2027-05-14, to: 2027-05-16 }
 places: # by name; everything else refers to them by it

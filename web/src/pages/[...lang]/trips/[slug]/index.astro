@@ -10,7 +10,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { isLabelled } from '@/lib/facts'
 import { sourceHref, sourceLabel } from '@/lib/source'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { bookable, homeOffset, initials, memberHue } from '@/lib/trip'
+import { bookable, groupLabel, homeOffset, initials, memberHue } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -290,7 +290,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
                 <span class="headline">{member.name}</span>
                 {groups.length > 0 && (
                   <span class="footnote secondary">
-                    {groups.map((g) => `${g.emoji ?? ''} ${g.name}`.trim()).join(' · ')}
+                    {groups.map((g) => `${g.emoji ?? ''} ${groupLabel(trip, g, t('party.and'))}`.trim()).join(' · ')}
                   </span>
                 )}
               </div>
@@ -310,7 +310,7 @@ const downloads: { icon: IconName; label: string; href: string; file: string }[]
             <div class="group card card-pad">
               <div class="group-head">
                 <span class="group-emoji">{group.emoji ?? '👥'}</span>
-                <span class="headline">{group.name}</span>
+                <span class="headline">{groupLabel(trip, group, t('party.and'))}</span>
                 <Avatars members={trip.members.filter((m) => group.members.includes(m.id))} size={22} />
               </div>
               {group.description && (

@@ -2,7 +2,7 @@
 import type { TripExport } from '@taac/core'
 
 import type { I18n } from '@/i18n'
-import { initials, memberHue } from '@/lib/trip'
+import { groupLabel, initials, memberHue } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -43,10 +43,10 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
           class="chip group"
           data-lens-group={g.members.join(' ')}
           aria-pressed="false"
-          title={g.description ?? g.name}
+          title={g.description ?? groupLabel(trip, g, t('party.and'))}
         >
           {g.emoji && <span aria-hidden="true">{g.emoji}</span>}
-          <span>{g.name}</span>
+          <span>{groupLabel(trip, g, t('party.and'))}</span>
         </button>
       ))}
       {unassigned > 0 && (
