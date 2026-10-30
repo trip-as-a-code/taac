@@ -487,6 +487,15 @@ const offsetLabel =
     margin-top: 3px;
   }
 
+  /* One reservation's status and price: spaced like everything else in the row. */
+  .reservation {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: inherit;
+    min-width: 0;
+  }
+
   .kind {
     font-weight: 600;
     color: var(--kind);
