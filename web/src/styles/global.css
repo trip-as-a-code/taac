@@ -630,6 +630,11 @@ p {
   scrollbar-color: var(--fill-strong) transparent;
 }
 
+/* Focused only to keep a tap inside the picker; the active option shows where you are. */
+.picker-list:focus {
+  outline: none;
+}
+
 .picker-option {
   display: flex;
   align-items: center;
