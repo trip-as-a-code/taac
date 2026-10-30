@@ -796,3 +796,12 @@ p {
 html[data-filter-pending] .trip .content {
   opacity: 0;
 }
+
+/* A figure that shrinks to stay in its box (scripts/fit.ts). */
+[data-fit] {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}

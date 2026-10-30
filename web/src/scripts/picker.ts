@@ -360,8 +360,11 @@ function enhance(root: HTMLElement) {
     pick(shown.find((e) => e.el === el))
     close()
   })
-  // Keep focus where it is when pressing inside the list.
-  list.addEventListener('pointerdown', (event) => event.preventDefault())
+  // Keep focus where it is when clicking inside the list. Only for a mouse: on
+  // touch it would also cancel the swipe that scrolls the list (mobile Safari).
+  list.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse') event.preventDefault()
+  })
   root.addEventListener('focusout', (event) => {
     if (open && !root.contains(event.relatedTarget as Node)) close(false)
   })
