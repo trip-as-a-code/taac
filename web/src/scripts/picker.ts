@@ -101,6 +101,9 @@ function enhance(root: HTMLElement) {
   list.id = `${id}-list`
   list.setAttribute('role', 'listbox')
   list.setAttribute('aria-label', select.getAttribute('aria-label') ?? '')
+  // Focusable, so a tap inside it keeps focus in the picker instead of
+  // blurring it (which would close the list before the swipe or tap lands).
+  list.tabIndex = -1
   const empty = document.createElement('p')
   empty.className = 'picker-empty footnote'
   empty.textContent = root.dataset.empty ?? ''
@@ -345,12 +348,19 @@ function enhance(root: HTMLElement) {
   }
 
   trigger.addEventListener('keydown', onKey)
-  trigger.addEventListener('click', (event) => {
+  list.addEventListener('keydown', onKey)
+  // How the trigger was pressed: Safari's `click` has no `pointerType`.
+  let pressedWith = ''
+  trigger.addEventListener('pointerdown', (event) => (pressedWith = event.pointerType))
+  trigger.addEventListener('click', () => {
     if (open) close()
     // A tap shouldn't throw up the on-screen keyboard; a click or a key may.
-    else show(undefined, { focusSearch: (event as PointerEvent).pointerType !== 'touch' })
+    else show(undefined, { focusSearch: pressedWith !== 'touch' && pressedWith !== 'pen' })
+    pressedWith = ''
   })
   list.addEventListener('pointermove', (event) => {
+    // Hover only with a mouse: on iOS a change on hover can swallow the tap.
+    if (event.pointerType !== 'mouse') return
     const el = (event.target as Element).closest<HTMLElement>('.picker-option')
     const index = shown.findIndex((e) => e.el === el)
     if (index >= 0 && index !== active) setActive(index, false)
