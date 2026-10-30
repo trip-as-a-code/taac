@@ -650,8 +650,8 @@ pub enum Vehicle {
 }
 
 /// A ticket, pass or rental for getting around an area for a while: a metro
-/// pass, a bike-share day. Within its area and dates, moving between plans
-/// needs no journey of its own.
+/// pass, a bike-share day. It pays for the legs there; it doesn't stand in
+/// for them — every move between two places is still a leg of its own.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Pass {

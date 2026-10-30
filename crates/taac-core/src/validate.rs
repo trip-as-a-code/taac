@@ -863,21 +863,9 @@ impl Validator<'_> {
                 .map(|a| a.name.as_str())
                 .collect()
         };
-        // Somewhere else needs a way there: a journey, a walk or ride, or a
-        // pass valid that day in an area holding both.
-        let apart =
-            |a: &crate::model::Place, b: &crate::model::Place, member: &str, day: NaiveDate| {
-                a.name != b.name
-                    && !trip.passes.iter().any(|pass| {
-                        pass.shares().iter().any(|share| {
-                            share.periods.iter().any(|p| (p.from..=p.to).contains(&day))
-                                && trip.who(share.who).contains(&member)
-                        }) && trip
-                            .places
-                            .get(&pass.area)
-                            .is_some_and(|area| within(a, area) && within(b, area))
-                    })
-            };
+        // Somewhere else needs a way there: a journey, a walk or a ride. A
+        // pass only pays for the transit legs; it doesn't stand in for them.
+        let apart = |a: &crate::model::Place, b: &crate::model::Place| a.name != b.name;
         // One plan crossing from one area into another is a journey.
         let crosses = |a: &crate::model::Place, b: &crate::model::Place| {
             let (x, y) = (areas_of(a), areas_of(b));
@@ -923,7 +911,7 @@ impl Validator<'_> {
                     })
                 {
                     let bed = trip.item_places(night)[0].1;
-                    if apart(at, bed, &member.id, prev.day()) && !said(prev.day()) {
+                    if apart(at, bed) && !said(prev.day()) {
                         push((
                             Leg::Return,
                             Some(night.id.as_str()),
@@ -935,7 +923,7 @@ impl Validator<'_> {
                     last = Some((night, bed));
                 }
                 if let Some((prev, at)) = last
-                    && apart(at, first, &member.id, item.day())
+                    && apart(at, first)
                     && !said(item.day())
                 {
                     push((
@@ -991,7 +979,7 @@ impl Validator<'_> {
                         "route.jump",
                         Some(item),
                         format!(
-                            "{who}: `{}` ends at {from}, then `{}` starts at {to}, but nothing takes them there — add the journey (a walk or ride counts), or a pass covering both",
+                            "{who}: `{}` ends at {from}, then `{}` starts at {to}, but nothing takes them there — add the way: a walk, a ride, metro, bus or train (a pass only pays for it)",
                             title(after),
                             title(item)
                         ),
@@ -1013,7 +1001,7 @@ impl Validator<'_> {
                         "route.return",
                         Some(item),
                         format!(
-                            "{who}: `{}` ends at {from}, but the night is at {to} (`{}`), and nothing takes them back — add the journey (a walk or ride counts), or a pass covering both",
+                            "{who}: `{}` ends at {from}, but the night is at {to} (`{}`), and nothing takes them back — add the way: a walk, a ride, metro, bus or train",
                             title(item),
                             title(night)
                         ),
@@ -1604,8 +1592,7 @@ ideas:
 
     #[test]
     fn a_day_out_starts_and_ends_at_the_nights_lodging() {
-        let d = check_with(
-            "passes: [{ title: metro, area: tokyo, periods: [{ from: 2027-01-01, to: 2027-01-03 }] }]",
+        let d = check(
             "  - { kind: lodging, title: hotel, start: 2027-01-01T15:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [flat] }
   - { kind: activity, title: temple, start: 2027-01-02T10:00:00+09:00, end: 2027-01-02T12:00:00+09:00, who: [everyone], places: [kyoto] }
   - { kind: activity, title: walk, start: 2027-01-03T09:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [tokyo] }",
@@ -1616,8 +1603,8 @@ ideas:
                 .map(|x| x.item.as_deref().unwrap_or(""))
                 .collect::<Vec<_>>()
         };
-        // Out of the pass's area and back; hotel → walk is inside it.
-        assert_eq!(at("route.jump"), ["temple"], "{d:?}");
+        // Out from the hotel each morning, and back to it at night.
+        assert_eq!(at("route.jump"), ["temple", "walk"], "{d:?}");
         assert_eq!(at("route.return"), ["temple"], "{d:?}");
     }
 
@@ -1642,12 +1629,12 @@ ideas:
                 .any(|d| d.code == "route.cross" && d.item.as_deref() == Some("day-tour")),
             "{d:?}"
         );
-        // A pass covers its area on its days; a walk is a way too.
+        // A pass only pays for the legs: it stands in for none. A walk does.
         let passed = check_with(
             "passes: [{ title: metro, area: tokyo, periods: [{ from: 2027-01-01, to: 2027-01-01 }] }]",
             plans,
         );
-        assert_eq!(jumps(&passed), ["temple", "day-tour"], "{passed:?}");
+        assert_eq!(jumps(&passed), ["park", "temple", "day-tour"], "{passed:?}");
         let walked = check(&format!(
             "{plans}
   - {{ kind: walk, title: stroll, start: 2027-01-01T12:00:00+09:00, end: 2027-01-01T12:30:00+09:00, who: [everyone], places: [tokyo, flat] }}"
@@ -1667,23 +1654,18 @@ ideas:
     }
 
     #[test]
-    fn a_pass_held_per_party_covers_each_on_their_days() {
+    fn a_pass_held_per_party_needs_days_for_each() {
         let d = check_with(
             "passes:
   - title: metro
     area: tokyo
     bookings:
       - { who: [a], periods: [{ from: 2027-01-01, to: 2027-01-01 }] }
-      - { who: [b], periods: [{ from: 2027-01-02, to: 2027-01-02 }] }",
-            "  - { kind: activity, title: museum, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [everyone], places: [tokyo] }
-  - { kind: activity, title: park, start: 2027-01-01T13:00:00+09:00, end: 2027-01-01T14:00:00+09:00, who: [everyone], places: [flat] }",
+      - { who: [b] }",
+            "  - { kind: note, title: x, date: 2027-01-01, who: [everyone] }",
         );
-        let jumps: Vec<_> = d
-            .iter()
-            .filter(|d| d.code == "route.jump")
-            .map(|d| d.params.get("who").cloned().unwrap_or_default())
-            .collect();
-        assert_eq!(jumps, ["B"], "{d:?}");
+        let periods = d.iter().filter(|d| d.code == "pass.periods").count();
+        assert_eq!(periods, 1, "{d:?}");
     }
 
     #[test]

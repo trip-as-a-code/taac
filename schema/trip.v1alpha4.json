@@ -1271,7 +1271,7 @@
       ]
     },
     "Pass": {
-      "description": "A ticket, pass or rental for getting around an area for a while: a metro\npass, a bike-share day. Within its area and dates, moving between plans\nneeds no journey of its own.",
+      "description": "A ticket, pass or rental for getting around an area for a while: a metro\npass, a bike-share day. It pays for the legs there; it doesn't stand in\nfor them — every move between two places is still a leg of its own.",
       "type": "object",
       "properties": {
         "title": {
