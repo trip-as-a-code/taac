@@ -73,6 +73,7 @@ pub struct TripExport {
     pub ideas: Vec<IdeaExport>,
     pub blockers: Vec<BlockerExport>,
     pub tasks: Vec<TaskExport>,
+    pub passes: Vec<PassExport>,
     pub days: Vec<DayExport>,
     pub budget: Budget,
     pub packing: Vec<PackingCategoryExport>,
@@ -312,6 +313,32 @@ pub struct TaskExport {
     pub due: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub done: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PassExport {
+    pub id: String,
+    pub title: String,
+    pub members: Vec<String>,
+    /// Id into [`TripExport::parties`].
+    pub party: String,
+    pub mode: &'static str,
+    /// Place id of the area it covers.
+    pub area: String,
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// `notRequired` without a `booking`; its costs are budget lines
+    /// with `item` = this id.
+    pub status: crate::model::BookingStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deadline: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
@@ -706,6 +733,35 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     due: task.due,
                     done: task.done,
                     notes: task.notes.clone(),
+                }
+            })
+            .collect(),
+        passes: trip
+            .passes
+            .iter()
+            .map(|pass| {
+                let members: Vec<String> = trip
+                    .who(pass.who.as_deref())
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect();
+                PassExport {
+                    id: pass.id.clone(),
+                    title: pass.title.clone(),
+                    party: party_of(trip, &members),
+                    members,
+                    mode: pass.mode.as_str(),
+                    area: pass.area.clone(),
+                    from: pass.from,
+                    to: pass.to,
+                    provider: pass.provider.clone(),
+                    url: pass.url.clone(),
+                    status: pass
+                        .booking
+                        .as_ref()
+                        .map_or(crate::model::BookingStatus::NotRequired, |b| b.status),
+                    deadline: pass.booking.as_ref().and_then(|b| b.deadline),
+                    notes: pass.notes.clone(),
                 }
             })
             .collect(),

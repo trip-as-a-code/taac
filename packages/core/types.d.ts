@@ -46,7 +46,8 @@ export interface SiteExport {
   diagnostics: Diagnostic[]
 }
 
-export type ItemKind = 'flight' | 'train' | 'bus' | 'ferry' | 'transfer' | 'lodging' | 'activity' | 'meal' | 'note'
+export type ItemKind =
+  'flight' | 'train' | 'bus' | 'ferry' | 'transfer' | 'walk' | 'ride' | 'lodging' | 'activity' | 'meal' | 'note'
 export type BookingStatus = 'required' | 'booked' | 'notRequired' | 'cancelled'
 
 export interface Member {
@@ -141,7 +142,7 @@ export interface Idea {
   local?: Item['local']
   /** Alternatives for one need share this label. */
   option?: string
-  transport?: { carrier?: string; number?: string }
+  transport?: Transport
   /** How to book it if chosen; never `booked`. */
   booking?: Booking
   costs: Cost[]
@@ -185,7 +186,7 @@ export interface Item {
   members: string[]
   /** Id into `TripExport.parties`. */
   party: string
-  transport?: { carrier?: string; number?: string }
+  transport?: Transport
   /** Overall booking state; a summary when there are several reservations. */
   booking: Booking
   /** Reservations when there are several, each with its people. */
@@ -209,6 +210,31 @@ export interface Blocker {
   strict: boolean
   notes?: string
   time?: { start: string; end: string; timezone?: string }
+}
+
+/** How a journey goes; a rental service is the `carrier`. */
+export interface Transport {
+  carrier?: string
+  number?: string
+  vehicle?: 'bicycle' | 'scooter'
+}
+
+/** A ticket, pass or rental covering an area on its days. */
+export interface Pass {
+  id: string
+  title: string
+  members: string[]
+  party: string
+  mode: 'transit' | 'bicycle' | 'scooter'
+  /** Place id of the area. */
+  area: string
+  from: ISODate
+  to: ISODate
+  provider?: string
+  url?: string
+  status: BookingStatus
+  deadline?: ISODate
+  notes?: string
 }
 
 /** Something to get done before the trip; `required` means the trip depends on it. */
@@ -304,6 +330,7 @@ export interface TripExport {
   ideas: Idea[]
   blockers: Blocker[]
   tasks: Task[]
+  passes: Pass[]
   days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[]; blockers: DayBlocker[] }[]
   budget: Budget
   packing: {

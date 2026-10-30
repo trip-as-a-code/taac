@@ -34,6 +34,7 @@ places:
   Pena Palace: { geo: [38.7876, -9.3906], category: historic }
   Rossio Station: { geo: [38.7142, -9.1410], category: station }
   Sintra Station: { geo: [38.7987, -9.3860], category: station }
+  Cais do Sodré: { geo: [38.7058, -9.1445], category: station }
   Miradouro da Senhora do Monte: { geo: [38.7194, -9.1327], category: viewpoint }
 itinerary:
   - kind: flight
@@ -94,6 +95,14 @@ itinerary:
     start: 2027-05-15T08:11:00+01:00
     end: 2027-05-15T08:51:00+01:00
     places: [Rossio Station, Sintra Station]
+  - kind: bus
+    title: Bus 434 up to Pena
+    who: [Early birds]
+    start: 2027-05-15T08:55:00+01:00
+    end: 2027-05-15T09:10:00+01:00
+    places: [Sintra Station, Pena Palace]
+    costs:
+      - { amount: 7.6, currency: EUR, paidBy: each, label: 2 hop-on tickets }
   - kind: activity
     title: Day trip to Sintra
     start: 2027-05-15T09:15:00+01:00
@@ -103,12 +112,28 @@ itinerary:
     booking: { status: required, deadline: 2027-04-20 }
     costs:
       - { amount: 64, currency: EUR, paidBy: Alex } # paid costs count as paid back unless `settled: false`
+  - kind: walk
+    title: Down through the old town
+    who: [Early birds]
+    start: 2027-05-15T16:15:00+01:00
+    end: 2027-05-15T16:40:00+01:00
+    places: [Pena Palace, Sintra Station]
   - kind: train
     title: Sintra → Rossio
     who: [Early birds]
     start: 2027-05-15T16:41:00+01:00
     end: 2027-05-15T17:21:00+01:00
     places: [Sintra Station, Rossio Station]
+  # A rented bike along the river: the service is the carrier.
+  - kind: ride
+    title: Along the river to Belém
+    who: [everyone]
+    start: 2027-05-16T09:15:00+01:00
+    end: 2027-05-16T09:50:00+01:00
+    places: [Cais do Sodré, Pastéis de Belém]
+    transport: { vehicle: bicycle, carrier: GIRA }
+    costs:
+      - { amount: 6, currency: EUR, paidBy: each, estimate: true, label: day passes }
   - kind: meal
     title: Pastéis de nata in Belém
     who: [everyone]
@@ -152,6 +177,17 @@ ideas:
     part: evening
     booking: { status: notRequired }
     costs: [{ amount: 60, currency: EUR, estimate: true }]
+# Getting around Lisbon: inside its area on these days, moves between plans
+# need no journey of their own.
+passes:
+  - title: Viva Viagem day passes
+    area: Lisbon
+    from: 2027-05-14
+    to: 2027-05-17
+    provider: Carris / Metro de Lisboa
+    url: https://www.carris.pt
+    costs:
+      - { amount: 84, currency: EUR, paidBy: each, estimate: true, label: 3 × 4 days }
 tasks:
   - title: Renew passport
     who: [Robin]

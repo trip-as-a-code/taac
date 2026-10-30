@@ -12,7 +12,7 @@ use chrono::NaiveDate;
 
 use crate::model::{
     Access, Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
-    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Task, TripFile,
+    Pass, Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Task, TripFile,
     TripKind, TripMetadata,
 };
 
@@ -43,6 +43,7 @@ pub struct Trip {
     pub ideas: Vec<Idea>,
     pub blockers: Vec<Blocker>,
     pub tasks: Vec<Task>,
+    pub passes: Vec<Pass>,
     pub packing: Vec<PackingCategory>,
     pub overlays: Vec<LoadedOverlay>,
     pub access: Option<Access>,
@@ -75,9 +76,6 @@ pub struct ResolvedBase {
 /// In a `who` list: every member, said out loud.
 pub const EVERYONE: &str = "everyone";
 
-/// Areas without a radius still cover a city's worth of ground.
-const DEFAULT_AREA_RADIUS_M: f64 = 30_000.0;
-
 #[derive(Debug, Clone)]
 pub struct LoadedOverlay {
     pub name: String,
@@ -95,7 +93,7 @@ impl Trip {
 
     /// Effective participants of an item; see [`Trip::who`].
     /// The trip as some of the people see it: the plans, ideas, bases,
-    /// blockers, tasks and packing any of them take part in — or, `together`, only
+    /// blockers, tasks, passes and packing any of them take part in — or, `together`, only
     /// what all of them do. Members, groups and places stay, so names and
     /// shares still resolve.
     #[must_use]
@@ -114,6 +112,7 @@ impl Trip {
             .retain(|b| mine(self.who(b.who.as_deref())));
         trip.blockers.retain(|b| mine(self.who(b.who.as_deref())));
         trip.tasks.retain(|t| mine(self.who(t.who.as_deref())));
+        trip.passes.retain(|p| mine(self.who(p.who.as_deref())));
         for category in &mut trip.packing {
             let default = category.who.clone();
             category
@@ -283,10 +282,12 @@ impl Trip {
     }
 }
 
-/// `place` lies inside `area` (its radius, or a city-sized default).
+/// `place` lies inside `area`: within its radius, or, for a place without
+/// one, at that very spot.
 pub fn within(place: &Place, area: &Place) -> bool {
-    let radius = area.radius.map_or(DEFAULT_AREA_RADIUS_M, f64::from);
-    distance_m(place.geo, area.geo) <= radius
+    area.radius.map_or(place.name == area.name, |radius| {
+        distance_m(place.geo, area.geo) <= f64::from(radius)
+    })
 }
 
 pub fn distance_m([lat1, lon1]: [f64; 2], [lat2, lon2]: [f64; 2]) -> f64 {
@@ -436,6 +437,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         ideas: Vec::new(),
         blockers: Vec::new(),
         tasks: Vec::new(),
+        passes: Vec::new(),
         packing: Vec::new(),
         overlays: Vec::new(),
         access: None,
@@ -527,6 +529,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         trip.ideas.extend(doc.ideas);
         trip.blockers.extend(doc.blockers);
         trip.tasks.extend(doc.tasks);
+        trip.passes.extend(doc.passes);
         trip.packing.extend(doc.packing);
         for overlay in doc.map.unwrap_or_default().overlays {
             let overlay_path = join(&dir, &overlay.file);
@@ -746,6 +749,14 @@ fn resolve_names(trip: &mut Trip) {
         place_refs(&mut idea.places);
         who(&mut idea.who);
         costs(&mut idea.costs);
+    }
+
+    let mut taken = HashSet::new();
+    for pass in &mut trip.passes {
+        pass.id = unique(&[slug(&pass.title)], &mut taken);
+        place(&mut pass.area);
+        who(&mut pass.who);
+        costs(&mut pass.costs);
     }
 
     for category in &mut trip.packing {

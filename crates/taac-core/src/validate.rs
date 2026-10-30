@@ -37,6 +37,7 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.ideas();
     v.blockers();
     v.tasks();
+    v.passes();
     v.overlaps();
     v.nights();
     v.routes();
@@ -249,7 +250,7 @@ impl Validator<'_> {
                     PlaceRef::Key(_) => {}
                 }
             }
-            if item.kind.is_transport() && item.places.len() < 2 {
+            if item.kind.is_journey() && item.places.len() < 2 {
                 self.warn(
                     "item.route",
                     id,
@@ -377,8 +378,9 @@ impl Validator<'_> {
         let trip = self.trip;
         for base in &trip.declared_bases {
             let id = Some(base.id.as_str());
-            if !trip.places.contains_key(&base.place) {
-                self.error("base.place", id, format!("unknown place `{}`", base.place));
+            match trip.places.get(&base.place) {
+                None => self.error("base.place", id, format!("unknown place `{}`", base.place)),
+                Some(place) => self.area(id, place),
             }
             if base.to < base.from {
                 self.error("base.dates", id, "`to` is before `from`".into());
@@ -412,12 +414,11 @@ impl Validator<'_> {
         let trip = self.trip;
         for idea in &trip.ideas {
             let id = Some(idea.id.as_str());
-            if let Some(area) = idea
-                .area
-                .as_deref()
-                .filter(|a| !trip.places.contains_key(*a))
-            {
-                self.error("idea.area", id, format!("unknown place `{area}`"));
+            if let Some(area) = idea.area.as_deref() {
+                match trip.places.get(area) {
+                    None => self.error("idea.area", id, format!("unknown place `{area}`")),
+                    Some(place) => self.area(id, place),
+                }
             }
             for place in &idea.places {
                 match place {
@@ -781,7 +782,7 @@ impl Validator<'_> {
                     .filter(|i| (a.to..=b.from).contains(&i.day()))
                     // Only a journey moves anyone: an activity naming both
                     // places doesn't say how they got there.
-                    .filter(|i| i.kind.is_transport())
+                    .filter(|i| i.kind.is_journey())
                     .any(|i| {
                         let places = trip.item_places(i);
                         let start = places.iter().position(|(_, p)| within(p, &a.place));
@@ -862,9 +863,20 @@ impl Validator<'_> {
                 .map(|a| a.name.as_str())
                 .collect()
         };
-        let apart = |a: &crate::model::Place, b: &crate::model::Place| {
-            a.name != b.name && !areas.iter().any(|ar| within(a, ar) && within(b, ar))
-        };
+        // Somewhere else needs a way there: a journey, a walk or ride, or a
+        // pass valid that day in an area holding both.
+        let apart =
+            |a: &crate::model::Place, b: &crate::model::Place, member: &str, day: NaiveDate| {
+                a.name != b.name
+                    && !trip.passes.iter().any(|pass| {
+                        (pass.from..=pass.to).contains(&day)
+                            && trip.who(pass.who.as_deref()).contains(&member)
+                            && trip
+                                .places
+                                .get(&pass.area)
+                                .is_some_and(|area| within(a, area) && within(b, area))
+                    })
+            };
         // One plan crossing from one area into another is a journey.
         let crosses = |a: &crate::model::Place, b: &crate::model::Place| {
             let (x, y) = (areas_of(a), areas_of(b));
@@ -910,7 +922,7 @@ impl Validator<'_> {
                     })
                 {
                     let bed = trip.item_places(night)[0].1;
-                    if apart(at, bed) && !said(prev.day()) {
+                    if apart(at, bed, &member.id, prev.day()) && !said(prev.day()) {
                         push((
                             Leg::Return,
                             Some(night.id.as_str()),
@@ -922,7 +934,7 @@ impl Validator<'_> {
                     last = Some((night, bed));
                 }
                 if let Some((prev, at)) = last
-                    && apart(at, first)
+                    && apart(at, first, &member.id, item.day())
                     && !said(item.day())
                 {
                     push((
@@ -933,7 +945,7 @@ impl Validator<'_> {
                         first.name.clone(),
                     ));
                 }
-                if !item.kind.is_transport() && !said(item.day()) {
+                if !item.kind.is_journey() && !said(item.day()) {
                     for pair in places.windows(2) {
                         if crosses(pair[0].1, pair[1].1) {
                             push((
@@ -978,7 +990,7 @@ impl Validator<'_> {
                         "route.jump",
                         Some(item),
                         format!(
-                            "{who}: `{}` ends at {from}, then `{}` starts at {to}, but no plan takes them there — add the journey, or a `radius` making both one area",
+                            "{who}: `{}` ends at {from}, then `{}` starts at {to}, but nothing takes them there — add the journey (a walk or ride counts), or a pass covering both",
                             title(after),
                             title(item)
                         ),
@@ -1000,7 +1012,7 @@ impl Validator<'_> {
                         "route.return",
                         Some(item),
                         format!(
-                            "{who}: `{}` ends at {from}, but the night is at {to} (`{}`), and no plan takes them back — add the journey",
+                            "{who}: `{}` ends at {from}, but the night is at {to} (`{}`), and nothing takes them back — add the journey (a walk or ride counts), or a pass covering both",
                             title(item),
                             title(night)
                         ),
@@ -1284,6 +1296,45 @@ impl Validator<'_> {
         }
     }
 
+    /// A place used as an area has to say how big it is.
+    fn area(&mut self, id: Option<&str>, place: &crate::model::Place) {
+        if place.radius.is_none() {
+            self.warn(
+                "area.radius",
+                id,
+                format!(
+                    "`{}` is used as an area but has no `radius`: only that very spot counts as in it",
+                    place.name
+                ),
+            );
+            self.detail(
+                &[("place", place.name.clone())],
+                Some("radius: 10000 # metres".into()),
+            );
+        }
+    }
+
+    fn passes(&mut self) {
+        let trip = self.trip;
+        for pass in &trip.passes {
+            let id = Some(pass.id.as_str());
+            self.who(&pass.id, pass.who.as_deref());
+            match trip.places.get(&pass.area) {
+                None => self.error("pass.area", id, format!("unknown place `{}`", pass.area)),
+                Some(place) => self.area(id, place),
+            }
+            if pass.to < pass.from {
+                self.error("pass.dates", id, "`to` is before `from`".into());
+            }
+            let people = trip.who(pass.who.as_deref());
+            let booked = pass
+                .booking
+                .as_ref()
+                .is_some_and(|b| b.status == BookingStatus::Booked);
+            self.costs(&pass.id, &pass.costs, &people, &people, booked);
+        }
+    }
+
     fn tasks(&mut self) {
         let trip = self.trip;
         let start = crate::export::date_range(trip).0;
@@ -1532,7 +1583,8 @@ ideas:
 
     #[test]
     fn a_day_out_starts_and_ends_at_the_nights_lodging() {
-        let d = check(
+        let d = check_with(
+            "passes: [{ title: metro, area: tokyo, from: 2027-01-01, to: 2027-01-03 }]",
             "  - { kind: lodging, title: hotel, start: 2027-01-01T15:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [flat] }
   - { kind: activity, title: temple, start: 2027-01-02T10:00:00+09:00, end: 2027-01-02T12:00:00+09:00, who: [everyone], places: [kyoto] }
   - { kind: activity, title: walk, start: 2027-01-03T09:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [tokyo] }",
@@ -1543,41 +1595,67 @@ ideas:
                 .map(|x| x.item.as_deref().unwrap_or(""))
                 .collect::<Vec<_>>()
         };
+        // Out of the pass's area and back; hotel → walk is inside it.
         assert_eq!(at("route.jump"), ["temple"], "{d:?}");
         assert_eq!(at("route.return"), ["temple"], "{d:?}");
     }
 
     #[test]
-    fn plans_far_apart_need_a_journey_between() {
-        let d = check(
-            "  - { kind: activity, title: museum, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [everyone], places: [tokyo] }
-  - { kind: activity, title: walk, start: 2027-01-01T13:00:00+09:00, end: 2027-01-01T14:00:00+09:00, who: [everyone], places: [flat] }
+    fn every_move_needs_a_way_there() {
+        let plans = "  - { kind: activity, title: museum, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [everyone], places: [tokyo] }
+  - { kind: activity, title: park, start: 2027-01-01T13:00:00+09:00, end: 2027-01-01T14:00:00+09:00, who: [everyone], places: [flat] }
   - { kind: activity, title: temple, start: 2027-01-02T10:00:00+09:00, end: 2027-01-02T12:00:00+09:00, who: [everyone], places: [kyoto] }
-  - { kind: activity, title: day tour, start: 2027-01-03T10:00:00+09:00, end: 2027-01-03T18:00:00+09:00, who: [a], places: [ryokan, tokyo] }",
-        );
-        let jumps: Vec<_> = d
-            .iter()
-            .filter(|d| d.code == "route.jump")
-            .map(|d| {
-                (
-                    d.item.as_deref().unwrap_or(""),
-                    d.params.get("after").map(String::as_str),
-                )
-            })
-            .collect();
-        // Tokyo → Kyoto with nothing between; a tour that is really a journey.
-        assert_eq!(jumps, [("temple", Some("walk"))], "{d:?}");
+  - { kind: activity, title: day tour, start: 2027-01-03T10:00:00+09:00, end: 2027-01-03T18:00:00+09:00, who: [a], places: [ryokan, tokyo] }";
+        let jumps = |d: &[Diagnostic]| {
+            d.iter()
+                .filter(|d| d.code == "route.jump")
+                .map(|d| d.item.clone().unwrap_or_default())
+                .collect::<Vec<_>>()
+        };
+        // Even inside one area, a move between two places needs a way.
+        let d = check(plans);
+        assert_eq!(jumps(&d), ["park", "temple", "day-tour"], "{d:?}");
+        // One plan crossing areas is a journey in disguise.
         assert!(
             d.iter()
                 .any(|d| d.code == "route.cross" && d.item.as_deref() == Some("day-tour")),
             "{d:?}"
         );
+        // A pass covers its area on its days; a walk is a way too.
+        let passed = check_with(
+            "passes: [{ title: metro, area: tokyo, from: 2027-01-01, to: 2027-01-01 }]",
+            plans,
+        );
+        assert_eq!(jumps(&passed), ["temple", "day-tour"], "{passed:?}");
+        let walked = check(&format!(
+            "{plans}
+  - {{ kind: walk, title: stroll, start: 2027-01-01T12:00:00+09:00, end: 2027-01-01T12:30:00+09:00, who: [everyone], places: [tokyo, flat] }}"
+        ));
+        assert_eq!(jumps(&walked), ["temple", "day-tour"], "{walked:?}");
         let fine = check(
             "  - { kind: activity, title: museum, date: 2027-01-01, who: [everyone], places: [tokyo] }
   - { kind: train, title: shinkansen, start: 2027-01-02T09:00:00+09:00, end: 2027-01-02T11:15:00+09:00, who: [everyone], places: [tokyo, kyoto] }
+  - { kind: ride, title: bike, start: 2027-01-02T11:30:00+09:00, end: 2027-01-02T11:45:00+09:00, who: [everyone], places: [kyoto, ryokan],
+      transport: { vehicle: bicycle, carrier: Kyoto Bike }, costs: [{ amount: 500, currency: JPY, estimate: true }] }
   - { kind: activity, title: temple, start: 2027-01-02T13:00:00+09:00, end: 2027-01-02T15:00:00+09:00, who: [everyone], places: [ryokan] }",
         );
-        assert!(!fine.iter().any(|d| d.code == "route.jump"), "{fine:?}");
+        assert!(
+            !fine.iter().any(|d| d.code.starts_with("route.")),
+            "{fine:?}"
+        );
+    }
+
+    #[test]
+    fn areas_say_how_big_they_are() {
+        let d = check_with(
+            "passes: [{ title: pass, area: flat, from: 2027-01-01, to: 2027-01-01 }]",
+            "  - { kind: note, title: x, date: 2027-01-01, who: [everyone] }",
+        );
+        assert!(
+            d.iter()
+                .any(|d| d.code == "area.radius" && d.item.as_deref() == Some("pass")),
+            "{d:?}"
+        );
     }
 
     #[test]

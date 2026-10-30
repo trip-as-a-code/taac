@@ -47,12 +47,14 @@ groups:
 bases: # where everyone is each night, planned or not
   - { title: Lisbon, place: Lisbon, from: 2027-05-14, to: 2027-05-16 }
 places: # by name; everything else refers to them by it
-  Lisbon: { geo: [38.7223, -9.1393], radius: 12000 } # an area: moving around inside needs no journey
+  Lisbon: { geo: [38.7223, -9.1393], radius: 12000 } # an area, for bases, passes and ideas
   London Gatwick: { geo: [51.1537, -0.1821], category: airport }
   Lisbon Airport: { geo: [38.7742, -9.1342], category: airport }
+  Cais do Sodré: { geo: [38.7058, -9.1445], category: station }
+  Belém: { geo: [38.6975, -9.2032] }
   Castelo de São Jorge: { geo: [38.7139, -9.1335], category: historic }
 itinerary:
-  - kind: flight # flight, train, bus, ferry, transfer, lodging, activity, meal, note
+  - kind: flight # flight, train, bus, ferry, transfer, walk, ride, lodging, activity, meal, note
     title: London → Lisbon
     who: [everyone] # names of members and/or groups, or everyone
     start: 2027-05-14T07:05:00+01:00 # always with the local offset
@@ -84,6 +86,22 @@ itinerary:
     who: [everyone]
     date: 2027-05-14 # no fixed time
     part: evening # morning, afternoon, evening
+  - kind: ride # or walk: every move between two places needs a way there
+    title: Bike to Belém
+    who: [everyone]
+    start: 2027-05-15T09:15:00+01:00
+    end: 2027-05-15T09:50:00+01:00
+    places: [Cais do Sodré, Belém]
+    transport: { vehicle: bicycle, carrier: GIRA } # bicycle or scooter; a rental is its carrier
+    costs: [{ amount: 6, currency: EUR, estimate: true }]
+passes: # a ticket or rental covering an area: moves inside it need no plan
+  - title: Viva Viagem day passes
+    area: Lisbon # a place with a radius
+    from: 2027-05-14
+    to: 2027-05-17
+    mode: transit # transit (default), bicycle, scooter
+    provider: Carris / Metro de Lisboa
+    costs: [{ amount: 84, currency: EUR, paidBy: each, estimate: true }]
 blockers: # time someone is unavailable; plans inside it are flagged
   - title: Work
     who: [Alex]

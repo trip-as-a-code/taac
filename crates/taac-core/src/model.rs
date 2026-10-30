@@ -19,7 +19,7 @@ pub enum ApiVersion {
 /// blockers are referred to by name or title, places by their key (which is
 /// their name). A trip is a single `kind: Trip` file, or a
 /// directory holding one `kind: Trip` file plus any number of `kind: TripPart`
-/// files whose bases, places, itinerary, ideas, tasks, packing and overlays are
+/// files whose bases, places, itinerary, ideas, tasks, passes, packing and overlays are
 /// merged into it.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -55,6 +55,9 @@ pub struct TripFile {
     /// pass to pick up, expenses to file.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tasks: Vec<Task>,
+    /// Tickets, passes and rentals for getting around an area for a while.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub passes: Vec<Pass>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packing: Vec<PackingCategory>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -166,8 +169,8 @@ pub struct Place {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     /// Makes the place an area (a city, a valley) of this many metres around
-    /// `geo`; bases and ideas use areas. Getting around inside one needs no
-    /// plan; between places in no common area, a journey has to be planned.
+    /// `geo`: bases, passes and ideas' `area` need one. Without it the place
+    /// is a single spot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1))]
     pub radius: Option<u32>,
@@ -585,6 +588,10 @@ pub enum ItemKind {
     Bus,
     Ferry,
     Transfer,
+    /// On foot between two places.
+    Walk,
+    /// By bicycle or scooter (`transport.vehicle`), own or rented.
+    Ride,
     Lodging,
     Activity,
     Meal,
@@ -599,6 +606,8 @@ impl ItemKind {
             Self::Bus => "bus",
             Self::Ferry => "ferry",
             Self::Transfer => "transfer",
+            Self::Walk => "walk",
+            Self::Ride => "ride",
             Self::Lodging => "lodging",
             Self::Activity => "activity",
             Self::Meal => "meal",
@@ -606,11 +615,17 @@ impl ItemKind {
         }
     }
 
+    /// A vehicle someone else runs, booked like a stay.
     pub fn is_transport(self) -> bool {
         matches!(
             self,
             Self::Flight | Self::Train | Self::Bus | Self::Ferry | Self::Transfer
         )
+    }
+
+    /// Anything that moves people from one place to the next.
+    pub fn is_journey(self) -> bool {
+        self.is_transport() || matches!(self, Self::Walk | Self::Ride)
     }
 }
 
@@ -622,6 +637,76 @@ pub struct Transport {
     /// Flight or train number, e.g. `AY61`, `Hikari 645`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub number: Option<String>,
+    /// What a `ride` is on; a rental service goes in `carrier`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vehicle: Option<Vehicle>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum Vehicle {
+    Bicycle,
+    Scooter,
+}
+
+/// A ticket, pass or rental for getting around an area for a while: a metro
+/// pass, a bike-share day. Within its area and dates, moving between plans
+/// needs no journey of its own.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Pass {
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
+    pub id: String,
+    pub title: String,
+    /// Names of members and/or groups, or `everyone`; omitted means everyone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
+    /// How it gets people around.
+    #[serde(default)]
+    pub mode: PassMode,
+    /// The area it covers: a place with a `radius`.
+    pub area: String,
+    /// First day it's valid.
+    #[schemars(with = "String", extend("format" = "date"))]
+    pub from: NaiveDate,
+    /// Last day it's valid, inclusive.
+    #[schemars(with = "String", extend("format" = "date"))]
+    pub to: NaiveDate,
+    /// Who sells or runs it, e.g. `Tokyo Metro`, `Luup`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub booking: Option<Booking>,
+    /// `who` defaults to the pass's people; `estimate: true` while the price
+    /// is a guess.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<Cost>,
+    /// Markdown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum PassMode {
+    /// Public transport: metro, buses, local trains.
+    #[default]
+    Transit,
+    Bicycle,
+    Scooter,
+}
+
+impl PassMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Transit => "transit",
+            Self::Bicycle => "bicycle",
+            Self::Scooter => "scooter",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]

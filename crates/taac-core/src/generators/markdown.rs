@@ -164,6 +164,22 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
         out.push('\n');
     }
 
+    if !trip.passes.is_empty() {
+        let _ = writeln!(out, "## Passes\n");
+        for pass in &trip.passes {
+            let area = trip
+                .places
+                .get(&pass.area)
+                .map_or(pass.area.as_str(), |p| p.name.as_str());
+            let mut line = format!("- {} — {area}, {} – {}", pass.title, pass.from, pass.to);
+            if let Some(provider) = &pass.provider {
+                let _ = write!(line, " · {provider}");
+            }
+            let _ = writeln!(out, "{line}");
+        }
+        out.push('\n');
+    }
+
     if !trip.tasks.is_empty() {
         let _ = writeln!(out, "## Tasks\n");
         for task in &trip.tasks {

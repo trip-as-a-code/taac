@@ -132,6 +132,7 @@ fn kind_account(kind: &str) -> &'static str {
         "bus" => "Bus",
         "ferry" => "Ferry",
         "transfer" => "Transfer",
+        "walk" | "ride" | "pass" => "Transit",
         "lodging" => "Lodging",
         "activity" => "Activity",
         "meal" => "Food",

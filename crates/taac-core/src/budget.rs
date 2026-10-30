@@ -30,7 +30,7 @@ pub struct Budget {
     reason = "flags in the JSON the site reads"
 )]
 pub struct CostLine {
-    /// Item, idea or packing item id.
+    /// Item, idea, pass or packing item id.
     pub item: String,
     /// Set for packing purchases, which have no itinerary item to name them.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -411,6 +411,19 @@ pub fn compute(trip: &Trip) -> Budget {
                 line.title = Some(item.name().to_owned());
                 budget.add(trip, line, &allocation);
             }
+        }
+    }
+
+    for pass in &trip.passes {
+        let people = trip.who(pass.who.as_deref());
+        let booked = pass
+            .booking
+            .as_ref()
+            .is_some_and(|b| b.status == crate::model::BookingStatus::Booked);
+        for cost in &pass.costs {
+            let (mut line, allocation) = line(trip, &pass.id, "pass", cost, &people, booked);
+            line.title = Some(pass.title.clone());
+            budget.add(trip, line, &allocation);
         }
     }
 

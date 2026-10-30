@@ -115,7 +115,13 @@ const offsetLabel =
         </p>
       )}
       <div class="meta">
-        <span class="kind footnote">{t(`kind.${item.kind}`)}</span>
+        <span class="kind footnote">
+          {item.transport?.vehicle === 'bicycle'
+            ? t('vehicle.bicycle')
+            : item.transport?.vehicle === 'scooter'
+              ? t('vehicle.scooter')
+              : t(`kind.${item.kind}`)}
+        </span>
         {transport && <span class="footnote secondary">{transport}</span>}
         {isStay && item.local.endDate && (
           <span class="footnote secondary">

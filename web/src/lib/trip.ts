@@ -5,8 +5,8 @@ import { issuesOf } from '@/lib/facts'
 
 import type { IconName } from '@/components/Icon.astro'
 
-/** Budget categories: every item kind, plus things bought before packing. */
-export type CostKind = ItemKind | 'packing'
+/** Budget categories: every item kind, plus passes and things bought before packing. */
+export type CostKind = ItemKind | 'pass' | 'packing'
 
 export const kindIcon: Record<CostKind, IconName> = {
   flight: 'flight',
@@ -14,10 +14,13 @@ export const kindIcon: Record<CostKind, IconName> = {
   bus: 'bus',
   ferry: 'ferry',
   transfer: 'transfer',
+  walk: 'walk',
+  ride: 'ride',
   lodging: 'lodging',
   activity: 'activity',
   meal: 'meal',
   note: 'note',
+  pass: 'pass',
   packing: 'packing',
 }
 
@@ -28,10 +31,13 @@ export const kindTint: Record<CostKind, string> = {
   bus: 'var(--teal)',
   ferry: 'var(--teal)',
   transfer: 'var(--indigo)',
+  walk: 'var(--green)',
+  ride: 'var(--green)',
   lodging: 'var(--purple)',
   activity: 'var(--orange)',
   meal: 'var(--pink)',
   note: 'var(--gray)',
+  pass: 'var(--teal)',
   packing: 'var(--yellow)',
 }
 
@@ -170,13 +176,13 @@ function distanceM([lat1, lon1]: [number, number], [lat2, lon2]: [number, number
   return 12_742_000 * Math.asin(Math.sqrt(h))
 }
 
-/** Whether a place lies in a base's area (its radius, or a city's worth, like the core). */
+/** Whether a place lies in a base's area (within its radius; without one, only the place itself). */
 export function inBase(trip: TripExport, base: Base, placeId: string | undefined): boolean {
   if (!placeId) return false
   if (placeId === base.place) return true
   const area = trip.places[base.place]
   const place = trip.places[placeId]
-  return Boolean(area && place && distanceM(place.geo, area.geo) <= (area.radius ?? 30_000))
+  return Boolean(area?.radius && place && distanceM(place.geo, area.geo) <= area.radius)
 }
 
 /**

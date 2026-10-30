@@ -8,6 +8,13 @@ import { initials, itemById, kindIcon, kindTint, memberHue, memberName, people, 
 export const getStaticPaths = tripPaths
 
 const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
+// Where a line's thing lives: a packing item, a pass, or a plan.
+const lineHref = (l: { kind: string; item: string }) =>
+  l.kind === 'packing'
+    ? `/trips/${trip.slug}/packing/#packing-${l.item}`
+    : l.kind === 'pass'
+      ? `/trips/${trip.slug}/bookings/#pass-${l.item}`
+      : `/trips/${trip.slug}/itinerary/#item-${l.item}`
 const { t, date, path } = i18n
 const { budget } = trip
 const items = itemById(trip)
@@ -168,11 +175,7 @@ const dash = '—'
             return (
               <a
                 class="row expense"
-                href={path(
-                  packing
-                    ? `/trips/${trip.slug}/packing/#packing-${line.item}`
-                    : `/trips/${trip.slug}/itinerary/#item-${line.item}`,
-                )}
+                href={path(lineHref(line))}
                 data-item
                 data-line={index}
                 data-people={people(Object.keys(line.shares))}
@@ -188,8 +191,8 @@ const dash = '—'
                   <span class="footnote secondary">
                     {item
                       ? `${date(item.local.date, { day: 'numeric', month: 'short' })} · `
-                      : packing
-                        ? `${t('kind.packing')} · `
+                      : packing || line.kind === 'pass'
+                        ? `${t(packing ? 'kind.packing' : 'kind.pass')} · `
                         : ''}
                     {line.unpaid
                       ? t(line.estimate ? 'item.estimate' : 'item.unpaid')
@@ -235,13 +238,7 @@ const dash = '—'
       lines: budget.lines,
       ideas: budget.ideas,
       members: trip.members.map((m) => m.id),
-      links: budget.lines.map((l) =>
-        path(
-          l.kind === 'packing'
-            ? `/trips/${trip.slug}/packing/#packing-${l.item}`
-            : `/trips/${trip.slug}/itinerary/#item-${l.item}`,
-        ),
-      ),
+      links: budget.lines.map((l) => path(lineHref(l))),
       titles: budget.lines.map((l) => {
         const title = items.get(l.item)?.title ?? l.title ?? l.item
         return l.label ? `${title} · ${l.label}` : title
