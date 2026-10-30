@@ -23,6 +23,8 @@ bases:
 # Plans, bases and ideas refer to places by these names.
 places:
   Lisbon: { geo: [38.7223, -9.1393], category: city, radius: 12000 }
+  # An area (it has a `radius`): getting around inside it is local.
+  Sintra: { geo: [38.7930, -9.3880], category: historic, radius: 5000 }
   Lisbon Airport (LIS): { geo: [38.7742, -9.1342], category: airport }
   London Gatwick (LGW): { geo: [51.1537, -0.1821], category: airport }
   Casa do Bairro: { geo: [38.7105, -9.1466], category: hotel, address: 'Rua da Rosa 12, Lisboa' }
@@ -30,6 +32,8 @@ places:
   Pastéis de Belém: { geo: [38.6975, -9.2032], category: food }
   Jerónimos Monastery: { geo: [38.6979, -9.2068], category: historic }
   Pena Palace: { geo: [38.7876, -9.3906], category: historic }
+  Rossio Station: { geo: [38.7142, -9.1410], category: station }
+  Sintra Station: { geo: [38.7987, -9.3860], category: station }
   Miradouro da Senhora do Monte: { geo: [38.7194, -9.1327], category: viewpoint }
 itinerary:
   - kind: flight
@@ -83,15 +87,28 @@ itinerary:
     part: evening
     places: [Miradouro da Senhora do Monte]
     who: [Alex, Robin]
+  # Outside the Lisbon area: a plan there needs the journeys there and back.
+  - kind: train
+    title: Rossio → Sintra
+    who: [Early birds]
+    start: 2027-05-15T08:11:00+01:00
+    end: 2027-05-15T08:51:00+01:00
+    places: [Rossio Station, Sintra Station]
   - kind: activity
     title: Day trip to Sintra
-    start: 2027-05-15T08:30:00+01:00
-    end: 2027-05-15T17:00:00+01:00
+    start: 2027-05-15T09:15:00+01:00
+    end: 2027-05-15T16:15:00+01:00
     who: [Early birds]
     places: [Pena Palace]
     booking: { status: required, deadline: 2027-04-20 }
     costs:
       - { amount: 64, currency: EUR, paidBy: Alex } # paid costs count as paid back unless `settled: false`
+  - kind: train
+    title: Sintra → Rossio
+    who: [Early birds]
+    start: 2027-05-15T16:41:00+01:00
+    end: 2027-05-15T17:21:00+01:00
+    places: [Sintra Station, Rossio Station]
   - kind: meal
     title: Pastéis de nata in Belém
     who: [everyone]
