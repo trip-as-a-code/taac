@@ -288,7 +288,7 @@ impl Validator<'_> {
                     .booking
                     .as_ref()
                     .is_some_and(|b| b.status == BookingStatus::Booked);
-                self.costs(&item.id, part.costs, &people, booked);
+                self.costs(&item.id, part.costs, &people, &everyone, booked);
             }
         }
     }
@@ -462,7 +462,7 @@ impl Validator<'_> {
             self.who(&idea.id, idea.who.as_deref());
             self.title_names(&idea.id, &idea.title);
             let participants = trip.who(idea.who.as_deref());
-            self.costs(&idea.id, &idea.costs, &participants, false);
+            self.costs(&idea.id, &idea.costs, &participants, &participants, false);
         }
     }
 
@@ -878,11 +878,14 @@ impl Validator<'_> {
         }
     }
 
+    /// `participants`: who the costs are for (a reservation's people);
+    /// `plan`: everyone on the plan they belong to.
     fn costs(
         &mut self,
         owner: &str,
         costs: &[crate::model::Cost],
         participants: &[&str],
+        plan: &[&str],
         booked: bool,
     ) {
         let trip = self.trip;
@@ -965,11 +968,14 @@ impl Validator<'_> {
                 .who
                 .as_deref()
                 .map_or_else(|| participants.to_vec(), |w| trip.who(Some(w)));
-            // Paying for others is fine when they still owe it back.
+            // A payer from outside the plan is likely a slip. One on the plan
+            // (say, under the other reservation of one booking), or one who is
+            // still owed for it, is paying for the others on purpose.
             if let [payer] = payers.as_slice()
                 && cost.split == Split::Equal
                 && !cost.owed()
                 && !beneficiaries.contains(&payer.as_str())
+                && !plan.contains(&payer.as_str())
                 && trip.member(payer).is_some()
             {
                 self.warn(
@@ -1071,7 +1077,7 @@ impl Validator<'_> {
             }
             for item in &category.items {
                 let packers = self.trip.who(item.who().or(category.who.as_deref()));
-                self.costs(item.name(), item.costs(), &packers, item.bought());
+                self.costs(item.name(), item.costs(), &packers, &packers, item.bought());
                 for member in item.who().into_iter().flatten() {
                     if self.trip.member(member).is_none() && self.trip.group(member).is_none() {
                         self.error(
@@ -1263,6 +1269,16 @@ ideas:
             "  - { kind: train, title: shinkansen, start: 2027-01-02T09:00:00+09:00, end: 2027-01-02T11:15:00+09:00, who: [everyone], places: [tokyo, kyoto] }",
         );
         assert!(!fine.iter().any(|d| d.code == "route.gap"), "{fine:?}");
+    }
+
+    #[test]
+    fn paying_for_the_other_reservation_of_a_plan_is_fine() {
+        let d = check(
+            "  - { kind: activity, title: room, date: 2027-01-01, who: [everyone],
+      bookings: [{ who: [a], status: required, costs: [{ amount: 10, currency: EUR }] },
+                 { who: [b], status: required, costs: [{ amount: 10, currency: EUR, paidBy: a }] }] }",
+        );
+        assert!(!d.iter().any(|x| x.code == "cost.payer"), "{d:?}");
     }
 
     #[test]
