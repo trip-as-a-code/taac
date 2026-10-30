@@ -46,6 +46,7 @@ const emoji = partyEmoji(trip, item.party)
 const endDays = item.local.endDate ? daysBetween(item.local.date, item.local.endDate) : 0
 const names = (ids: string[]) => ids.map((id) => memberName(trip, id)).join(', ')
 const tone = statusTone[item.booking.status]
+const priceHolder = item.pricedWith ? trip.items.find((i) => i.id === item.pricedWith) : undefined
 const isStay = item.kind === 'lodging'
 const transport = [item.transport?.carrier, item.transport?.number].filter(Boolean).join(' ')
 // Blocker clashes already have their own badge.
@@ -152,6 +153,12 @@ const offsetLabel =
             )}
         {item.booking.status === 'required' && item.booking.deadline && !dueShown && (
           <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />
+        )}
+        {/* Priced in another plan's booking (a return flight with its outbound). */}
+        {priceHolder && (
+          <a class="footnote secondary priced-with" href={`#item-${priceHolder.id}`}>
+            {t('item.pricedWith', { title: priceHolder.transport?.number ?? priceHolder.title })}
+          </a>
         )}
         {/* Where to book, without opening the card. */}
         {item.booking.status === 'required' && item.booking.url && (
@@ -483,6 +490,11 @@ const offsetLabel =
   .kind {
     font-weight: 600;
     color: var(--kind);
+  }
+
+  .priced-with {
+    position: relative;
+    z-index: 1;
   }
 
   .book {

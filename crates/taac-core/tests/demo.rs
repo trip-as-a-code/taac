@@ -26,6 +26,21 @@ fn demo_exports_without_diagnostics() {
     assert_eq!(trip.slug, "lisbon");
     assert!(trip.diagnostics.is_empty(), "{:?}", trip.diagnostics);
     assert_eq!(trip.days.len(), 4);
+    // The return flight is booked with the outbound, which carries the price.
+    let back = trip
+        .items
+        .iter()
+        .find(|i| i.booking.has_reference && i.costs.is_empty())
+        .expect("a return flight");
+    let out = back
+        .priced_with
+        .as_deref()
+        .expect("priced with the outbound");
+    assert!(
+        trip.items
+            .iter()
+            .any(|i| i.id == out && !i.costs.is_empty())
+    );
 
     let budget = &trip.budget;
     for line in &budget.lines {

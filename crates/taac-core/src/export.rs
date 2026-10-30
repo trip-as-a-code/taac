@@ -200,6 +200,10 @@ pub struct ItemExport {
     /// Its reservations when there are several; empty otherwise.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub bookings: Vec<ReservationExport>,
+    /// Booked under the same reference as this plan, which carries the price
+    /// (a return flight in one booking with the outbound): its id.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priced_with: Option<String>,
     /// Every cost of the plan, its reservations' included.
     pub costs: Vec<CostExport>,
     pub contacts: Vec<ContactExport>,
@@ -400,6 +404,14 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
 
 pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
     let conflicts = crate::blockers::conflicts(trip);
+    // Which plan carries the price for each booking reference.
+    let priced: std::collections::HashMap<String, &str> = trip
+        .itinerary
+        .iter()
+        .flat_map(|i| i.parts().into_iter().map(move |p| (i, p)))
+        .filter(|(_, p)| !p.costs.is_empty())
+        .filter_map(|(i, p)| Some((p.booking?.reference?.secret, i.id.as_str())))
+        .collect();
     let mut places = trip.places.clone();
     let items: Vec<ItemExport> = trip
         .itinerary
@@ -445,6 +457,13 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                         cost_exports(trip, part.costs, &who)
                     })
                     .collect(),
+                priced_with: item
+                    .parts()
+                    .into_iter()
+                    .filter(|p| p.costs.is_empty())
+                    .filter_map(|p| priced.get(&p.booking?.reference?.secret).copied())
+                    .find(|id| *id != item.id)
+                    .map(str::to_owned),
                 bookings: if item.bookings.is_empty() {
                     Vec::new()
                 } else {

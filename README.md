@@ -64,9 +64,11 @@ itinerary:
     costs:
       - { amount: 138, currency: GBP, paidBy: Sam } # split: equal (default), personal, { shares: … }, { exact: … }
       # without paidBy: not paid yet (add estimate: true for a guess); paidBy: each — everyone paid their own part;
-      # paid costs count as paid back — settled: false when someone still owes the payer
+      # paid costs count as paid back — settled: false when someone still owes the payer;
+      # paid in another currency: charged: { amount: 152.4, currency: EUR } — what left the payer's account
     # Booked separately by different people? Use `bookings:` instead of `booking:` — a list of
     # reservations, each with its own who, status, reference, deadline and costs.
+    # The return flight in the same booking: give it the same `reference` and no costs; it is priced here.
   - kind: activity
     title: Tram 28 and the castle
     start: 2027-05-14T12:00:00+01:00
