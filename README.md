@@ -119,7 +119,8 @@ when several people edit at once. See [`examples/demo`](examples/demo) and the f
 
 `taac validate` checks what the schema cannot: references, time zones, `end ≥ start`, per-person overlaps (people on
 different tracks don't clash; a flat kept while away isn't slept in), overlapping bases, nights nobody accounted for,
-currencies with rates, splits that add up, and inline `${…}` that would leak.
+moves between bases with no journey taking people there, currencies with rates, splits that add up, and inline `${…}`
+that would leak.
 
 ## A site
 

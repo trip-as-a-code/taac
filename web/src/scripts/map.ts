@@ -279,6 +279,28 @@ function circle([lon, lat]: [number, number], radius: number): [number, number][
   return points
 }
 
+/**
+ * Each leg as a gentle arc bowed to the right of travel, so a return over the
+ * same ground bows the other way: there and back read as two lines.
+ */
+export function arc(
+  [x1, y1]: [number, number],
+  [x2, y2]: [number, number],
+  bend = 0.12,
+  steps = 24,
+): [number, number][] {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  // Control point: the midpoint pushed sideways, to the right of the direction of travel.
+  const cx = (x1 + x2) / 2 + dy * bend
+  const cy = (y1 + y2) / 2 - dx * bend
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const t = i / steps
+    const u = 1 - t
+    return [u * u * x1 + 2 * u * t * cx + t * t * x2, u * u * y1 + 2 * u * t * cy + t * t * y2]
+  })
+}
+
 function routeData(data: MapData, items: string[]): FeatureCollection {
   const allowed = new Set(items)
   return {
@@ -288,7 +310,10 @@ function routeData(data: MapData, items: string[]): FeatureCollection {
       .map((r) => ({
         type: 'Feature',
         properties: { color: resolveColor(r.color), flight: r.flight },
-        geometry: { type: 'LineString', coordinates: r.coords },
+        geometry: {
+          type: 'LineString',
+          coordinates: r.coords.flatMap((c, i) => (i === 0 ? [] : arc(r.coords[i - 1]!, c).slice(i === 1 ? 0 : 1))),
+        },
       })),
   }
 }

@@ -49,6 +49,7 @@ export const ISSUE_CODES = [
   'booking.deadline',
   'cost.estimate',
   'cost.charged',
+  'route.gap',
   'title.who',
 ] as const
 export type IssueCode = (typeof ISSUE_CODES)[number]
@@ -66,7 +67,7 @@ export function issueGroup(code: string): IssueGroup {
   if (code.startsWith('booking.') || code.startsWith('cost.')) return 'booking'
   if (
     code.startsWith('place.') ||
-    ['item.place', 'item.route', 'item.unlocated', 'idea.place', 'idea.area'].includes(code)
+    ['item.place', 'item.route', 'route.gap', 'item.unlocated', 'idea.place', 'idea.area'].includes(code)
   )
     return 'place'
   return 'other'
