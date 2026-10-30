@@ -254,6 +254,7 @@ export const en = {
   'item.reference': 'Confirmation on file',
   'item.contact': 'Contact',
   'item.paidBy': 'Paid by {name}',
+  'item.onMap': 'On the map',
   'item.website': 'Website',
   'item.bookingLink': 'Book',
   'item.pricedWith': 'Price in the {title} booking',

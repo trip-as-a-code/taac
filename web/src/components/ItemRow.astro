@@ -282,6 +282,12 @@ const offsetLabel =
               <span>{t('item.inItinerary')}</span>
             </a>
           )}
+          {places.length > 0 && (
+            <a class="button" href={i18n.path(`/trips/${trip.slug}/map/#item-${item.id}`)}>
+              <Icon name="map" size={15} />
+              <span>{t('item.onMap')}</span>
+            </a>
+          )}
           {/* The line in the trip files that says all this. */}
           {sourceHref(item.source) && (
             <a class="button" href={sourceHref(item.source)} target="_blank" rel="noopener noreferrer">
