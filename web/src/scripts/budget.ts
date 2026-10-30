@@ -4,9 +4,15 @@
 
 import type { CostLine } from '@taac/core'
 
-import { lineDebts, pairDebts, type Debt, type PairDebt } from '@/lib/debts'
+import { asOf, lineDebts, pairDebts, type Debt, type PairDebt } from '@/lib/debts'
 import { inLens, type Lens } from '@/scripts/lens'
 import { value } from '@/scripts/money'
+
+/** Today on this device, `YYYY-MM-DD`: when pay-later costs fall due. */
+function localToday(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
 
 export interface BudgetData {
   base: string
@@ -42,7 +48,7 @@ export function owned(fractions: Record<string, number>, lens: Lens): number {
   return lens.people.reduce((sum, p) => sum + (fractions[p] ?? 0), 0)
 }
 
-export function computeBudget(data: BudgetData, lens: Lens, members: string[]): Computed {
+export function computeBudget(data: BudgetData, lens: Lens, members: string[], today = localToday()): Computed {
   const result: Computed = {
     planned: 0,
     committed: 0,
@@ -57,7 +63,7 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     lines: [],
   }
   const debts: { index: number; debts: Debt[] }[] = []
-  for (const line of data.lines) {
+  for (const line of data.lines.map((l) => asOf(l, today))) {
     const shown = value(priced(line))
     if (!shown) {
       result.missing++

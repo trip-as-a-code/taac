@@ -65,6 +65,11 @@ pub struct CostLine {
     /// Pays the payer back for everyone's share (`owedBy`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owed_by: Option<String>,
+    /// Charged on this date (`due`, until `charged` is known): before it
+    /// nobody has paid and nothing is owed. A static build can't tell, so
+    /// the page decides by today's date.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub due: Option<chrono::NaiveDate>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -290,6 +295,7 @@ fn line(
         shares: fractions(&allocation.shares, allocation.settled_amount),
         paid: fractions(&allocation.paid, allocation.settled_amount),
         owed_by: cost.owed_by.clone(),
+        due: cost.due.filter(|_| cost.charged.is_none()),
     };
     (line, allocation)
 }

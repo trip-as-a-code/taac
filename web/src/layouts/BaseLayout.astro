@@ -116,8 +116,8 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
     <UpdateToast lang={lang} />
     {/*
       Static pages can't know today's date: fill the trip's phase and every
-      relative date while the page is still parsing, so they are there on the
-      first paint. scripts/page.ts renders them again on later navigations.
+      relative date, and show debts that are due, while the page is still
+      parsing, so they are right on the first paint.
     */}
     <script is:inline>
       ;(() => {
@@ -132,6 +132,9 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
           else if (today > day(end)) Object.assign(status.dataset, { relative: end, template: after })
           else status.textContent = during.replace('{n}', String(Math.round((today - day(start)) / 86_400_000) + 1))
         }
+        // Debts from costs charged later show from that day.
+        const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        for (const el of document.querySelectorAll('[data-owed-from]')) el.hidden = iso < el.dataset.owedFrom
         const rtf = new Intl.RelativeTimeFormat(document.documentElement.lang, { numeric: 'auto' })
         for (const el of document.querySelectorAll('[data-relative]')) {
           const days = Math.round((day(el.dataset.relative) - today) / 86_400_000)

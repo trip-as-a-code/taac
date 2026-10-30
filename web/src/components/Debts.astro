@@ -16,12 +16,13 @@ interface Props {
 
 const { trip, id, i18n } = Astro.props
 // Who owes whom for this one thing, per currency the money moved in.
-const owed = new Map<string, { from: string; to: string; amount: number; currency: string }>()
-// Only what was paid and not yet paid back is owed.
+const owed = new Map<string, { from: string; to: string; amount: number; currency: string; due?: string }>()
+// Only what was paid and not yet paid back is owed. A cost charged later owes
+// from its date on: the page hides it until then (BaseLayout).
 for (const line of trip.budget.lines.filter((l) => l.item === id && !l.settled)) {
   for (const d of lineDebts(line.shares, line.paid, line.settledAmount, line.owedBy)) {
-    const key = `${d.from}\u0000${d.to}\u0000${line.settledCurrency}`
-    const entry = owed.get(key) ?? { ...d, amount: 0, currency: line.settledCurrency }
+    const key = `${d.from}\u0000${d.to}\u0000${line.settledCurrency}\u0000${line.due ?? ''}`
+    const entry = owed.get(key) ?? { ...d, amount: 0, currency: line.settledCurrency, due: line.due }
     entry.amount += d.amount
     owed.set(key, entry)
   }
@@ -32,7 +33,7 @@ const debts = [...owed.values()].filter((d) => d.amount > 0.005)
 {debts.length > 0 && (
   <ul class="debts footnote" aria-label={i18n.t('item.owes')}>
     {debts.map((d) => (
-      <li>
+      <li data-owed-from={d.due}>
         <span class="ellipsis">{memberName(trip, d.from)}</span>
         <Icon name="arrowRight" size={12} />
         <span class="ellipsis">{memberName(trip, d.to)}</span>

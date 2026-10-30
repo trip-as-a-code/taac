@@ -12,6 +12,17 @@ export interface Debt {
 const CENT = 0.005
 
 /**
+ * A line as of `today`: one charged later (`due`) is planned but not yet paid
+ * before its date, so it creates no debts and nobody has paid it.
+ */
+export function asOf<T extends { due?: string; paid: Record<string, number>; unpaid: boolean; settled: boolean }>(
+  line: T,
+  today: string,
+): T {
+  return line.due && today < line.due ? { ...line, paid: {}, unpaid: true, settled: true } : line
+}
+
+/**
  * Debts one expense of `amount` creates. Settled lines (paid = shares) create
  * none. With `owedBy`, everyone else's debt is that member's.
  */

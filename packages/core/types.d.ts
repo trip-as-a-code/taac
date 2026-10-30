@@ -302,6 +302,8 @@ export interface CostLine {
   paid: Record<string, number>
   /** Pays the payer back for everyone's share. */
   owedBy?: string
+  /** Charged on this date: before it nobody has paid and nothing is owed. */
+  due?: ISODate
 }
 
 export interface Budget {

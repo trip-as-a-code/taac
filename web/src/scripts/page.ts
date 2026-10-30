@@ -25,6 +25,7 @@ export function setupPage() {
   forgetOfflineCopiesOnLogout()
   trackScroll()
   renderRelativeDates()
+  showDueDebts()
   renderMoney()
   fitAll()
   setupPickers()
@@ -139,6 +140,13 @@ export function renderRelativeDates(root: ParentNode = document) {
     el.textContent = (el.dataset.template ?? '{rel}').replace('{rel}', rel)
     el.dataset.days = String(days)
   }
+}
+
+/** Debts from costs charged later (`data-owed-from`) show from that day on. */
+function showDueDebts() {
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  for (const el of document.querySelectorAll<HTMLElement>('[data-owed-from]')) el.hidden = today < el.dataset.owedFrom!
 }
 
 export function todayUTC(): number {
