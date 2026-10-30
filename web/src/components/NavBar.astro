@@ -139,7 +139,14 @@ const pathname = Astro.url.pathname
     }
   }
 
+  /* Logo and name centred on one line: no baseline gap under the image, no extra leading. */
+  .nav-brand {
+    line-height: 1;
+  }
+
   .nav-brand img {
+    display: block;
+    flex: none;
     border-radius: 6px;
   }
 
