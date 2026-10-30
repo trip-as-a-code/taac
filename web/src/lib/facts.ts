@@ -50,6 +50,9 @@ export const ISSUE_CODES = [
   'cost.estimate',
   'cost.charged',
   'route.gap',
+  'route.jump',
+  'route.cross',
+  'route.return',
   'title.who',
   'task.due',
 ] as const
@@ -68,7 +71,16 @@ export function issueGroup(code: string): IssueGroup {
   if (code.startsWith('booking.') || code.startsWith('cost.')) return 'booking'
   if (
     code.startsWith('place.') ||
-    ['item.place', 'item.route', 'route.gap', 'item.unlocated', 'idea.place', 'idea.area'].includes(code)
+    [
+      'item.place',
+      'item.route',
+      'route.gap',
+      'route.jump',
+      'route.cross',
+      'item.unlocated',
+      'idea.place',
+      'idea.area',
+    ].includes(code)
   )
     return 'place'
   return 'other'

@@ -166,7 +166,8 @@ pub struct Place {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     /// Makes the place an area (a city, a valley) of this many metres around
-    /// `geo`; bases and ideas use areas.
+    /// `geo`; bases and ideas use areas. Getting around inside one needs no
+    /// plan; between places in no common area, a journey has to be planned.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1))]
     pub radius: Option<u32>,

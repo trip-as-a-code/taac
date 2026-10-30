@@ -42,9 +42,7 @@ const emoji = partyEmoji(trip, idea.party)
 const issues = [...new Map(issuesOf(trip, idea.id).map((d) => [d.code, d])).values()]
 const unassigned = issues.some((d) => d.code === 'item.unassigned')
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
-const hasDetails = Boolean(
-  issues.length || idea.notes || idea.url || places.some((p) => p.url) || sourceHref(idea.source),
-)
+const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.length || sourceHref(idea.source))
 ---
 
 <article
@@ -153,7 +151,7 @@ const hasDetails = Boolean(
           )}
           {idea.url && (
             <a class="button" href={idea.url} target="_blank" rel="noopener noreferrer">
-              <Icon name="link" size={15} />
+              <Icon name="external" size={15} />
               <span>{t('item.website')}</span>
             </a>
           )}
@@ -161,7 +159,7 @@ const hasDetails = Boolean(
             .filter((p) => p.url)
             .map((p) => (
               <a class="button" href={p.url} target="_blank" rel="noopener noreferrer" title={p.name}>
-                <Icon name="pin" size={15} />
+                <Icon name="external" size={15} />
                 <span>{p.name}</span>
               </a>
             ))}

@@ -213,6 +213,15 @@ export const en = {
   'tasks.requiredHint': 'The trip can’t go ahead without it',
   'issue.task.due': 'Required, but due after the start',
   'issue.task.due.detail': 'The trip needs it, but it’s due {due}, after it starts on {start}:',
+  'issue.route.jump': 'No way to get here',
+  'issue.route.jump.detail':
+    '{who}: after “{after}” at {from}, this plan is at {to}, and no plan takes them there. Add the journey, or declare an area (`radius`) holding both:',
+  'issue.route.cross': 'A journey that isn’t one',
+  'issue.route.cross.detail':
+    '{who}: it goes from {from} to {to}, two different areas. Make it a journey (`kind: train`, …) or add one:',
+  'issue.route.return': 'No way back',
+  'issue.route.return.detail':
+    '{who}: it ends at {from}, but the night is at {to} (“{night}”), and no plan takes them back. Add the journey:',
   'issue.other': 'Worth a look',
   'issues.title': 'Issues',
   'issues.lede': 'Things in the plan that look wrong. Fix them in the trip files.',

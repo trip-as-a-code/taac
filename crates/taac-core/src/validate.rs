@@ -66,6 +66,21 @@ fn shared_night(
     false
 }
 
+/// How someone is left stranded.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Leg {
+    /// From the plan (or night) before to this one.
+    Next,
+    /// From this plan back to the night's lodging.
+    Return,
+    /// Between the places of one plan that isn't a journey.
+    Inside,
+}
+
+/// `(leg, other, item, from, to)`: `other` is the plan before (`Next`) or
+/// the night's lodging (`Return`).
+type Jump<'a> = (Leg, Option<&'a str>, &'a str, String, String);
+
 /// `(item, is_lodging, start, end)`
 type Span<'a> = (&'a str, bool, DateTime<FixedOffset>, DateTime<FixedOffset>);
 
@@ -729,9 +744,17 @@ impl Validator<'_> {
     /// places lead from the old area to the new one, by the day of arrival.
     /// Without it the route has a hole (and the map draws none).
     fn routes(&mut self) {
+        let covered = self.base_gaps();
+        self.jumps(&covered);
+    }
+
+    /// Moves between bases nothing takes people on; returns, per member id,
+    /// the days each one spans so plan-level jumps there aren't said twice.
+    fn base_gaps(&mut self) -> Vec<(String, NaiveDate, NaiveDate)> {
         let trip = self.trip;
+        let mut covered = Vec::new();
         if trip.declared_bases.is_empty() {
-            return;
+            return covered;
         }
         let bases = trip.bases();
         // (from, to, arrival day) → who makes that move with nothing taking them there.
@@ -756,6 +779,9 @@ impl Validator<'_> {
                     .iter()
                     .filter(|i| trip.participants(i).contains(&member.id.as_str()))
                     .filter(|i| (a.to..=b.from).contains(&i.day()))
+                    // Only a journey moves anyone: an activity naming both
+                    // places doesn't say how they got there.
+                    .filter(|i| i.kind.is_transport())
                     .any(|i| {
                         let places = trip.item_places(i);
                         let start = places.iter().position(|(_, p)| within(p, &a.place));
@@ -763,6 +789,7 @@ impl Validator<'_> {
                         matches!((start, end), (Some(s), Some(e)) if s < e)
                     });
                 if !connected {
+                    covered.push((member.id.clone(), a.to, b.from));
                     match gaps.iter_mut().find(|(k, _)| *k == (ai, bi)) {
                         Some((_, who)) => who.push(member.name.as_str()),
                         None => gaps.push(((ai, bi), vec![member.name.as_str()])),
@@ -809,6 +836,198 @@ impl Validator<'_> {
                     b.place.name
                 )),
             );
+        }
+        covered
+    }
+
+    /// Each person's plans in order, with the night's lodging between days:
+    /// one ending outside the area where the next starts, with no journey
+    /// between, leaves them stranded; so does a plan that isn't a journey
+    /// crossing from one area into another.
+    fn jumps(&mut self, covered: &[(String, NaiveDate, NaiveDate)]) {
+        let trip = self.trip;
+        let mut jumps: Vec<(Jump, Vec<&str>)> = Vec::new();
+        let bases = trip.bases();
+        // Declared areas (places with a `radius`): inside one, getting
+        // around is local. Anywhere else, a plan has to take people there.
+        let areas: Vec<&crate::model::Place> = trip
+            .places
+            .values()
+            .filter(|p| p.radius.is_some())
+            .collect();
+        let areas_of = |p: &crate::model::Place| -> Vec<&str> {
+            areas
+                .iter()
+                .filter(|a| within(p, a))
+                .map(|a| a.name.as_str())
+                .collect()
+        };
+        let apart = |a: &crate::model::Place, b: &crate::model::Place| {
+            a.name != b.name && !areas.iter().any(|ar| within(a, ar) && within(b, ar))
+        };
+        // One plan crossing from one area into another is a journey.
+        let crosses = |a: &crate::model::Place, b: &crate::model::Place| {
+            let (x, y) = (areas_of(a), areas_of(b));
+            !x.is_empty() && !y.is_empty() && !x.iter().any(|n| y.contains(n))
+        };
+        for member in &trip.members {
+            let mut mine: Vec<&Item> = trip
+                .itinerary
+                .iter()
+                .filter(|i| trip.participants(i).contains(&member.id.as_str()))
+                // Without `who` it's everyone's only by default: no proof of
+                // where anyone is (`item.unassigned` asks).
+                .filter(|i| i.who.is_some() || trip.members.len() == 1)
+                .filter(|i| !trip.item_places(i).is_empty())
+                .collect();
+            mine.sort_by_key(|i| i.sort_key());
+            let lodgings: Vec<&Item> = mine
+                .iter()
+                .copied()
+                .filter(|i| i.kind == ItemKind::Lodging)
+                .collect();
+            let said = |day: NaiveDate| {
+                covered
+                    .iter()
+                    .any(|(m, from, to)| *m == member.id && (*from..=*to).contains(&day))
+            };
+            let mut push = |key| match jumps.iter_mut().find(|(k, _)| *k == key) {
+                Some((_, who)) => who.push(member.name.as_str()),
+                None => jumps.push((key, vec![member.name.as_str()])),
+            };
+            let mut last: Option<(&Item, &crate::model::Place)> = None;
+            for item in mine {
+                let places = trip.item_places(item);
+                let (first, end) = (places[0].1, places[places.len() - 1].1);
+                // A new day starts from wherever the night was spent.
+                if let Some((prev, at)) = last
+                    && item.day() > prev.day()
+                    && let Some(eve) = item.day().pred_opt()
+                    && let Some(night) = lodgings.iter().find(|l| {
+                        l.id != prev.id
+                            && l.id != item.id
+                            && trip.sleeps_at(&bases, l, &member.id, eve)
+                    })
+                {
+                    let bed = trip.item_places(night)[0].1;
+                    if apart(at, bed) && !said(prev.day()) {
+                        push((
+                            Leg::Return,
+                            Some(night.id.as_str()),
+                            prev.id.as_str(),
+                            at.name.clone(),
+                            bed.name.clone(),
+                        ));
+                    }
+                    last = Some((night, bed));
+                }
+                if let Some((prev, at)) = last
+                    && apart(at, first)
+                    && !said(item.day())
+                {
+                    push((
+                        Leg::Next,
+                        Some(prev.id.as_str()),
+                        item.id.as_str(),
+                        at.name.clone(),
+                        first.name.clone(),
+                    ));
+                }
+                if !item.kind.is_transport() && !said(item.day()) {
+                    for pair in places.windows(2) {
+                        if crosses(pair[0].1, pair[1].1) {
+                            push((
+                                Leg::Inside,
+                                None,
+                                item.id.as_str(),
+                                pair[0].1.name.clone(),
+                                pair[1].1.name.clone(),
+                            ));
+                        }
+                    }
+                }
+                last = Some((item, end));
+            }
+        }
+        let find = |id: &str| trip.itinerary.iter().find(|i| i.id == id);
+        let title = |id: &str| find(id).map_or("", |i| i.title.as_str());
+        // A train between two plans, its times the gap between them.
+        let snippet = |from: &str, to: &str, start: Option<&str>, end: Option<&str>, who: &str| {
+            let times = match (
+                start.and_then(find).and_then(Item::span),
+                end.and_then(find).and_then(Item::span),
+            ) {
+                (Some((_, s)), Some((e, _))) => format!(
+                    "\n  start: {} # the real times\n  end: {}",
+                    s.to_rfc3339(),
+                    e.to_rfc3339()
+                ),
+                (Some((_, s)), None) => format!("\n  start: {} # the real times", s.to_rfc3339()),
+                _ => String::new(),
+            };
+            format!(
+                "- kind: train\n  title: {from} -> {to}{times}\n  who: [{who}]\n  places: [{from}, {to}]"
+            )
+        };
+        for ((leg, other, item, from, to), who) in jumps {
+            let who = who.join(", ");
+            match leg {
+                Leg::Next => {
+                    let after = other.unwrap_or_default();
+                    self.warn(
+                        "route.jump",
+                        Some(item),
+                        format!(
+                            "{who}: `{}` ends at {from}, then `{}` starts at {to}, but no plan takes them there — add the journey, or a `radius` making both one area",
+                            title(after),
+                            title(item)
+                        ),
+                    );
+                    let fix = snippet(&from, &to, Some(after), Some(item), &who);
+                    self.detail(
+                        &[
+                            ("who", who),
+                            ("from", from),
+                            ("to", to),
+                            ("after", title(after).to_owned()),
+                        ],
+                        Some(fix),
+                    );
+                }
+                Leg::Return => {
+                    let night = other.unwrap_or_default();
+                    self.warn(
+                        "route.return",
+                        Some(item),
+                        format!(
+                            "{who}: `{}` ends at {from}, but the night is at {to} (`{}`), and no plan takes them back — add the journey",
+                            title(item),
+                            title(night)
+                        ),
+                    );
+                    let fix = snippet(&from, &to, Some(item), None, &who);
+                    self.detail(
+                        &[
+                            ("who", who),
+                            ("from", from),
+                            ("to", to),
+                            ("night", title(night).to_owned()),
+                        ],
+                        Some(fix),
+                    );
+                }
+                Leg::Inside => {
+                    self.warn(
+                        "route.cross",
+                        Some(item),
+                        format!(
+                            "{who}: `{}` goes from {from} to {to}, from one area into another — make it a journey (`kind: train`, …) or add one",
+                            title(item)
+                        ),
+                    );
+                    self.detail(&[("who", who), ("from", from), ("to", to)], None);
+                }
+            }
         }
     }
 
@@ -1300,6 +1519,65 @@ ideas:
             "  - { kind: train, title: shinkansen, start: 2027-01-02T09:00:00+09:00, end: 2027-01-02T11:15:00+09:00, who: [everyone], places: [tokyo, kyoto] }",
         );
         assert!(!fine.iter().any(|d| d.code == "route.gap"), "{fine:?}");
+        // An activity naming both places doesn't say how anyone got there.
+        let activity = check_with(
+            bases,
+            "  - { kind: activity, title: tour, date: 2027-01-02, who: [everyone], places: [tokyo, kyoto] }",
+        );
+        assert!(
+            activity.iter().any(|d| d.code == "route.gap"),
+            "{activity:?}"
+        );
+    }
+
+    #[test]
+    fn a_day_out_starts_and_ends_at_the_nights_lodging() {
+        let d = check(
+            "  - { kind: lodging, title: hotel, start: 2027-01-01T15:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [flat] }
+  - { kind: activity, title: temple, start: 2027-01-02T10:00:00+09:00, end: 2027-01-02T12:00:00+09:00, who: [everyone], places: [kyoto] }
+  - { kind: activity, title: walk, start: 2027-01-03T09:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [tokyo] }",
+        );
+        let at = |code: &str| {
+            d.iter()
+                .filter(|x| x.code == code)
+                .map(|x| x.item.as_deref().unwrap_or(""))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(at("route.jump"), ["temple"], "{d:?}");
+        assert_eq!(at("route.return"), ["temple"], "{d:?}");
+    }
+
+    #[test]
+    fn plans_far_apart_need_a_journey_between() {
+        let d = check(
+            "  - { kind: activity, title: museum, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [everyone], places: [tokyo] }
+  - { kind: activity, title: walk, start: 2027-01-01T13:00:00+09:00, end: 2027-01-01T14:00:00+09:00, who: [everyone], places: [flat] }
+  - { kind: activity, title: temple, start: 2027-01-02T10:00:00+09:00, end: 2027-01-02T12:00:00+09:00, who: [everyone], places: [kyoto] }
+  - { kind: activity, title: day tour, start: 2027-01-03T10:00:00+09:00, end: 2027-01-03T18:00:00+09:00, who: [a], places: [ryokan, tokyo] }",
+        );
+        let jumps: Vec<_> = d
+            .iter()
+            .filter(|d| d.code == "route.jump")
+            .map(|d| {
+                (
+                    d.item.as_deref().unwrap_or(""),
+                    d.params.get("after").map(String::as_str),
+                )
+            })
+            .collect();
+        // Tokyo → Kyoto with nothing between; a tour that is really a journey.
+        assert_eq!(jumps, [("temple", Some("walk"))], "{d:?}");
+        assert!(
+            d.iter()
+                .any(|d| d.code == "route.cross" && d.item.as_deref() == Some("day-tour")),
+            "{d:?}"
+        );
+        let fine = check(
+            "  - { kind: activity, title: museum, date: 2027-01-01, who: [everyone], places: [tokyo] }
+  - { kind: train, title: shinkansen, start: 2027-01-02T09:00:00+09:00, end: 2027-01-02T11:15:00+09:00, who: [everyone], places: [tokyo, kyoto] }
+  - { kind: activity, title: temple, start: 2027-01-02T13:00:00+09:00, end: 2027-01-02T15:00:00+09:00, who: [everyone], places: [ryokan] }",
+        );
+        assert!(!fine.iter().any(|d| d.code == "route.jump"), "{fine:?}");
     }
 
     #[test]

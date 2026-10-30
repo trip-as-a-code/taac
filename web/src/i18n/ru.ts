@@ -225,6 +225,15 @@ export const ru: Messages = {
   'tasks.requiredHint': 'Без этого поездка не состоится',
   'issue.task.due': 'Обязательное позже начала',
   'issue.task.due.detail': 'Без этого не поехать, но срок {due} — позже начала поездки {start}:',
+  'issue.route.jump': 'Нет пути к плану',
+  'issue.route.jump.detail':
+    '{who}: после «{after}» в {from}, а этот план — в {to}, и ни один план их туда не везёт. Добавьте переезд или объявите общую область (`radius`):',
+  'issue.route.cross': 'Переезд записан не переездом',
+  'issue.route.cross.detail':
+    '{who}: план ведёт из {from} в {to} — это разные области. Сделайте его переездом (`kind: train`, …) или добавьте переезд:',
+  'issue.route.return': 'Нет пути обратно',
+  'issue.route.return.detail':
+    '{who}: план заканчивается в {from}, а ночь — в {to} («{night}»), и ни один план их туда не везёт. Добавьте переезд:',
   'issue.other': 'Стоит проверить',
   'issues.title': 'Проблемы',
   'issues.lede': 'То, что в плане выглядит неправильно. Исправьте в файлах поездки.',

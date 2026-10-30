@@ -363,7 +363,7 @@
           ]
         },
         "radius": {
-          "description": "Makes the place an area (a city, a valley) of this many metres around\n`geo`; bases and ideas use areas.",
+          "description": "Makes the place an area (a city, a valley) of this many metres around\n`geo`; bases and ideas use areas. Getting around inside one needs no\nplan; between places in no common area, a journey has to be planned.",
           "type": [
             "integer",
             "null"
