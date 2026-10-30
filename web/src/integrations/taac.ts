@@ -25,13 +25,15 @@ async function fetchRates(): Promise<Rates | null> {
     const response = await fetch('https://api.frankfurter.dev/v2/rates?base=EUR&providers=ECB', {
       signal: AbortSignal.timeout(8000),
     })
-    if (!response.ok) return null
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const rows = (await response.json()) as { date: string; quote: string; rate: number }[]
     return {
       date: rows[0]?.date ?? '',
       rates: { EUR: 1, ...Object.fromEntries(rows.map((r) => [r.quote, r.rate])) },
     }
-  } catch {
+  } catch (error) {
+    const cause = error instanceof Error ? ((error.cause as Error | undefined)?.message ?? error.message) : error
+    console.warn(`[taac] no exchange rates (${String(cause)}): prices show in their own currency`)
     return null
   }
 }
@@ -87,7 +89,11 @@ function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
     async load(id) {
       if (id === RATES_RESOLVED) {
         rates ??= fetchRates()
-        return `export default ${JSON.stringify(await rates)}`
+        const fetched = await rates
+        // A failed fetch is tried again on the next load, not kept for the
+        // dev server's lifetime.
+        if (!fetched) rates = undefined
+        return `export default ${JSON.stringify(fetched)}`
       }
       if (id === CHANGES_RESOLVED) {
         // Replays git history once per build (and once per dev server).
