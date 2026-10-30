@@ -6,7 +6,7 @@ use chrono::{DateTime, FixedOffset, NaiveDate};
 use rust_decimal::Decimal;
 
 use crate::diagnostics::Diagnostic;
-use crate::loader::{EVERYONE, Site, Trip};
+use crate::loader::{EVERYONE, Site, Trip, within};
 use crate::model::{BookingStatus, Item, ItemKind, PlaceRef, Split};
 
 pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
@@ -38,6 +38,7 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.blockers();
     v.overlaps();
     v.nights();
+    v.routes();
     v.flaws();
     v.packing();
     v.out
@@ -717,6 +718,93 @@ impl Validator<'_> {
         }
     }
 
+    /// Moving from one base to the next takes a journey: some plan whose
+    /// places lead from the old area to the new one, by the day of arrival.
+    /// Without it the route has a hole (and the map draws none).
+    fn routes(&mut self) {
+        let trip = self.trip;
+        if trip.declared_bases.is_empty() {
+            return;
+        }
+        let bases = trip.bases();
+        // (from, to, arrival day) → who makes that move with nothing taking them there.
+        let mut gaps: Vec<((usize, usize), Vec<&str>)> = Vec::new();
+        for member in &trip.members {
+            let mut mine: Vec<(usize, &crate::loader::ResolvedBase)> = bases
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| b.members.contains(&member.id))
+                .collect();
+            mine.sort_by_key(|(_, b)| b.from);
+            for pair in mine.windows(2) {
+                let ((ai, a), (bi, b)) = (pair[0], pair[1]);
+                if a.place_id == b.place_id
+                    || within(&a.place, &b.place)
+                    || within(&b.place, &a.place)
+                {
+                    continue;
+                }
+                let connected = trip
+                    .itinerary
+                    .iter()
+                    .filter(|i| trip.participants(i).contains(&member.id.as_str()))
+                    .filter(|i| (a.to..=b.from).contains(&i.day()))
+                    .any(|i| {
+                        let places = trip.item_places(i);
+                        let start = places.iter().position(|(_, p)| within(p, &a.place));
+                        let end = places.iter().rposition(|(_, p)| within(p, &b.place));
+                        matches!((start, end), (Some(s), Some(e)) if s < e)
+                    });
+                if !connected {
+                    match gaps.iter_mut().find(|(k, _)| *k == (ai, bi)) {
+                        Some((_, who)) => who.push(member.name.as_str()),
+                        None => gaps.push(((ai, bi), vec![member.name.as_str()])),
+                    }
+                }
+            }
+        }
+        for ((ai, bi), who) in gaps {
+            let (a, b) = (&bases[ai], &bases[bi]);
+            // The trip's UTC offset that day, so the snippet pastes as valid times.
+            let offset = trip
+                .metadata
+                .timezone
+                .parse::<chrono_tz::Tz>()
+                .ok()
+                .and_then(|tz| b.from.and_hms_opt(8, 0, 0)?.and_local_timezone(tz).single())
+                .map_or_else(|| "+00:00".to_owned(), |t| t.format("%:z").to_string());
+            self.warn(
+                "route.gap",
+                None,
+                format!(
+                    "{}: {} → {} on {}, but no plan takes them there — add the journey, its places from one to the other",
+                    who.join(", "),
+                    a.place.name,
+                    b.place.name,
+                    b.from
+                ),
+            );
+            self.detail(
+                &[
+                    ("who", who.join(", ")),
+                    ("from", a.place.name.clone()),
+                    ("to", b.place.name.clone()),
+                    ("day", b.from.to_string()),
+                ],
+                Some(format!(
+                    "- kind: train\n  title: {} -> {}\n  start: {}T08:00:00{offset} # the real times\n  end: {}T10:00:00{offset}\n  who: [{}]\n  places: [{}, {}]",
+                    a.place.name,
+                    b.place.name,
+                    b.from,
+                    b.from,
+                    who.join(", "),
+                    a.place.name,
+                    b.place.name
+                )),
+            );
+        }
+    }
+
     fn nights(&mut self) {
         let trip = self.trip;
         if trip.declared_bases.is_empty() {
@@ -1098,7 +1186,8 @@ ideas:
             "  - { kind: lodging, title: flat, start: 2027-01-01T15:00:00+09:00, end: 2027-01-06T10:00:00+09:00, places: [flat], who: [everyone] }
   - { kind: lodging, title: ryokan, start: 2027-01-03T15:00:00+09:00, end: 2027-01-04T10:00:00+09:00, places: [ryokan], who: [everyone] }",
         );
-        assert!(d.is_empty(), "{d:?}");
+        // No journeys are given here: only the overlap matters.
+        assert!(d.iter().all(|x| x.code == "route.gap"), "{d:?}");
     }
 
     #[test]
@@ -1138,6 +1227,23 @@ ideas:
         assert_eq!(at("split"), ["item.unassigned"], "{d:?}");
         assert_eq!(at("late"), ["item.absent"], "{d:?}");
         assert!(at("fine").is_empty(), "{d:?}");
+    }
+
+    #[test]
+    fn moving_between_bases_takes_a_journey() {
+        let bases = "bases:
+  - { title: t, place: tokyo, from: 2027-01-01, to: 2027-01-01 }
+  - { title: k, place: kyoto, from: 2027-01-02, to: 2027-01-02 }";
+        let gap = check_with(
+            bases,
+            "  - { kind: note, title: x, date: 2027-01-01, who: [everyone] }",
+        );
+        assert!(gap.iter().any(|d| d.code == "route.gap"), "{gap:?}");
+        let fine = check_with(
+            bases,
+            "  - { kind: train, title: shinkansen, start: 2027-01-02T09:00:00+09:00, end: 2027-01-02T11:15:00+09:00, who: [everyone], places: [tokyo, kyoto] }",
+        );
+        assert!(!fine.iter().any(|d| d.code == "route.gap"), "{fine:?}");
     }
 
     #[test]
