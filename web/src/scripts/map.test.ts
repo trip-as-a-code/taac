@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
-import { arc } from './map'
+import { bearing } from './map'
 
-describe('arc', () => {
-  it('runs end to end', () => {
-    const line = arc([0, 0], [10, 0])
-    expect(line[0]).toEqual([0, 0])
-    expect(line.at(-1)).toEqual([10, 0])
+describe('bearing', () => {
+  it('reads clockwise from north', () => {
+    expect(Math.round(bearing([0, 0], [0, 1]))).toBe(0)
+    expect(Math.round(bearing([0, 0], [1, 0]))).toBe(90)
+    expect(Math.round(bearing([0, 0], [0, -1]))).toBe(180)
+    expect(Math.round(bearing([0, 0], [-1, 0]))).toBe(270)
   })
 
-  it('bows the way back to the other side', () => {
-    const there = arc([0, 0], [10, 0])
-    const back = arc([10, 0], [0, 0])
-    const mid = (l: [number, number][]) => l[Math.floor(l.length / 2)]![1]
-    expect(Math.sign(mid(there))).toBe(-Math.sign(mid(back)))
+  it('points the way back the other way', () => {
+    const there = bearing([139.77, 35.68], [135.76, 35.0])
+    const back = bearing([135.76, 35.0], [139.77, 35.68])
+    expect(Math.round((there - back + 360) % 360)).toBe(180)
   })
 })

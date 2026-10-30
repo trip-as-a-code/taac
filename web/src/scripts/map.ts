@@ -130,7 +130,27 @@ export async function setupMap() {
           'line-width': 3,
           'line-opacity': 0.85,
           'line-dasharray': ['case', ['get', 'flight'], ['literal', [1, 2]], ['literal', [1, 0]]],
+          // Each leg keeps to its right: there and back over the same ground are two lines.
+          'line-offset': ROUTE_OFFSET,
         },
+      })
+      if (!instance.hasImage('route-arrow')) instance.addImage('route-arrow', arrowImage(), { sdf: true })
+      instance.addSource('route-arrows', { type: 'geojson', data: arrowData(data, visibleItems()) })
+      instance.addLayer({
+        id: 'route-arrows',
+        type: 'symbol',
+        source: 'route-arrows',
+        layout: {
+          'icon-image': 'route-arrow',
+          'icon-size': 0.9,
+          'icon-rotate': ['get', 'bearing'],
+          'icon-rotation-alignment': 'map',
+          // On its line, which sits to the right of the leg's direction.
+          'icon-offset': [ROUTE_OFFSET / 0.9, 0],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+        paint: { 'icon-color': ['get', 'color'] },
       })
     }
   }
@@ -225,6 +245,7 @@ export async function setupMap() {
     }
     listVisible()
     ;(instance.getSource('routes') as GeoJSONSource | undefined)?.setData(routeData(data, [...allowed]))
+    ;(instance.getSource('route-arrows') as GeoJSONSource | undefined)?.setData(arrowData(data, [...allowed]))
     ;(instance.getSource('areas') as GeoJSONSource | undefined)?.setData(areaData(data, state))
     popup?.remove()
     // The trip's own area: a flight home from far away doesn't zoom the map
@@ -280,26 +301,17 @@ function circle([lon, lat]: [number, number], radius: number): [number, number][
 }
 
 /**
- * Each leg as a gentle arc bowed to the right of travel, so a return over the
- * same ground bows the other way: there and back read as two lines.
+ * Compass bearing from one point to another as drawn on the (Web Mercator)
+ * map, in degrees clockwise from north.
  */
-export function arc(
-  [x1, y1]: [number, number],
-  [x2, y2]: [number, number],
-  bend = 0.12,
-  steps = 24,
-): [number, number][] {
-  const dx = x2 - x1
-  const dy = y2 - y1
-  // Control point: the midpoint pushed sideways, to the right of the direction of travel.
-  const cx = (x1 + x2) / 2 + dy * bend
-  const cy = (y1 + y2) / 2 - dx * bend
-  return Array.from({ length: steps + 1 }, (_, i) => {
-    const t = i / steps
-    const u = 1 - t
-    return [u * u * x1 + 2 * u * t * cx + t * t * x2, u * u * y1 + 2 * u * t * cy + t * t * y2]
-  })
+export function bearing([x1, y1]: [number, number], [x2, y2]: [number, number]): number {
+  const merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+  const dx = ((x2 - x1) * Math.PI) / 180
+  const dy = merc(y2) - merc(y1)
+  return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
 }
+
+const ROUTE_OFFSET = 3
 
 function routeData(data: MapData, items: string[]): FeatureCollection {
   const allowed = new Set(items)
@@ -310,12 +322,51 @@ function routeData(data: MapData, items: string[]): FeatureCollection {
       .map((r) => ({
         type: 'Feature',
         properties: { color: resolveColor(r.color), flight: r.flight },
-        geometry: {
-          type: 'LineString',
-          coordinates: r.coords.flatMap((c, i) => (i === 0 ? [] : arc(r.coords[i - 1]!, c).slice(i === 1 ? 0 : 1))),
-        },
+        geometry: { type: 'LineString', coordinates: r.coords },
       })),
   }
+}
+
+/** An arrowhead near the end of every leg: which way it goes, in or out. */
+function arrowData(data: MapData, items: string[]): FeatureCollection {
+  const allowed = new Set(items)
+  return {
+    type: 'FeatureCollection',
+    features: data.routes
+      .filter((r) => allowed.has(r.item))
+      .flatMap((r) =>
+        r.coords.slice(1).map((to, i) => {
+          const from = r.coords[i]!
+          const at = 0.82
+          return {
+            type: 'Feature' as const,
+            properties: { color: resolveColor(r.color), bearing: bearing(from, to) },
+            geometry: {
+              type: 'Point' as const,
+              coordinates: [from[0] + (to[0] - from[0]) * at, from[1] + (to[1] - from[1]) * at],
+            },
+          }
+        }),
+      ),
+  }
+}
+
+/** A chevron pointing up, as a signed-distance image so it takes each route's colour. */
+function arrowImage(): { width: number; height: number; data: Uint8Array } {
+  const size = 24
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 3.5
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  ctx.moveTo(6, 15)
+  ctx.lineTo(12, 8)
+  ctx.lineTo(18, 15)
+  ctx.stroke()
+  return { width: size, height: size, data: new Uint8Array(ctx.getImageData(0, 0, size, size).data.buffer) }
 }
 
 /** Map styles can't read CSS variables; resolve `var(--x)` once. */
