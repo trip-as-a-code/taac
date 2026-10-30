@@ -53,6 +53,7 @@ export const ISSUE_CODES = [
   'route.jump',
   'route.cross',
   'route.return',
+  'area.radius',
   'title.who',
   'task.due',
 ] as const
@@ -77,6 +78,8 @@ export function issueGroup(code: string): IssueGroup {
       'route.gap',
       'route.jump',
       'route.cross',
+      'route.return',
+      'area.radius',
       'item.unlocated',
       'idea.place',
       'idea.area',

@@ -30,7 +30,7 @@ pub fn generate(trip: &Trip) -> String {
                 .1
                 .push(reference.clone());
         }
-        if item.kind.is_transport() && places.len() > 1 {
+        if item.kind.is_journey() && places.len() > 1 {
             features.push(json!({
                 "type": "Feature",
                 "geometry": {

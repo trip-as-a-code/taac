@@ -4,7 +4,7 @@ import type { Presence, TripExport } from '@taac/core'
 import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import type { I18n } from '@/i18n'
-import { baseById, daysBetween, itemById, partyEmoji, partyLabel, people } from '@/lib/trip'
+import { baseById, daysBetween, inBase, itemById, partyEmoji, partyLabel, people } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -42,6 +42,17 @@ const kept: Presence[] = trip.items
   .filter((i) => !stays.some((s) => s.id === i.id))
   .map((i) => ({ id: i.id, members: i.members, party: i.party }))
 const keptOf = (base: Presence) => kept.filter((s) => within(s.members, base.members))
+// Getting around: a pass valid today in this base's area, for anyone here.
+const passesOf = (base: Presence) => {
+  const b = byId.get(base.id)!
+  return trip.passes.filter(
+    (pass) =>
+      pass.from <= date &&
+      date <= pass.to &&
+      pass.members.some((m) => base.members.includes(m)) &&
+      inBase(trip, b, pass.area),
+  )
+}
 const loose = stays.filter((s) => !shown.some((b) => within(s.members, b.members)))
 const membersOf = (ids: string[]) => trip.members.filter((m) => ids.includes(m.id))
 const label = (party: string) => partyLabel(trip, party, t('lens.everyone'), t('party.and'))
@@ -94,6 +105,28 @@ const bed = (s: Presence) => {
                 )}
               </span>
             ))}
+            {passesOf(p).map((pass) => {
+              const holders = pass.members.filter((m) => p.members.includes(m))
+              const days = daysBetween(pass.from, pass.to) + 1
+              return (
+                <span class="bed pass footnote" data-presence data-people={people(holders)} title={pass.provider}>
+                  <Icon name="pass" size={14} />
+                  <span class="text" lang={trip.locale}>
+                    {pass.title}
+                  </span>
+                  {days > 1 && (
+                    <span class="count tabular">
+                      {t('trip.baseDay', { n: daysBetween(pass.from, date) + 1, total: days })}
+                    </span>
+                  )}
+                  {holders.length < p.members.length && (
+                    <span class="sleepers">
+                      <Avatars members={membersOf(holders)} size={16} />
+                    </span>
+                  )}
+                </span>
+              )
+            })}
             {keptOf(p).map((s) => (
               <span class="bed kept footnote" data-presence data-people={people(s.members)}>
                 <Icon name="lock" size={13} />

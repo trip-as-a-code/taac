@@ -75,13 +75,15 @@ const areas = trip.basesDerived
       id: b.id,
       title: b.title,
       center: [trip.places[b.place].geo[1], trip.places[b.place].geo[0]],
-      radius: trip.places[b.place].radius ?? 30_000,
+      radius: trip.places[b.place].radius ?? 0,
       from: b.from,
       to: b.to,
       people: b.members,
     }))
 const routes = trip.items
-  .filter((i) => ['flight', 'train', 'bus', 'ferry', 'transfer'].includes(i.kind) && i.places.length > 1)
+  .filter(
+    (i) => ['flight', 'train', 'bus', 'ferry', 'transfer', 'walk', 'ride'].includes(i.kind) && i.places.length > 1,
+  )
   .map((i) => ({
     item: i.id,
     flight: i.kind === 'flight',

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "taac Trip",
-  "description": "One YAML file of a trip. Nothing in it needs an id: people, groups and\nblockers are referred to by name or title, places by their key (which is\ntheir name). A trip is a single `kind: Trip` file, or a\ndirectory holding one `kind: Trip` file plus any number of `kind: TripPart`\nfiles whose bases, places, itinerary, ideas, tasks, packing and overlays are\nmerged into it.",
+  "description": "One YAML file of a trip. Nothing in it needs an id: people, groups and\nblockers are referred to by name or title, places by their key (which is\ntheir name). A trip is a single `kind: Trip` file, or a\ndirectory holding one `kind: Trip` file plus any number of `kind: TripPart`\nfiles whose bases, places, itinerary, ideas, tasks, passes, packing and overlays are\nmerged into it.",
   "type": "object",
   "properties": {
     "apiVersion": {
@@ -83,6 +83,13 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/Task"
+      }
+    },
+    "passes": {
+      "description": "Tickets, passes and rentals for getting around an area for a while.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Pass"
       }
     },
     "packing": {
@@ -363,7 +370,7 @@
           ]
         },
         "radius": {
-          "description": "Makes the place an area (a city, a valley) of this many metres around\n`geo`; bases and ideas use areas. Getting around inside one needs no\nplan; between places in no common area, a journey has to be planned.",
+          "description": "Makes the place an area (a city, a valley) of this many metres around\n`geo`: bases, passes and ideas' `area` need one. Without it the place\nis a single spot.",
           "type": [
             "integer",
             "null"
@@ -512,17 +519,31 @@
       ]
     },
     "ItemKind": {
-      "type": "string",
-      "enum": [
-        "flight",
-        "train",
-        "bus",
-        "ferry",
-        "transfer",
-        "lodging",
-        "activity",
-        "meal",
-        "note"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "flight",
+            "train",
+            "bus",
+            "ferry",
+            "transfer",
+            "lodging",
+            "activity",
+            "meal",
+            "note"
+          ]
+        },
+        {
+          "description": "On foot between two places.",
+          "type": "string",
+          "const": "walk"
+        },
+        {
+          "description": "By bicycle or scooter (`transport.vehicle`), own or rented.",
+          "type": "string",
+          "const": "ride"
+        }
       ]
     },
     "DayPart": {
@@ -559,9 +580,27 @@
             "string",
             "null"
           ]
+        },
+        "vehicle": {
+          "description": "What a `ride` is on; a rental service goes in `carrier`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Vehicle"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false
+    },
+    "Vehicle": {
+      "type": "string",
+      "enum": [
+        "bicycle",
+        "scooter"
+      ]
     },
     "Booking": {
       "type": "object",
@@ -1221,6 +1260,104 @@
       "additionalProperties": false,
       "required": [
         "title"
+      ]
+    },
+    "Pass": {
+      "description": "A ticket, pass or rental for getting around an area for a while: a metro\npass, a bike-share day. Within its area and dates, moving between plans\nneeds no journey of its own.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "who": {
+          "description": "Names of members and/or groups, or `everyone`; omitted means everyone.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "mode": {
+          "description": "How it gets people around.",
+          "$ref": "#/$defs/PassMode",
+          "default": "transit"
+        },
+        "area": {
+          "description": "The area it covers: a place with a `radius`.",
+          "type": "string"
+        },
+        "from": {
+          "description": "First day it's valid.",
+          "type": "string",
+          "format": "date"
+        },
+        "to": {
+          "description": "Last day it's valid, inclusive.",
+          "type": "string",
+          "format": "date"
+        },
+        "provider": {
+          "description": "Who sells or runs it, e.g. `Tokyo Metro`, `Luup`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "booking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Booking"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costs": {
+          "description": "`who` defaults to the pass's people; `estimate: true` while the price\nis a guess.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cost"
+          }
+        },
+        "notes": {
+          "description": "Markdown.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "area",
+        "from",
+        "to"
+      ]
+    },
+    "PassMode": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "bicycle",
+            "scooter"
+          ]
+        },
+        {
+          "description": "Public transport: metro, buses, local trains.",
+          "type": "string",
+          "const": "transit"
+        }
       ]
     },
     "PackingCategory": {

@@ -6,7 +6,7 @@ import { issuesOf } from '@/lib/facts'
 
 export const nextDay = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
 
-const TRANSPORT = new Set(['flight', 'train', 'bus', 'ferry', 'transfer'])
+const TRANSPORT = new Set(['flight', 'train', 'bus', 'ferry', 'transfer', 'walk', 'ride'])
 export const isTransport = (kind: string) => TRANSPORT.has(kind)
 
 const cache = new WeakMap<TripExport, Map<string, { first: string; last: string }>>()
