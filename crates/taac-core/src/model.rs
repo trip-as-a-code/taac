@@ -667,12 +667,11 @@ pub struct Pass {
     pub mode: PassMode,
     /// The area it covers: a place with a `radius`.
     pub area: String,
-    /// First day it's valid.
-    #[schemars(with = "String", extend("format" = "date"))]
-    pub from: NaiveDate,
-    /// Last day it's valid, inclusive.
-    #[schemars(with = "String", extend("format" = "date"))]
-    pub to: NaiveDate,
+    /// The days it's used, inclusive: one stretch for a 72-hour ticket,
+    /// several for a card used on each stay in the area. Each of `bookings`
+    /// may have its own.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub periods: Vec<Period>,
     /// Who sells or runs it, e.g. `Tokyo Metro`, `Luup`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
@@ -680,6 +679,10 @@ pub struct Pass {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub booking: Option<Booking>,
+    /// One pass, held per party like a plan's reservations: each with its
+    /// own people, days and costs. Not with `booking` or `costs`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bookings: Vec<PassBooking>,
     /// `who` defaults to the pass's people; `estimate: true` while the price
     /// is a guess.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -687,6 +690,77 @@ pub struct Pass {
     /// Markdown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+/// One party's share of a pass.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PassBooking {
+    /// Names of the members and/or groups it covers; omitted means the
+    /// pass's people.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
+    /// Their days; omitted means the pass's.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub periods: Vec<Period>,
+    /// A card topped up as you go needs no booking.
+    #[serde(default = "not_required")]
+    pub status: BookingStatus,
+    /// Book by this date.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>", extend("format" = "date"))]
+    pub deadline: Option<NaiveDate>,
+    /// Confirmation number. Never published.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<Secret>,
+    /// What their share costs; `who` defaults to theirs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub costs: Vec<Cost>,
+}
+
+fn not_required() -> BookingStatus {
+    BookingStatus::NotRequired
+}
+
+/// Who holds a pass on which days, at what cost: each of its `bookings`, or
+/// the pass itself.
+pub struct PassShare<'a> {
+    pub who: Option<&'a [String]>,
+    pub periods: &'a [Period],
+    pub costs: &'a [Cost],
+    pub status: BookingStatus,
+    pub deadline: Option<NaiveDate>,
+}
+
+impl Pass {
+    pub fn shares(&self) -> Vec<PassShare<'_>> {
+        if self.bookings.is_empty() {
+            return vec![PassShare {
+                who: self.who.as_deref(),
+                periods: &self.periods,
+                costs: &self.costs,
+                status: self
+                    .booking
+                    .as_ref()
+                    .map_or(BookingStatus::NotRequired, |b| b.status),
+                deadline: self.booking.as_ref().and_then(|b| b.deadline),
+            }];
+        }
+        self.bookings
+            .iter()
+            .map(|b| PassShare {
+                who: b.who.as_deref().or(self.who.as_deref()),
+                periods: if b.periods.is_empty() {
+                    &self.periods
+                } else {
+                    &b.periods
+                },
+                costs: &b.costs,
+                status: b.status,
+                deadline: b.deadline,
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]

@@ -45,13 +45,16 @@ const keptOf = (base: Presence) => kept.filter((s) => within(s.members, base.mem
 // Getting around: a pass valid today in this base's area, for anyone here.
 const passesOf = (base: Presence) => {
   const b = byId.get(base.id)!
-  return trip.passes.filter(
-    (pass) =>
-      pass.from <= date &&
-      date <= pass.to &&
-      pass.members.some((m) => base.members.includes(m)) &&
-      inBase(trip, b, pass.area),
-  )
+  if (!b) return []
+  return trip.passes.flatMap((pass) => {
+    // Whoever here holds it today, on whichever of their stretches.
+    const held = pass.shares.flatMap((share) => {
+      const period = share.periods.find((p) => p.from <= date && date <= p.to)
+      return period ? [{ period, members: share.members.filter((m) => base.members.includes(m)) }] : []
+    })
+    const holders = [...new Set(held.flatMap((h) => h.members))]
+    return holders.length && inBase(trip, b, pass.area) ? [{ pass, holders, period: held[0].period }] : []
+  })
 }
 const loose = stays.filter((s) => !shown.some((b) => within(s.members, b.members)))
 const membersOf = (ids: string[]) => trip.members.filter((m) => ids.includes(m.id))
@@ -105,9 +108,8 @@ const bed = (s: Presence) => {
                 )}
               </span>
             ))}
-            {passesOf(p).map((pass) => {
-              const holders = pass.members.filter((m) => p.members.includes(m))
-              const days = daysBetween(pass.from, pass.to) + 1
+            {passesOf(p).map(({ pass, holders, period }) => {
+              const days = daysBetween(period.from, period.to) + 1
               return (
                 <span class="bed pass footnote" data-presence data-people={people(holders)} title={pass.provider}>
                   <Icon name="pass" size={14} />
@@ -116,7 +118,7 @@ const bed = (s: Presence) => {
                   </span>
                   {days > 1 && (
                     <span class="count tabular">
-                      {t('trip.baseDay', { n: daysBetween(pass.from, date) + 1, total: days })}
+                      {t('trip.baseDay', { n: daysBetween(period.from, date) + 1, total: days })}
                     </span>
                   )}
                   {holders.length < p.members.length && (
@@ -212,9 +214,11 @@ const bed = (s: Presence) => {
     width: 100%;
   }
 
+  /* Each line as wide as its text, so its tooltip sits over it. */
   .lines {
     display: grid;
     flex: 1;
+    justify-items: start;
     gap: 3px;
     min-width: 0;
   }
@@ -225,6 +229,7 @@ const bed = (s: Presence) => {
     align-items: center;
     gap: 6px;
     min-width: 0;
+    max-width: 100%;
     white-space: nowrap;
   }
 

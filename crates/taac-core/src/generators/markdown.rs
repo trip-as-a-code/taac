@@ -171,7 +171,13 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
                 .places
                 .get(&pass.area)
                 .map_or(pass.area.as_str(), |p| p.name.as_str());
-            let mut line = format!("- {} — {area}, {} – {}", pass.title, pass.from, pass.to);
+            let days: Vec<String> = pass
+                .shares()
+                .iter()
+                .flat_map(|share| share.periods)
+                .map(|p| format!("{} – {}", p.from, p.to))
+                .collect();
+            let mut line = format!("- {} — {area}, {}", pass.title, days.join(", "));
             if let Some(provider) = &pass.provider {
                 let _ = write!(line, " · {provider}");
             }

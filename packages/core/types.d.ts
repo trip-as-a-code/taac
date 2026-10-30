@@ -230,13 +230,22 @@ export interface Pass {
   mode: 'transit' | 'bicycle' | 'scooter'
   /** Place id of the area. */
   area: string
-  from: ISODate
-  to: ISODate
   provider?: string
   url?: string
+  /** Who holds it on which days, at what cost: one per `bookings` entry, or the pass itself. */
+  shares: PassShare[]
+  notes?: string
+}
+
+export interface PassShare {
+  members: string[]
+  party: string
+  /** Inclusive stretches of days. */
+  periods: { from: ISODate; to: ISODate }[]
   status: BookingStatus
   deadline?: ISODate
-  notes?: string
+  /** Also budget lines with `item` = the pass's id. */
+  costs: Cost[]
 }
 
 /** Something to get done before the trip; `required` means the trip depends on it. */

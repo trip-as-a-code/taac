@@ -869,12 +869,13 @@ impl Validator<'_> {
             |a: &crate::model::Place, b: &crate::model::Place, member: &str, day: NaiveDate| {
                 a.name != b.name
                     && !trip.passes.iter().any(|pass| {
-                        (pass.from..=pass.to).contains(&day)
-                            && trip.who(pass.who.as_deref()).contains(&member)
-                            && trip
-                                .places
-                                .get(&pass.area)
-                                .is_some_and(|area| within(a, area) && within(b, area))
+                        pass.shares().iter().any(|share| {
+                            share.periods.iter().any(|p| (p.from..=p.to).contains(&day))
+                                && trip.who(share.who).contains(&member)
+                        }) && trip
+                            .places
+                            .get(&pass.area)
+                            .is_some_and(|area| within(a, area) && within(b, area))
                     })
             };
         // One plan crossing from one area into another is a journey.
@@ -1324,15 +1325,34 @@ impl Validator<'_> {
                 None => self.error("pass.area", id, format!("unknown place `{}`", pass.area)),
                 Some(place) => self.area(id, place),
             }
-            if pass.to < pass.from {
-                self.error("pass.dates", id, "`to` is before `from`".into());
+            if !pass.bookings.is_empty() && (pass.booking.is_some() || !pass.costs.is_empty()) {
+                self.error(
+                    "pass.bookings",
+                    id,
+                    "with `bookings`, each holds its own booking and costs: not on the pass".into(),
+                );
             }
-            let people = trip.who(pass.who.as_deref());
-            let booked = pass
-                .booking
-                .as_ref()
-                .is_some_and(|b| b.status == BookingStatus::Booked);
-            self.costs(&pass.id, &pass.costs, &people, &people, booked);
+            for share in &pass.bookings {
+                self.who(&pass.id, share.who.as_deref());
+            }
+            for share in pass.shares() {
+                if share.periods.is_empty() {
+                    self.error("pass.periods", id, "needs at least one period".into());
+                }
+                for period in share.periods.iter().filter(|p| p.to < p.from) {
+                    self.error(
+                        "pass.periods",
+                        id,
+                        format!(
+                            "period {} – {}: `to` is before `from`",
+                            period.from, period.to
+                        ),
+                    );
+                }
+                let people = trip.who(share.who);
+                let booked = share.status == BookingStatus::Booked;
+                self.costs(&pass.id, share.costs, &people, &people, booked);
+            }
         }
     }
 
@@ -1585,7 +1605,7 @@ ideas:
     #[test]
     fn a_day_out_starts_and_ends_at_the_nights_lodging() {
         let d = check_with(
-            "passes: [{ title: metro, area: tokyo, from: 2027-01-01, to: 2027-01-03 }]",
+            "passes: [{ title: metro, area: tokyo, periods: [{ from: 2027-01-01, to: 2027-01-03 }] }]",
             "  - { kind: lodging, title: hotel, start: 2027-01-01T15:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [flat] }
   - { kind: activity, title: temple, start: 2027-01-02T10:00:00+09:00, end: 2027-01-02T12:00:00+09:00, who: [everyone], places: [kyoto] }
   - { kind: activity, title: walk, start: 2027-01-03T09:00:00+09:00, end: 2027-01-03T10:00:00+09:00, who: [everyone], places: [tokyo] }",
@@ -1624,7 +1644,7 @@ ideas:
         );
         // A pass covers its area on its days; a walk is a way too.
         let passed = check_with(
-            "passes: [{ title: metro, area: tokyo, from: 2027-01-01, to: 2027-01-01 }]",
+            "passes: [{ title: metro, area: tokyo, periods: [{ from: 2027-01-01, to: 2027-01-01 }] }]",
             plans,
         );
         assert_eq!(jumps(&passed), ["temple", "day-tour"], "{passed:?}");
@@ -1647,9 +1667,29 @@ ideas:
     }
 
     #[test]
+    fn a_pass_held_per_party_covers_each_on_their_days() {
+        let d = check_with(
+            "passes:
+  - title: metro
+    area: tokyo
+    bookings:
+      - { who: [a], periods: [{ from: 2027-01-01, to: 2027-01-01 }] }
+      - { who: [b], periods: [{ from: 2027-01-02, to: 2027-01-02 }] }",
+            "  - { kind: activity, title: museum, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [everyone], places: [tokyo] }
+  - { kind: activity, title: park, start: 2027-01-01T13:00:00+09:00, end: 2027-01-01T14:00:00+09:00, who: [everyone], places: [flat] }",
+        );
+        let jumps: Vec<_> = d
+            .iter()
+            .filter(|d| d.code == "route.jump")
+            .map(|d| d.params.get("who").cloned().unwrap_or_default())
+            .collect();
+        assert_eq!(jumps, ["B"], "{d:?}");
+    }
+
+    #[test]
     fn areas_say_how_big_they_are() {
         let d = check_with(
-            "passes: [{ title: pass, area: flat, from: 2027-01-01, to: 2027-01-01 }]",
+            "passes: [{ title: pass, area: flat, periods: [{ from: 2027-01-01, to: 2027-01-01 }] }]",
             "  - { kind: note, title: x, date: 2027-01-01, who: [everyone] }",
         );
         assert!(

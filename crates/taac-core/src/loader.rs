@@ -757,6 +757,10 @@ fn resolve_names(trip: &mut Trip) {
         place(&mut pass.area);
         who(&mut pass.who);
         costs(&mut pass.costs);
+        for share in &mut pass.bookings {
+            who(&mut share.who);
+            costs(&mut share.costs);
+        }
     }
 
     for category in &mut trip.packing {

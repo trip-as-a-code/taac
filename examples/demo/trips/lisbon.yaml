@@ -182,8 +182,7 @@ ideas:
 passes:
   - title: Viva Viagem day passes
     area: Lisbon
-    from: 2027-05-14
-    to: 2027-05-17
+    periods: [{ from: 2027-05-14, to: 2027-05-17 }]
     provider: Carris / Metro de Lisboa
     url: https://www.carris.pt
     costs:

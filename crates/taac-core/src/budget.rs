@@ -415,15 +415,14 @@ pub fn compute(trip: &Trip) -> Budget {
     }
 
     for pass in &trip.passes {
-        let people = trip.who(pass.who.as_deref());
-        let booked = pass
-            .booking
-            .as_ref()
-            .is_some_and(|b| b.status == crate::model::BookingStatus::Booked);
-        for cost in &pass.costs {
-            let (mut line, allocation) = line(trip, &pass.id, "pass", cost, &people, booked);
-            line.title = Some(pass.title.clone());
-            budget.add(trip, line, &allocation);
+        for share in pass.shares() {
+            let people = trip.who(share.who);
+            let booked = share.status == crate::model::BookingStatus::Booked;
+            for cost in share.costs {
+                let (mut line, allocation) = line(trip, &pass.id, "pass", cost, &people, booked);
+                line.title = Some(pass.title.clone());
+                budget.add(trip, line, &allocation);
+            }
         }
     }
 

@@ -1296,15 +1296,12 @@
           "description": "The area it covers: a place with a `radius`.",
           "type": "string"
         },
-        "from": {
-          "description": "First day it's valid.",
-          "type": "string",
-          "format": "date"
-        },
-        "to": {
-          "description": "Last day it's valid, inclusive.",
-          "type": "string",
-          "format": "date"
+        "periods": {
+          "description": "The days it's used, inclusive: one stretch for a 72-hour ticket,\nseveral for a card used on each stay in the area. Each of `bookings`\nmay have its own.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Period"
+          }
         },
         "provider": {
           "description": "Who sells or runs it, e.g. `Tokyo Metro`, `Luup`.",
@@ -1329,6 +1326,13 @@
             }
           ]
         },
+        "bookings": {
+          "description": "One pass, held per party like a plan's reservations: each with its\nown people, days and costs. Not with `booking` or `costs`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PassBooking"
+          }
+        },
         "costs": {
           "description": "`who` defaults to the pass's people; `estimate: true` while the price\nis a guess.",
           "type": "array",
@@ -1347,9 +1351,7 @@
       "additionalProperties": false,
       "required": [
         "title",
-        "area",
-        "from",
-        "to"
+        "area"
       ]
     },
     "PassMode": {
@@ -1367,6 +1369,61 @@
           "const": "transit"
         }
       ]
+    },
+    "PassBooking": {
+      "description": "One party's share of a pass.",
+      "type": "object",
+      "properties": {
+        "who": {
+          "description": "Names of the members and/or groups it covers; omitted means the\npass's people.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "periods": {
+          "description": "Their days; omitted means the pass's.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Period"
+          }
+        },
+        "status": {
+          "description": "A card topped up as you go needs no booking.",
+          "$ref": "#/$defs/BookingStatus",
+          "default": "notRequired"
+        },
+        "deadline": {
+          "description": "Book by this date.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "reference": {
+          "description": "Confirmation number. Never published.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costs": {
+          "description": "What their share costs; `who` defaults to theirs.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cost"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "PackingCategory": {
       "type": "object",
