@@ -5,6 +5,7 @@ import Icon, { type IconName } from '@/components/Icon.astro'
 import ItemRow from '@/components/ItemRow.astro'
 import ProgressRing from '@/components/ProgressRing.astro'
 import RouteStrip from '@/components/RouteStrip.astro'
+import Skeleton from '@/components/Skeleton.astro'
 import TodayCard from '@/components/TodayCard.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { isLabelled } from '@/lib/facts'
@@ -138,8 +139,9 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
     </a>
     <a class="stat card" href={path(`${base}/budget/`)}>
       <Icon name="wallet" size={20} />
-      <span class="value tabular" data-stat="budget">
-        —
+      {/* Totalled for whoever the people lens selects, once the script knows. */}
+      <span class="value tabular" data-stat="budget" aria-busy="true">
+        <Skeleton variant="inline" width="4.5em" height="0.9em" />
       </span>
       <span class="label footnote secondary">{t('trip.totalBudget')}</span>
     </a>
@@ -440,7 +442,9 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
     const items = data.items.filter((i) => inLens(i.people, lens))
     const set = (stat: string, text: string) => {
       const el = document.querySelector(`[data-stat="${stat}"]`)
-      if (el) el.textContent = text
+      if (!el) return
+      el.textContent = text
+      el.removeAttribute('aria-busy')
     }
     const count = new Intl.NumberFormat(lang)
     const open = items.filter((i) => i.status === 'required' && i.deadline).map((i) => i.deadline!)

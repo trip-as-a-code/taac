@@ -97,7 +97,13 @@ const whose = (members: string[]) => {
                         {costs.has(item.id) && (
                           <span class="footnote secondary price">
                             {costs.get(item.id)!.map((line) => (
-                              <Money amount={line.amount} currency={line.currency} charged={line.charged} lang={lang} />
+                              <Money
+                                display={trip.currency?.base ?? 'EUR'}
+                                amount={line.amount}
+                                currency={line.currency}
+                                charged={line.charged}
+                                lang={lang}
+                              />
                             ))}
                             <span class:list={['buy', { bought: item.bought }]}>
                               {item.bought ? t('packing.bought') : t('packing.toBuy')}

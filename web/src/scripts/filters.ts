@@ -171,6 +171,8 @@ export function setupFilters(onChange?: Listener): FilterState {
     }
     applyFilters(state)
     onChange?.(state)
+    // Filtered: the page can show (see BaseLayout).
+    document.documentElement.removeAttribute('data-filter-pending')
   }
 
   const set = (key: Facet, value: string) => {

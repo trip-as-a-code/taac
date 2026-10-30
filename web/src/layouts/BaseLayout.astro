@@ -38,6 +38,33 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="generator" content={Astro.generator} />
+    {/*
+      A remembered or linked filter is applied by scripts/filters.ts after the
+      page shows: until then the trip's content stays invisible rather than
+      showing everyone's plans for a moment (also after client navigation).
+    */}
+    <script is:inline>
+      ;(() => {
+        const check = () => {
+          const slug = decodeURIComponent(location.pathname.match(/\/trips\/([^/]+)/)?.[1] ?? '')
+          if (!slug) return
+          let pending = [...new URLSearchParams(location.search).keys()].some((k) => k !== 'mode')
+          if (!pending)
+            try {
+              const lens = JSON.parse(localStorage.getItem(`taac:lens:${slug}`) ?? 'null')
+              pending = Boolean(lens?.people?.length || lens?.unassigned)
+            } catch {
+              // No storage: nothing remembered.
+            }
+          if (!pending) return
+          const root = document.documentElement
+          root.setAttribute('data-filter-pending', '')
+          setTimeout(() => root.removeAttribute('data-filter-pending'), 1500)
+        }
+        check()
+        document.addEventListener('astro:after-swap', check)
+      })()
+    </script>
     <script is:inline>
       // The theme is the viewer's choice (dark unless they pick light), set
       // before paint and again after each client-side page swap, which
@@ -87,6 +114,33 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
       <slot />
     </main>
     <UpdateToast lang={lang} />
+    {/*
+      Static pages can't know today's date: fill the trip's phase and every
+      relative date while the page is still parsing, so they are there on the
+      first paint. scripts/page.ts renders them again on later navigations.
+    */}
+    <script is:inline>
+      ;(() => {
+        const now = new Date()
+        const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+        const day = (iso) => Date.parse(`${iso}T00:00:00Z`)
+        const status = document.querySelector('[data-trip-status]')
+        if (status) {
+          const { start, end, before, after, during } = status.dataset
+          status.dataset.phase = today < day(start) ? 'before' : today > day(end) ? 'after' : 'during'
+          if (today < day(start)) Object.assign(status.dataset, { relative: start, template: before })
+          else if (today > day(end)) Object.assign(status.dataset, { relative: end, template: after })
+          else status.textContent = during.replace('{n}', String(Math.round((today - day(start)) / 86_400_000) + 1))
+        }
+        const rtf = new Intl.RelativeTimeFormat(document.documentElement.lang, { numeric: 'auto' })
+        for (const el of document.querySelectorAll('[data-relative]')) {
+          const days = Math.round((day(el.dataset.relative) - today) / 86_400_000)
+          const rel = Math.abs(days) >= 60 ? rtf.format(Math.round(days / 30), 'month') : rtf.format(days, 'day')
+          el.textContent = (el.dataset.template ?? '{rel}').replace('{rel}', rel)
+          el.dataset.days = String(days)
+        }
+      })()
+    </script>
   </body>
 </html>
 

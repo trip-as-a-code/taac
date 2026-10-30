@@ -93,6 +93,7 @@ const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.len
         {idea.duration && <span class="footnote secondary">{t(`ideas.duration.${idea.duration}`)}</span>}
         {idea.costs.map((c) => (
           <Money
+            display={trip.currency?.base ?? 'EUR'}
             amount={c.amount}
             currency={c.currency}
             charged={c.charged}

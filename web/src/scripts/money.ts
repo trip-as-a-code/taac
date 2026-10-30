@@ -56,9 +56,13 @@ export function knownCurrencies(): string[] {
 
 /** `amount` of `from` in `to`, or null without a rate. */
 export function convert(amount: number, from: string, to: string = display): number | null {
+  return convertWith(rates, amount, from, to)
+}
+
+function convertWith(using: Rates | null, amount: number, from: string, to: string): number | null {
   if (from === to) return amount
-  const a = rates?.rates[from]
-  const b = rates?.rates[to]
+  const a = using?.rates[from]
+  const b = using?.rates[to]
   return a && b ? (amount / a) * b : null
 }
 
@@ -67,21 +71,39 @@ export function convert(amount: number, from: string, to: string = display): num
  * (charged or quoted), converted otherwise.
  */
 export function value(priced: Priced, to: string = display): { amount: number; exact: boolean } | null {
+  return valueWith(rates, priced, to)
+}
+
+function valueWith(using: Rates | null, priced: Priced, to: string): { amount: number; exact: boolean } | null {
   if (priced.charged?.currency === to) return { amount: priced.charged.amount, exact: true }
   if (priced.currency === to && !priced.charged) return { amount: priced.amount, exact: true }
   const source = priced.charged ?? priced
-  const amount = convert(source.amount, source.currency, to)
+  const amount = convertWith(using, source.amount, source.currency, to)
   return amount === null ? null : { amount, exact: false }
 }
 
 export function format(amount: number, currency: string = display, options: Intl.NumberFormatOptions = {}): string {
+  return formatIn(document.documentElement.lang, amount, currency, options)
+}
+
+function formatIn(lang: string, amount: number, currency: string, options: Intl.NumberFormatOptions = {}): string {
   const whole = WHOLE.has(currency) || options.maximumFractionDigits === 0
-  return new Intl.NumberFormat(document.documentElement.lang, {
+  return new Intl.NumberFormat(lang, {
     style: 'currency',
     currency,
     maximumFractionDigits: whole ? 0 : 2,
     minimumFractionDigits: whole || amount % 1 === 0 ? 0 : 2,
   }).format(amount)
+}
+
+/**
+ * How a price reads in `to` at `using` rates — `≈` when converted — or null
+ * without a rate. Pure: the build pre-renders the very text this script
+ * would show, so nothing changes on load.
+ */
+export function priceText(priced: Priced, to: string, using: Rates | null, lang: string): string | null {
+  const shown = valueWith(using, priced, to)
+  return shown && `${shown.exact ? '' : '≈ '}${formatIn(lang, shown.amount, to)}`
 }
 
 /**
@@ -100,14 +122,14 @@ export function renderMoney(root: ParentNode = document): void {
         ? { amount: Number(el.dataset.chargedAmount), currency: el.dataset.chargedCurrency }
         : undefined,
     }
-    const shown = value(priced)
-    if (!shown) {
+    const text = priceText(priced, display, rates, document.documentElement.lang)
+    if (!text) {
       el.textContent = original
       el.removeAttribute('title')
       continue
     }
-    el.textContent = `${shown.exact ? '' : '≈ '}${format(shown.amount)}`
-    el.title = shown.exact ? '' : original
+    el.textContent = text
+    el.title = text.startsWith('≈') ? original : ''
   }
 }
 

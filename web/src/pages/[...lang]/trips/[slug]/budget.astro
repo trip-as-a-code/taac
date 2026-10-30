@@ -207,6 +207,7 @@ const dash = '—'
                 </span>
                 <span class="expense-amount tabular">
                   <Money
+                    display={trip.currency?.base ?? 'EUR'}
                     amount={line.amount}
                     currency={line.currency}
                     charged={line.charged}

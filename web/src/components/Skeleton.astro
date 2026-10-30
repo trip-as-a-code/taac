@@ -1,0 +1,18 @@
+---
+interface Props {
+  /** `line` for a row of text, `block` for a card's worth, `inline` inside text. */
+  variant?: 'line' | 'block' | 'inline'
+  width?: string
+  height?: string
+}
+
+const { variant = 'line', width, height } = Astro.props
+---
+
+<!-- Hidden from assistive tech: the region that is loading says aria-busy="true". -->
+<span
+  class="skeleton"
+  data-variant={variant}
+  aria-hidden="true"
+  style={{ '--skeleton-width': width, '--skeleton-height': height }}
+></span>

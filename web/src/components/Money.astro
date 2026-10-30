@@ -2,19 +2,27 @@
 import type { Money as Charged } from '@taac/core'
 
 import { useI18n, type Locale } from '@/i18n'
+import { rates } from '@/lib/build'
+import { priceText } from '@/scripts/money'
 
 interface Props {
   amount: number
   currency: string
   charged?: Charged
   lang: Locale
+  /** The display currency the page starts in (the trip's): pre-rendered in it. */
+  display?: string
   class?: string
 }
 
-// Server-renders the original price; scripts/money.ts swaps in the viewer's
-// display currency once rates are known.
-const { amount, currency, charged, lang, class: className } = Astro.props
-const original = charged ?? { amount, currency }
+// Server-renders the price in the page's starting display currency at the
+// build's rates; scripts/money.ts re-renders it for the viewer's currency and
+// today's rates.
+const { amount, currency, charged, lang, display, class: className } = Astro.props
+const source = charged ?? { amount, currency }
+const original = useI18n(lang).money(source.amount, source.currency)
+// What scripts/money.ts shows for the default currency, so it lands unchanged.
+const shown = (display && priceText({ amount, currency, charged }, display, rates, lang)) || original
 ---
 
 <span
@@ -24,6 +32,8 @@ const original = charged ?? { amount, currency }
   data-currency={currency}
   data-charged-amount={charged?.amount}
   data-charged-currency={charged?.currency}
+  data-original={original}
+  title={shown === original ? undefined : original}
 >
-  {useI18n(lang).money(original.amount, original.currency)}
+  {shown}
 </span>
