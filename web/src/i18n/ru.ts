@@ -271,6 +271,7 @@ export const ru: Messages = {
   'item.reference': 'Подтверждение сохранено',
   'item.contact': 'Контакт',
   'item.paidBy': 'Платит {name}',
+  'item.onMap': 'На карте',
   'item.website': 'Сайт',
   'item.bookingLink': 'Забронировать',
   'item.pricedWith': 'Цена — в брони {title}',

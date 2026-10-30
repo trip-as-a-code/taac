@@ -7,7 +7,7 @@ import type { GeoJSONSource, LngLatBoundsLike, Map as MapLibre, Marker, Popup } 
 
 import type { Facts } from '@/lib/facts'
 import { matchesFacts, setupFilters, showCount, tripToday, type FilterState } from '@/scripts/filters'
-import { getLens, inLens, type Lens } from '@/scripts/lens'
+import { getLens, inLens, setLens, type Lens } from '@/scripts/lens'
 import { currentTheme, onTheme } from '@/scripts/theme'
 
 interface MapData {
@@ -272,7 +272,29 @@ export async function setupMap() {
     const target = area.every((g) => view.contains([g[1], g[0]])) ? shown.map((p) => p.geo) : area
     instance.fitBounds(bounds(target), { padding: padding(), maxZoom: 14, duration: 700 })
   })
-  instance.once('load', () => apply(false))
+  // `#item-<id>` from a plan or idea: its places, framed, the first one
+  // open. The camera moves at once; the popup is reopened after `load`,
+  // whose refresh closes it.
+  let pinned: string | undefined
+  const target = () => {
+    const id = decodeURIComponent(location.hash.slice(1)).replace(/^item-/, '')
+    const item = data.items[id]
+    const at = data.places.filter((p) => p.items.includes(id))
+    if (!item || !at.length) return
+    // A plan the people lens hides would put nothing on the map.
+    if (!visibleItems().includes(id)) setLens({ people: [], unassigned: Boolean(item.facts.unassigned) })
+    if (at.length > 1)
+      instance.fitBounds(bounds(at.map((p) => p.geo)), { padding: padding(), maxZoom: 14, duration: 0 })
+    else instance.jumpTo({ center: [at[0].geo[1], at[0].geo[0]], zoom: Math.max(instance.getZoom(), 13) })
+    pinned = at[0].id
+    open(pinned, false)
+  }
+  target()
+  instance.once('load', () => {
+    apply(false)
+    if (pinned) open(pinned, false)
+  })
+  window.addEventListener('hashchange', target)
 }
 
 /** Base areas as 64-gon circles, filtered by who and day. */

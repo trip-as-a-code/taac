@@ -138,6 +138,12 @@ const hasDetails = Boolean(
         )}
         {idea.notes && <div class="prose" lang={trip.locale} set:html={markdown(idea.notes)} />}
         <div class="links">
+          {places.length > 0 && (
+            <a class="button" href={i18n.path(`/trips/${trip.slug}/map/#item-${idea.id}`)}>
+              <Icon name="map" size={15} />
+              <span>{t('item.onMap')}</span>
+            </a>
+          )}
           {/* The line in the trip files that says all this. */}
           {sourceHref(idea.source) && (
             <a class="button" href={sourceHref(idea.source)} target="_blank" rel="noopener noreferrer">
