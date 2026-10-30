@@ -47,7 +47,7 @@ groups:
 bases: # where everyone is each night, planned or not
   - { title: Lisbon, place: Lisbon, from: 2027-05-14, to: 2027-05-16 }
 places: # by name; everything else refers to them by it
-  Lisbon: { geo: [38.7223, -9.1393], radius: 12000 } # an area: inside it, getting around needs no plan; anywhere else, plans need a journey there
+  Lisbon: { geo: [38.7223, -9.1393], radius: 12000 } # an area: moving around inside needs no journey
   London Gatwick: { geo: [51.1537, -0.1821], category: airport }
   Lisbon Airport: { geo: [38.7742, -9.1342], category: airport }
   Castelo de São Jorge: { geo: [38.7139, -9.1335], category: historic }
