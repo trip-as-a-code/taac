@@ -1135,10 +1135,10 @@ impl Validator<'_> {
                 );
             }
             let payers = cost.payers();
-            if cost.is_paid() && !cost.is_each() {
+            if cost.paid_by.is_some() && !cost.is_each() {
                 self.who(owner, Some(&payers));
             }
-            if !cost.settled && !cost.owed() {
+            if !cost.settled && !cost.owed_once_paid() {
                 self.warn(
                     "cost.settled",
                     id,
@@ -1152,7 +1152,7 @@ impl Validator<'_> {
             self.who(owner, cost.who.as_deref());
             if let Some(debtor) = &cost.owed_by {
                 self.who(owner, Some(std::slice::from_ref(debtor)));
-                if !cost.owed() {
+                if !cost.owed_once_paid() {
                     self.warn(
                         "cost.owedBy",
                         id,
@@ -1207,7 +1207,7 @@ impl Validator<'_> {
             // still owed for it, is paying for the others on purpose.
             if let [payer] = payers.as_slice()
                 && cost.split == Split::Equal
-                && !cost.owed()
+                && !cost.owed_once_paid()
                 && !beneficiaries.contains(&payer.as_str())
                 && !plan.contains(&payer.as_str())
                 && trip.member(payer).is_some()

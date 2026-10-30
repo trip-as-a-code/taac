@@ -290,6 +290,7 @@ export const ru: Messages = {
   'item.paidBy': 'Платит {name}',
   'item.onMap': 'На карте',
   'item.due': 'оплата {date}',
+  'item.dueConfirm': 'списание {date}: подтвердите сумму',
   'item.website': 'Сайт',
   'item.bookingLink': 'Забронировать',
   'item.pricedWith': 'Цена — в брони {title}',

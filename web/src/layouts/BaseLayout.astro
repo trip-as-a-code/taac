@@ -115,8 +115,8 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
     </main>
     <UpdateToast lang={lang} />
     {/*
-      Static pages can't know today's date: fill the trip's phase and every
-      relative date, and show debts that are due, while the page is still
+      Static pages can't know today's date: fill the trip's phase, every
+      relative date and what depends on the day while the page is still
       parsing, so they are right on the first paint.
     */}
     <script is:inline>
@@ -132,9 +132,11 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
           else if (today > day(end)) Object.assign(status.dataset, { relative: end, template: after })
           else status.textContent = during.replace('{n}', String(Math.round((today - day(start)) / 86_400_000) + 1))
         }
-        // Debts from costs charged later show from that day.
+        // What depends on the day: shown from (`data-show-from`) or until
+        // (`data-show-until`) a date, such as a charge awaiting confirmation.
         const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-        for (const el of document.querySelectorAll('[data-owed-from]')) el.hidden = iso < el.dataset.owedFrom
+        for (const el of document.querySelectorAll('[data-show-from]')) el.hidden = iso < el.dataset.showFrom
+        for (const el of document.querySelectorAll('[data-show-until]')) el.hidden = iso >= el.dataset.showUntil
         const rtf = new Intl.RelativeTimeFormat(document.documentElement.lang, { numeric: 'auto' })
         for (const el of document.querySelectorAll('[data-relative]')) {
           const days = Math.round((day(el.dataset.relative) - today) / 86_400_000)

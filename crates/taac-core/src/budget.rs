@@ -65,9 +65,8 @@ pub struct CostLine {
     /// Pays the payer back for everyone's share (`owedBy`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owed_by: Option<String>,
-    /// Charged on this date (`due`, until `charged` is known): before it
-    /// nobody has paid and nothing is owed. A static build can't tell, so
-    /// the page decides by today's date.
+    /// Charged on this date, not confirmed yet (`due` without `charged`):
+    /// unpaid, so nothing is owed, until the charge is confirmed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due: Option<chrono::NaiveDate>,
 }
@@ -634,6 +633,29 @@ packing:
             ),
             ("b", "a")
         );
+    }
+
+    #[test]
+    fn a_charge_owes_nothing_until_confirmed() {
+        let pending = compute(&trip(
+            "      - { amount: 100, currency: EUR, who: [b], paidBy: a, settled: false, due: 2026-12-05 }",
+        ));
+        let line = &pending.lines[0];
+        assert!(
+            line.unpaid && line.settled && line.paid.is_empty(),
+            "{line:?}"
+        );
+        assert_eq!(
+            line.due.map(|d| d.to_string()).as_deref(),
+            Some("2026-12-05")
+        );
+        assert!(pending.by_currency["EUR"].settlements.is_empty());
+        let confirmed = compute(&trip(
+            "      - { amount: 100, currency: EUR, who: [b], paidBy: a, settled: false, due: 2026-12-05,
+          charged: { amount: 100, currency: EUR } }",
+        ));
+        assert!(!confirmed.lines[0].unpaid && confirmed.lines[0].due.is_none());
+        assert_eq!(confirmed.by_currency["EUR"].settlements.len(), 1);
     }
 
     #[test]

@@ -975,8 +975,16 @@ fn is_yes(value: &bool) -> bool {
 
 impl Cost {
     /// Somebody paid already (or everybody, for themselves).
+    /// Someone paid for it: a payer, and, for a cost charged later (`due`),
+    /// the charge confirmed (`charged`).
     pub fn is_paid(&self) -> bool {
-        self.paid_by.is_some()
+        self.paid_by.is_some() && !self.pending()
+    }
+
+    /// Charged later and not confirmed yet: planned, but nobody has paid it,
+    /// so nobody owes anyone for it — whatever the date says.
+    pub fn pending(&self) -> bool {
+        self.due.is_some() && self.charged.is_none()
     }
 
     /// Everyone paid their own share.
@@ -992,6 +1000,11 @@ impl Cost {
     /// Someone still owes someone for it.
     pub fn owed(&self) -> bool {
         self.is_paid() && !self.is_each() && !self.settled
+    }
+
+    /// Owed, or will be once its pending charge is confirmed.
+    pub fn owed_once_paid(&self) -> bool {
+        self.paid_by.is_some() && !self.is_each() && !self.settled
     }
 }
 

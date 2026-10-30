@@ -25,7 +25,7 @@ export function setupPage() {
   forgetOfflineCopiesOnLogout()
   trackScroll()
   renderRelativeDates()
-  showDueDebts()
+  showByDate()
   renderMoney()
   fitAll()
   setupPickers()
@@ -142,11 +142,13 @@ export function renderRelativeDates(root: ParentNode = document) {
   }
 }
 
-/** Debts from costs charged later (`data-owed-from`) show from that day on. */
-function showDueDebts() {
+/** What depends on the day: shown from (`data-show-from`) or until (`data-show-until`) a date. */
+function showByDate() {
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  for (const el of document.querySelectorAll<HTMLElement>('[data-owed-from]')) el.hidden = today < el.dataset.owedFrom!
+  for (const el of document.querySelectorAll<HTMLElement>('[data-show-from]')) el.hidden = today < el.dataset.showFrom!
+  for (const el of document.querySelectorAll<HTMLElement>('[data-show-until]'))
+    el.hidden = today >= el.dataset.showUntil!
 }
 
 export function todayUTC(): number {
