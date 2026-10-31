@@ -458,6 +458,21 @@ export const ru: Messages = {
   'notifications.resolved': '{name}: обсуждение решено',
   'notifications.error': 'Не удалось загрузить уведомления.',
 
+  'push.title': 'Включить уведомления?',
+  'push.lead': 'Узнавайте об ответах и новых обсуждениях в поездках, даже когда сайт закрыт.',
+  'push.allow': 'Включить',
+  'push.later': 'Не сейчас',
+  'push.never': 'Больше не спрашивать',
+  'push.device': 'Уведомления на этом устройстве',
+  'push.on': 'Включены',
+  'push.off': 'Выключены',
+  'push.turnOn': 'Включить',
+  'push.turnOff': 'Выключить',
+  'push.denied': 'Заблокированы в настройках браузера для этого сайта.',
+  'notifications.all': 'Показать все',
+  'notifications.more': 'Показать ещё',
+  'notifications.allTitle': 'Уведомления',
+
   'a11y.skip': 'Перейти к содержимому',
   'a11y.openMenu': 'Открыть меню',
 }

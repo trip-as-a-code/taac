@@ -88,6 +88,22 @@ const STRINGS: Record<string, LoginStrings> = {
   },
 }
 
+/** Browser notifications, `{name}` being who did it. */
+export interface PushStrings {
+  thread: string
+  reply: string
+  resolved: string
+}
+
+const PUSH: Record<string, PushStrings> = {
+  en: { thread: '{name} started a discussion', reply: '{name} replied', resolved: '{name} resolved a discussion' },
+  ru: { thread: '{name}: новое обсуждение', reply: '{name}: ответ', resolved: '{name}: обсуждение решено' },
+}
+
+export function pushStrings(lang: string): PushStrings {
+  return PUSH[lang] ?? PUSH.en!
+}
+
 export function loginStrings(lang: string): LoginStrings {
   return STRINGS[lang] ?? STRINGS.en!
 }

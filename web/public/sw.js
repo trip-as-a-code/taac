@@ -13,6 +13,32 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+// Browser notifications from the server (Web Push): what others did in a
+// discussion. A tap opens the page with that discussion, in a tab already
+// open on the site if there is one.
+self.addEventListener('push', (event) => {
+  const message = event.data?.json() ?? {}
+  event.waitUntil(
+    self.registration.showNotification(message.title ?? 'taac', {
+      body: message.body,
+      tag: message.tag,
+      data: { url: message.url ?? '/' },
+      icon: '/icons/icon-192.png',
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = new URL(event.notification.data?.url ?? '/', location.origin).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const tab = windows.find((w) => new URL(w.url).origin === location.origin)
+      return tab ? tab.focus().then(() => tab.navigate(url)) : self.clients.openWindow(url)
+    }),
+  )
+})
+
 self.addEventListener('fetch', (event) => {
   const request = event.request
   const url = new URL(request.url)

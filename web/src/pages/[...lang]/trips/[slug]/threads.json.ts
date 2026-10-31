@@ -1,5 +1,6 @@
 // Where each of the trip's discussions hangs, by anchor: its title and page,
-// for the notification center to name and link what happened.
+// and the members' names by GitHub login, for notifications to name and link
+// what happened (in the bell and in browser notifications).
 
 import type { APIRoute } from 'astro'
 
@@ -10,5 +11,6 @@ export const getStaticPaths = tripPaths
 
 export const GET: APIRoute = ({ params, props }) => {
   const { i18n, trip } = tripPage(params, props as Parameters<typeof tripPage>[1])
-  return Response.json({ title: trip.title, targets: threadTargets(trip, i18n) })
+  const people = Object.fromEntries(trip.members.filter((m) => m.github).map((m) => [m.github!.toLowerCase(), m.name]))
+  return Response.json({ title: trip.title, targets: threadTargets(trip, i18n), people })
 }

@@ -1,0 +1,92 @@
+---
+import Icon from '@/components/Icon.astro'
+import { useI18n, type Locale } from '@/i18n'
+
+interface Props {
+  lang: Locale
+}
+
+const { t } = useI18n(Astro.props.lang)
+---
+
+{/* Offers browser notifications once (scripts/push.ts); the browser's own question follows "Turn on". */}
+<dialog class="prompt" data-push-prompt aria-labelledby="push-title" aria-describedby="push-lead">
+  <div class="glyph" aria-hidden="true">
+    <Icon name="bell" size={26} />
+  </div>
+  <h2 id="push-title" class="title-3">
+    {t('push.title')}
+  </h2>
+  <p id="push-lead" class="subhead secondary">
+    {t('push.lead')}
+  </p>
+  <button class="button button-primary" type="button" data-push-allow autofocus>
+    {t('push.allow')}
+  </button>
+  <button class="button button-plain" type="button" data-push-later>
+    {t('push.later')}
+  </button>
+  <button class="never footnote" type="button" data-push-never>
+    {t('push.never')}
+  </button>
+</dialog>
+
+<style>
+  .prompt {
+    width: min(340px, calc(100vw - 32px));
+    padding: var(--space-6) var(--space-5) var(--space-4);
+    border: 0;
+    border-radius: 22px;
+    background: var(--bg-elevated);
+    color: var(--label);
+    text-align: center;
+    box-shadow: 0 24px 70px rgb(0 0 0 / 0.4);
+  }
+
+  .prompt[open] {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .prompt::backdrop {
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(2px);
+  }
+
+  .glyph {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto var(--space-2);
+    border-radius: 16px;
+    background: var(--tint-soft);
+    color: var(--tint);
+  }
+
+  h2 {
+    margin: 0;
+  }
+
+  p {
+    margin: 0 0 var(--space-3);
+  }
+
+  .button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .never {
+    margin-top: var(--space-1);
+    padding: 6px;
+    border: 0;
+    background: transparent;
+    color: var(--label-tertiary);
+    cursor: pointer;
+  }
+
+  .never:hover {
+    color: var(--label-secondary);
+  }
+</style>

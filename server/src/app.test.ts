@@ -8,6 +8,7 @@ import { normalise } from './access'
 import { createHandler } from './app'
 import { calendarKey } from './auth'
 import type { Thread } from './comments'
+import type { PushMessage, PushSubscription } from './push'
 import { works, type ShareLink } from './links'
 import { merge, type Ticks } from './packing'
 import type { Store } from './store'
@@ -36,6 +37,14 @@ beforeAll(() => {
   writeFileSync(join(dist, 'trips/japan/index.html'), '<h1>japan</h1>')
   writeFileSync(join(dist, 'trips/japan/calendar.ics'), 'BEGIN:VCALENDAR')
   writeFileSync(join(dist, '404.html'), '<h1>nope</h1>')
+  writeFileSync(
+    join(dist, 'trips/japan/threads.json'),
+    JSON.stringify({
+      title: 'Japan',
+      targets: { 'day:2026-12-12': { title: 'Saturday', href: '/trips/japan/itinerary/#2026-12-12' } },
+      people: { alex: 'Alex', grandma: 'Grandma' },
+    }),
+  )
 })
 
 /** GitHub, answering every code with `who`. */
@@ -59,7 +68,13 @@ function memoryStore(): Store {
     return null
   }
   let seen = 0
+  const subscriptions: PushSubscription[] = []
   return {
+    addSubscription: async (sub) => void subscriptions.push(sub),
+    removeSubscription: async (endpoint) => {
+      subscriptions.splice(0, subscriptions.length, ...subscriptions.filter((s) => s.endpoint !== endpoint))
+    },
+    subscriptionsFor: async (logins) => subscriptions.filter((s) => logins.includes(s.login)),
     notificationsSeen: async () => seen,
     markNotificationsSeen: async (_login, at) => void (seen = Math.max(seen, at)),
     threads: async (trip) => structuredClone(threads.filter((t) => t.trip === trip)),
@@ -102,10 +117,16 @@ function memoryStore(): Store {
   }
 }
 
-function handler(who = 'Alex', store = memoryStore(), now?: () => number) {
+function handler(
+  who = 'Alex',
+  store = memoryStore(),
+  now?: () => number,
+  push?: { publicKey: string; send: (s: PushSubscription, m: PushMessage) => Promise<'ok' | 'gone' | 'failed'> },
+) {
   return createHandler(
     {
       now,
+      push,
       dist,
       publicUrl: 'https://trips.example',
       sessionSecret: 'secret',
@@ -164,6 +185,7 @@ describe('signing in', () => {
       share: ['japan'],
       comments: ['japan'],
       link: null,
+      push: null,
       calendars: { japan: await calendarKey('secret', 'japan') },
     })
   })
@@ -471,5 +493,61 @@ describe('notifications', () => {
     await me(new Request('https://trips.example/api/notifications/seen', { method: 'POST', headers: { Cookie: mine } }))
     expect((await list()).seenAt).toBeGreaterThan(0)
     expect((await me(new Request('https://trips.example/api/notifications'))).status).toBe(401)
+  })
+})
+
+describe('browser notifications', () => {
+  it('pushes to the other members’ browsers, and forgets browsers that left', async () => {
+    const store = memoryStore()
+    const sent: [string, PushMessage][] = []
+    const push = {
+      publicKey: 'key',
+      send: async (sub: PushSubscription, message: PushMessage) => {
+        sent.push([sub.login, message])
+        return sub.endpoint.endsWith('/gone') ? ('gone' as const) : ('ok' as const)
+      },
+    }
+    const grandma = handler('grandma', store, undefined, push)
+    const theirs = await signIn(grandma)
+    const me = (await (
+      await grandma(new Request('https://trips.example/api/me', { headers: { Cookie: theirs } }))
+    ).json()) as {
+      push: string
+    }
+    expect(me.push).toBe('key')
+    for (const endpoint of ['https://push.example/1', 'https://push.example/gone'])
+      expect(
+        (
+          await grandma(
+            new Request('https://trips.example/api/push/subscribe', {
+              method: 'POST',
+              headers: { Cookie: theirs },
+              body: JSON.stringify({ subscription: { endpoint, keys: { p256dh: 'p', auth: 'a' } }, lang: 'en' }),
+            }),
+          )
+        ).status,
+      ).toBe(200)
+
+    const alex = handler('Alex', store, undefined, push)
+    const mine = await signIn(alex)
+    await alex(
+      new Request('https://trips.example/api/trips/japan/threads', {
+        method: 'POST',
+        headers: { Cookie: mine },
+        body: JSON.stringify({ anchor: 'day:2026-12-12', body: 'Walk to the station?' }),
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(sent).toHaveLength(2)
+    expect(sent[0]).toEqual([
+      'grandma',
+      {
+        title: 'Saturday',
+        body: 'Alex started a discussion: Walk to the station?',
+        url: '/trips/japan/itinerary/?thread=day%3A2026-12-12#2026-12-12',
+        tag: expect.stringMatching(/^thread:/),
+      },
+    ])
+    expect((await store.subscriptionsFor(['grandma'])).map((s) => s.endpoint)).toEqual(['https://push.example/1'])
   })
 })

@@ -1,6 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions'
 
+import PushPrompt from '@/components/PushPrompt.astro'
 import NavBar from '@/components/NavBar.astro'
 import UpdateToast from '@/components/UpdateToast.astro'
 import { localeFromParam, localized, type Locale } from '@/i18n'
@@ -109,6 +110,7 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
     <a class="skip-link" href="#main">
       {lang === 'ru' ? 'Перейти к содержимому' : 'Skip to content'}
     </a>
+    <PushPrompt lang={lang} />
     <NavBar lang={lang} title={navTitle} back={back}>
       <slot name="nav" slot="tools" />
     </NavBar>

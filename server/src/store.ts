@@ -1,6 +1,6 @@
 /**
  * Shared state in Postgres: packing ticks, kept GitHub pictures, view-only links, discussions
- * and how far each account has read its notifications. Migrations are plain SQL
+ * how far each account has read its notifications, and the browsers to push them to. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -12,9 +12,10 @@ import type { Avatar, AvatarStore } from './avatars'
 import type { Comment, CommentStore, Thread } from './comments'
 import type { LinkStore, ShareLink } from './links'
 import type { NotificationStore } from './notifications'
+import type { PushStore } from './push'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
-export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore {
+export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore, PushStore {
   ticks(trip: string): Promise<Ticks>
   /** Stores the valid changes newer than what is there, as set by `by`. */
   apply(trip: string, changes: unknown, now: number, by: string | null): Promise<void>
@@ -232,6 +233,29 @@ export async function openStore(connectionString: string): Promise<Store> {
          on conflict (login) do update set seen_at = greatest(notification_reads.seen_at, excluded.seen_at)`,
         [login, at],
       )
+    },
+    async addSubscription(sub) {
+      await pool.query(
+        `insert into push_subscriptions (endpoint, login, p256dh, auth, lang, created_at) values ($1, $2, $3, $4, $5, $6)
+         on conflict (endpoint) do update set login = excluded.login, p256dh = excluded.p256dh, auth = excluded.auth,
+           lang = excluded.lang`,
+        [sub.endpoint, sub.login, sub.p256dh, sub.auth, sub.lang, sub.createdAt],
+      )
+    },
+    async removeSubscription(endpoint) {
+      await pool.query('delete from push_subscriptions where endpoint = $1', [endpoint])
+    },
+    async subscriptionsFor(logins) {
+      if (!logins.length) return []
+      const { rows } = await pool.query<{
+        endpoint: string
+        login: string
+        p256dh: string
+        auth: string
+        lang: string
+        created_at: string
+      }>('select * from push_subscriptions where login = any($1)', [logins])
+      return rows.map((r) => ({ ...r, createdAt: Number(r.created_at) }))
     },
     close: () => pool.end(),
   }

@@ -27,10 +27,9 @@ export interface Notification {
 }
 
 export const NOTIFICATION_LIMIT = 50
-const WINDOW = 60 * 24 * 60 * 60 * 1000
 
-/** What others did in a trip's discussions, within the last 60 days. */
-export function discussionEvents(trip: string, threads: Thread[], login: string, now: number): Notification[] {
+/** What others did in a trip's discussions, ever. */
+export function discussionEvents(trip: string, threads: Thread[], login: string): Notification[] {
   const events: Notification[] = []
   for (const thread of threads) {
     thread.comments.forEach((comment, index) => {
@@ -58,10 +57,13 @@ export function discussionEvents(trip: string, threads: Thread[], login: string,
         at: thread.resolvedAt,
       })
   }
-  return events.filter((e) => e.at > now - WINDOW)
+  return events
 }
 
-/** Newest first, at most NOTIFICATION_LIMIT. */
-export function newestFirst(events: Notification[]): Notification[] {
-  return events.sort((a, b) => b.at - a.at).slice(0, NOTIFICATION_LIMIT)
+/** A page of them, newest first: `limit` from before `before` (epoch ms), if given. */
+export function page(events: Notification[], limit: number, before?: number): Notification[] {
+  return events
+    .filter((e) => before === undefined || e.at < before)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit)
 }

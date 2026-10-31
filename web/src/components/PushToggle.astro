@@ -1,0 +1,46 @@
+---
+import { useI18n, type Locale } from '@/i18n'
+
+interface Props {
+  lang: Locale
+}
+
+const { t } = useI18n(Astro.props.lang)
+---
+
+{/* Browser notifications on this device, on or off (scripts/notifications.ts); hidden where there are none. */}
+<div
+  class="push-toggle"
+  data-push-toggle
+  data-on={t('push.on')}
+  data-off={t('push.off')}
+  data-denied={t('push.denied')}
+  data-turn-on={t('push.turnOn')}
+  data-turn-off={t('push.turnOff')}
+  hidden
+>
+  <span class="label">
+    <span class="subhead">{t('push.device')}</span>
+    <span class="footnote secondary" data-push-status></span>
+  </span>
+  <button class="button" type="button" data-push-switch></button>
+</div>
+
+<style>
+  .push-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: 8px;
+  }
+
+  .push-toggle[hidden],
+  .push-toggle button[hidden] {
+    display: none;
+  }
+
+  .label {
+    display: grid;
+  }
+</style>
