@@ -1,7 +1,7 @@
 ---
 import Icon from '@/components/Icon.astro'
 import PushToggle from '@/components/PushToggle.astro'
-import { langParams, localeFromParam, localeNames, locales, switchLocalePath, useI18n } from '@/i18n'
+import { langParams, localeFromParam, useI18n } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
 
 export const getStaticPaths = () => langParams().map((params) => ({ params }))
@@ -84,28 +84,6 @@ const { t, path } = useI18n(lang)
           <PushToggle lang={lang} />
         </div>
         <p class="footnote secondary note">{t('notifications.device')}</p>
-      </section>
-      <section class="group">
-        <h2 class="title-3">{t('settings.language')}</h2>
-        <div class="card">
-          <div class="row">
-            <span class="grow">{t('settings.languageRow')}</span>
-            <div class="segmented">
-              {locales.map((l) => (
-                <a
-                  href={`${switchLocalePath(Astro.url.pathname, l)}#settings`}
-                  hreflang={l}
-                  lang={l}
-                  data-set-lang={l}
-                  aria-current={l === lang ? 'page' : undefined}
-                >
-                  {localeNames[l]}
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
-        <p class="footnote secondary note">{t('settings.languageNote')}</p>
       </section>
     </div>
   </div>

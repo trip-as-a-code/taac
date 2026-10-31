@@ -466,9 +466,6 @@ export const en = {
   'notifications.settings': 'Settings',
 
   'settings.browser': 'In this browser',
-  'settings.language': 'Language',
-  'settings.languageRow': 'Site and notifications',
-  'settings.languageNote': 'Kept for your account: on every device and in your notifications.',
 
   'notifications.change': '{name} changed the plan',
   'settings.kinds': 'Notify me about',
@@ -476,7 +473,8 @@ export const en = {
   'settings.kind.reply': 'Replies',
   'settings.kind.resolved': 'Resolved discussions',
   'settings.kind.change': 'Changes to the plan',
-  'settings.kindsNote': 'For your account: in the bell and in browser notifications.',
+  'settings.kindsNote':
+    'For your account: in the bell and in browser notifications, in the language you chose at the top.',
 
   'a11y.skip': 'Skip to content',
   'a11y.openMenu': 'Open menu',

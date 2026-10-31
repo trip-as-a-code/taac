@@ -488,9 +488,6 @@ export const ru: Messages = {
   'notifications.settings': 'Настройки',
 
   'settings.browser': 'В этом браузере',
-  'settings.language': 'Язык',
-  'settings.languageRow': 'Сайт и уведомления',
-  'settings.languageNote': 'Сохраняется для вашего аккаунта: на всех устройствах и в уведомлениях.',
 
   'notifications.change': '{name}: изменения в плане',
   'settings.kinds': 'Уведомлять о',
@@ -498,7 +495,7 @@ export const ru: Messages = {
   'settings.kind.reply': 'Ответах',
   'settings.kind.resolved': 'Решённых обсуждениях',
   'settings.kind.change': 'Изменениях в плане',
-  'settings.kindsNote': 'Для вашего аккаунта: в колокольчике и в уведомлениях браузера.',
+  'settings.kindsNote': 'Для вашего аккаунта: в колокольчике и в уведомлениях браузера, на языке, выбранном вверху.',
 
   'a11y.skip': 'Перейти к содержимому',
   'a11y.openMenu': 'Открыть меню',
