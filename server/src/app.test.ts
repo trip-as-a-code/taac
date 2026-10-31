@@ -570,5 +570,11 @@ describe('browser notifications', () => {
       },
     ])
     expect((await store.subscriptionsFor(['grandma'])).map((s) => s.endpoint)).toEqual(['https://push.example/1'])
+    sent.length = 0
+    const test = await grandma(
+      new Request('https://trips.example/api/push/test', { method: 'POST', headers: { Cookie: theirs }, body: '{}' }),
+    )
+    expect(await test.json()).toMatchObject({ sent: 1, of: 1 })
+    expect(sent[0]![1]).toMatchObject({ body: 'Notifications work on this device.', tag: 'test' })
   })
 })

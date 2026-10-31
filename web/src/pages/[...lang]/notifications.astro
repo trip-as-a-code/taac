@@ -30,10 +30,16 @@ const { t, path } = useI18n(lang)
             {t('notifications.filterUnread')}
           </button>
         </div>
-        <button class="button button-plain" type="button" data-page-read-all hidden>
-          <Icon name="check" size={16} />
-          {t('notifications.readAll')}
-        </button>
+        <div class="actions">
+          <button class="button button-plain" type="button" data-page-read-all hidden>
+            <Icon name="check" size={16} />
+            {t('notifications.readAll')}
+          </button>
+          <a class="button button-plain" href="#settings">
+            <Icon name="sliders" size={16} />
+            {t('notifications.settings')}
+          </a>
+        </div>
       </div>
     </header>
     <div class="days" data-page-days></div>
@@ -43,11 +49,12 @@ const { t, path } = useI18n(lang)
     <button class="button more" type="button" data-page-more hidden>
       {t('notifications.more')}
     </button>
-    <section class="day settings" data-push-section hidden>
-      <h2 class="title-3 day-title">{t('notifications.device')}</h2>
+    <section class="day settings" id="settings" data-push-section hidden>
+      <h2 class="title-3 day-title">{t('notifications.settings')}</h2>
       <div class="card">
         <PushToggle lang={lang} />
       </div>
+      <p class="footnote secondary note">{t('notifications.device')}</p>
     </section>
   </div>
 </BaseLayout>
@@ -96,6 +103,18 @@ const { t, path } = useI18n(lang)
 
   .settings {
     margin-top: var(--space-12);
+    scroll-margin-top: calc(var(--nav-height) + var(--space-6));
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .note {
+    margin: 0;
+    padding-inline: var(--space-4);
   }
 
   .more {

@@ -7,7 +7,8 @@ import type { Me } from '@/scripts/session'
 const ASK_KEY = 'taac:push-ask'
 const DAY = 24 * 60 * 60 * 1000
 
-export type PushState = 'unsupported' | 'denied' | 'on' | 'off'
+/** `home-screen`: an iPhone or iPad, where only a site added to the Home Screen gets notifications. */
+export type PushState = 'unsupported' | 'home-screen' | 'denied' | 'on' | 'off'
 
 export const pushSupported = () =>
   typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
@@ -17,13 +18,28 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
 }
 
+const appleMobile = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+const standalone = () =>
+  matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
+
+/** The service worker that receives pushes: registered if it isn't yet, and given a few seconds to start. */
+async function registration(): Promise<ServiceWorkerRegistration> {
+  const found = (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.register('/sw.js'))
+  if (found.active) return found
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('service worker')), 5000)),
+  ])
+}
+
 async function subscription(): Promise<PushSubscription | null> {
-  const registration = await navigator.serviceWorker.ready
-  return registration.pushManager.getSubscription()
+  return (await registration()).pushManager.getSubscription()
 }
 
 export async function pushState(): Promise<PushState> {
-  if (!pushSupported()) return 'unsupported'
+  if (!pushSupported()) return appleMobile() && !standalone() ? 'home-screen' : 'unsupported'
   if (Notification.permission === 'denied') return 'denied'
   return Notification.permission === 'granted' && (await subscription()) ? 'on' : 'off'
 }
@@ -32,10 +48,10 @@ export async function pushState(): Promise<PushState> {
 export async function turnOn(publicKey: string): Promise<boolean> {
   if (!pushSupported()) return false
   if ((await Notification.requestPermission()) !== 'granted') return false
-  const registration = await navigator.serviceWorker.ready
+  const worker = await registration()
   const sub =
-    (await registration.pushManager.getSubscription()) ??
-    (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }))
+    (await worker.pushManager.getSubscription()) ??
+    (await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) }))
   const response = await fetch('/api/push/subscribe', {
     method: 'POST',
     credentials: 'same-origin',
@@ -45,8 +61,10 @@ export async function turnOn(publicKey: string): Promise<boolean> {
   return response.ok
 }
 
+/** Off by choice: the prompt doesn't come back to offer them. */
 export async function turnOff(): Promise<void> {
-  const sub = pushSupported() ? await subscription() : null
+  postpone(true)
+  const sub = pushSupported() ? await subscription().catch(() => null) : null
   if (!sub) return
   await fetch('/api/push/unsubscribe', {
     method: 'POST',
@@ -85,7 +103,7 @@ export async function offerPush(session: Me | null) {
   if (offered || !session?.push || !pushSupported()) return
   offered = true
   if (Notification.permission === 'granted') {
-    if (!(await subscription())) await turnOn(session.push).catch(() => undefined)
+    if (!(await subscription().catch(() => null))) await turnOn(session.push).catch(() => undefined)
     return
   }
   if (Notification.permission === 'denied') return
@@ -114,4 +132,15 @@ export async function offerPush(session: Me | null) {
     prompt.close()
   })
   prompt.addEventListener('cancel', () => postpone(false))
+}
+
+/** Sends one notification to each of your browsers; how many got it. */
+export async function testPush(): Promise<{ sent: number; of: number } | null> {
+  const response = await fetch('/api/push/test', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lang: document.documentElement.lang }),
+  }).catch(() => null)
+  return response?.ok ? response.json() : null
 }

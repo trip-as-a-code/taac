@@ -93,11 +93,23 @@ export interface PushStrings {
   thread: string
   reply: string
   resolved: string
+  /** The one sent to check they arrive. */
+  test: string
 }
 
 const PUSH: Record<string, PushStrings> = {
-  en: { thread: '{name} started a discussion', reply: '{name} replied', resolved: '{name} resolved a discussion' },
-  ru: { thread: '{name}: новое обсуждение', reply: '{name}: ответ', resolved: '{name}: обсуждение решено' },
+  en: {
+    thread: '{name} started a discussion',
+    reply: '{name} replied',
+    resolved: '{name} resolved a discussion',
+    test: 'Notifications work on this device.',
+  },
+  ru: {
+    thread: '{name}: новое обсуждение',
+    reply: '{name}: ответ',
+    resolved: '{name}: обсуждение решено',
+    test: 'Уведомления на этом устройстве работают.',
+  },
 }
 
 export function pushStrings(lang: string): PushStrings {
