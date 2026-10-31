@@ -130,7 +130,15 @@ export function taac(): AstroIntegration {
           title: site.site.title,
           auth: site.site.access === 'github' ? 'github' : null,
           trips: Object.fromEntries(
-            site.trips.map((t) => [t.slug, { title: t.title, public: t.public, logins: t.logins }]),
+            site.trips.map((t) => [
+              t.slug,
+              {
+                title: t.title,
+                public: t.public,
+                logins: t.logins,
+                members: t.members.flatMap((m) => (m.github ? [m.github.toLowerCase()] : [])),
+              },
+            ]),
           ),
           // Every trip: the server serves shared state only for these.
           slugs: site.trips.map((t) => t.slug),

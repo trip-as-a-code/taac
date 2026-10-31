@@ -91,7 +91,7 @@ export interface ForbiddenPageOptions {
 /** Signed in, but this isn't theirs to see: say who they are, offer another account. */
 export function renderForbiddenPage(o: ForbiddenPageOptions): string {
   const t = loginStrings(o.lang)
-  const who = `<strong>@${escapeHtml(o.login)}</strong>`
+  const who = `<strong>${escapeHtml(o.login)}</strong>`
   return page(
     o.lang,
     o.title,

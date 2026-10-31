@@ -33,8 +33,10 @@ export function mergeTicks(into: Ticks, from: Ticks): boolean {
 export class PackingStore {
   ticks: Ticks = {}
   private pending: Change[] = []
-  /** False when the deployment has nowhere to keep ticks (no `PACKING` binding). */
+  /** False when the deployment has nowhere to keep ticks (no database). */
   available = true
+  /** False for someone who may only look: a viewer, or signed out on a public trip. */
+  writable = true
   private syncing: Promise<void> | undefined
 
   constructor(
@@ -77,14 +79,14 @@ export class PackingStore {
     return Boolean(this.ticks[`${item}|${member}`]?.packed)
   }
 
-  /** Who ticked it as packed, when it is and that is known. */
-  packedBy(item: string, member: string): string | undefined {
+  /** The last tick or untick and who made it, when that is known. */
+  lastBy(item: string, member: string): { packed: boolean; by: string } | undefined {
     const tick = this.ticks[`${item}|${member}`]
-    return tick?.packed ? tick.by : undefined
+    return tick?.by ? { packed: tick.packed, by: tick.by } : undefined
   }
 
   set(item: string, member: string, packed: boolean) {
-    if (!this.available) return
+    if (!this.available || !this.writable) return
     this.record(item, member, packed, Date.now())
     this.save()
     this.onChange()
@@ -110,6 +112,16 @@ export class PackingStore {
       if (response.status === 404) {
         this.available = false
         this.onChange()
+        return
+      }
+      if (response.status === 403) {
+        // Not theirs to tick: drop what was queued and take the list as it is.
+        this.writable = false
+        this.pending = []
+        this.ticks = {}
+        this.save()
+        this.onChange()
+        void this.sync()
         return
       }
       if (!response.ok) return

@@ -13,7 +13,7 @@ import type { Store } from './store'
 const manifest = normalise({
   title: 'Trips',
   auth: 'github',
-  trips: { japan: { title: 'Japan', public: false, logins: ['alex'] } },
+  trips: { japan: { title: 'Japan', public: false, logins: ['alex', 'grandma'], members: ['alex'] } },
   slugs: ['japan'],
   locales: ['en', 'ru'],
   defaultLocale: 'en',
@@ -113,6 +113,7 @@ describe('signing in', () => {
     expect(await me.json()).toEqual({
       login: 'alex',
       trips: ['japan'],
+      packing: ['japan'],
       calendars: { japan: await calendarKey('secret', 'japan') },
     })
   })
@@ -136,7 +137,7 @@ describe('signing in', () => {
     )
     expect(trip.status).toBe(403)
     const body = await trip.text()
-    expect(body).toContain('@stranger')
+    expect(body).toContain('<strong>stranger</strong>')
     expect(body).toContain('action="/api/logout"')
   })
 
@@ -166,6 +167,20 @@ describe('the rest', () => {
     const read = await handle(new Request(url, { headers: { Cookie: cookies } }))
     expect(await read.json()).toEqual({ ticks: { 'adapter|alex': { packed: true, at: 1, by: 'alex' } } })
     expect((await handle(new Request(url))).status).toBe(401)
+  })
+
+  it('lets viewers read the packing list but not tick it', async () => {
+    const handle = handler('grandma')
+    const cookies = await signIn(handle)
+    const url = 'https://trips.example/trips/japan/_packing'
+    expect((await handle(new Request(url, { headers: { Cookie: cookies } }))).status).toBe(200)
+    const changes = [{ item: 'adapter', member: 'alex', packed: true, at: 1 }]
+    const post = await handle(
+      new Request(url, { method: 'POST', headers: { Cookie: cookies }, body: JSON.stringify({ changes }) }),
+    )
+    expect(post.status).toBe(403)
+    const me = await handle(new Request('https://trips.example/api/me', { headers: { Cookie: cookies } }))
+    expect(((await me.json()) as { packing: string[] }).packing).toEqual([])
   })
 
   it('serves clean URLs, redirects to the slash, falls back to the 404 page, and stays inside', async () => {

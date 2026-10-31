@@ -2,7 +2,7 @@
 // branch that touched a trip's files (a merged PR is one), loaded as it was
 // and diffed against the version before. Without git or history (a shallow
 // clone, a tarball) there are simply no changes to show. On GitHub, authors
-// are their accounts (the trip member of that name, else `@login`); without
+// are their accounts (the trip member of that name, else their GitHub username); without
 // API access, the name on the commit.
 
 import { execFileSync } from 'node:child_process'
@@ -86,7 +86,7 @@ async function withAccounts(sets: ChangeSet[], repo: string, members: string[]):
         ? await ask(`pulls/${set.pr}`, (b) => b.user?.login)
         : await ask(`commits/${set.sha}`, (b) => b.author?.login)
       if (!login) return
-      set.author = members.find((m) => m.toLowerCase() === login.toLowerCase()) ?? `@${login}`
+      set.author = members.find((m) => m.toLowerCase() === login.toLowerCase()) ?? login
     }),
   )
 }

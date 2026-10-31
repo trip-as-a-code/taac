@@ -40,6 +40,8 @@ const whose = (members: string[]) => {
       data-unpacked={t('packing.notPackedBy')}
       data-ticked-by={t('packing.tickedBy')}
       data-ticked-for={t('packing.tickedFor')}
+      data-unticked-by={t('packing.untickedBy')}
+      data-unticked-for={t('packing.untickedFor')}
     >
       <section class="head" data-packing-head>
         <div class="progress">
@@ -145,7 +147,13 @@ const whose = (members: string[]) => {
       <p class="empty secondary" data-filter-empty hidden>
         {t('packing.none')}
       </p>
-      <p class="footnote tertiary hint" data-packing-hint data-shared={t('packing.shared')} data-off={t('packing.off')}>
+      <p
+        class="footnote tertiary hint"
+        data-packing-hint
+        data-shared={t('packing.shared')}
+        data-off={t('packing.off')}
+        data-read-only={t('packing.readOnly')}
+      >
         {t('packing.shared')}
       </p>
     </div>
@@ -172,8 +180,8 @@ const whose = (members: string[]) => {
     if (!root) return
     const names = JSON.parse(root.dataset.names ?? '{}') as Record<string, string>
     const logins = JSON.parse(root.dataset.logins ?? '{}') as Record<string, string>
-    // The member a GitHub login belongs to, else the login itself.
-    const ticker = (login: string) => logins[login] ?? `@${login}`
+    // The member a GitHub login belongs to, else the GitHub username as is.
+    const ticker = (login: string) => logins[login] ?? login
     const rows = [...root.querySelectorAll<HTMLElement>('[data-packing-row]')]
     const packersOf = (row: HTMLElement) => row.dataset.packers!.split(' ')
     const store = new PackingStore(root.dataset.packing!, () => render())
@@ -197,30 +205,33 @@ const whose = (members: string[]) => {
         const packers = packersOf(row)
         const box = row.querySelector<HTMLInputElement>('[data-packing-item]')!
         const who = owner(row)
-        box.disabled = !who || !store.available
+        box.disabled = !who || !store.available || !store.writable
         box.checked = who ? store.packed(id, who) : packers.every((m) => store.packed(id, m))
         for (const button of row.querySelectorAll<HTMLButtonElement>('[data-packer]')) {
           const m = button.dataset.packer!
           const packed = store.packed(id, m)
           button.setAttribute('aria-pressed', String(packed))
-          button.disabled = !store.available
+          button.disabled = !store.available || !store.writable
           button.setAttribute(
             'aria-label',
             (packed ? root!.dataset.packed! : root!.dataset.unpacked!).replace('{name}', names[m] ?? m),
           )
         }
         const counted = one ? packers.filter((m) => m === one) : packers
-        // Who ticked each packed one: "Ticked by X", or per person on a shared thing.
+        // Who last ticked or unticked each: "Ticked by X", or per person on a shared thing.
         const by = row.querySelector<HTMLElement>('[data-packing-by]')!
         const ticks = counted.flatMap((m) => {
-          const login = store.packedBy(id, m)
-          return login ? [{ m, by: ticker(login) }] : []
+          const last = store.lastBy(id, m)
+          return last ? [{ m, packed: last.packed, by: ticker(last.by) }] : []
         })
+        const data = root!.dataset
         by.textContent = ticks
           .map((tick) =>
             counted.length === 1
-              ? root!.dataset.tickedBy!.replace('{by}', tick.by)
-              : root!.dataset.tickedFor!.replace('{name}', names[tick.m] ?? tick.m).replace('{by}', tick.by),
+              ? (tick.packed ? data.tickedBy! : data.untickedBy!).replace('{by}', tick.by)
+              : (tick.packed ? data.tickedFor! : data.untickedFor!)
+                  .replace('{name}', names[tick.m] ?? tick.m)
+                  .replace('{by}', tick.by),
           )
           .join(' · ')
         by.hidden = !ticks.length
@@ -235,9 +246,13 @@ const whose = (members: string[]) => {
         .template!.replace('{done}', String(done))
         .replace('{total}', String(total))
       root!.querySelector<HTMLElement>('[data-packing-bar]')!.style.width = `${total ? (done / total) * 100 : 0}%`
-      root!.querySelector<HTMLElement>('[data-packing-reset]')!.hidden = !one || !store.available
+      root!.querySelector<HTMLElement>('[data-packing-reset]')!.hidden = !one || !store.available || !store.writable
       const hint = root!.querySelector<HTMLElement>('[data-packing-hint]')!
-      hint.textContent = store.available ? hint.dataset.shared! : hint.dataset.off!
+      hint.textContent = !store.available
+        ? hint.dataset.off!
+        : store.writable
+          ? hint.dataset.shared!
+          : hint.dataset.readOnly!
     }
 
     for (const row of rows) {
@@ -271,7 +286,12 @@ const whose = (members: string[]) => {
       clearInterval(timer)
     }
     setupFilters(render)
-    void me().then((session) => (store.login = session?.login ?? null))
+    void me().then((session) => {
+      if (!session) return
+      store.login = session.login
+      store.writable = session.packing.includes(root.dataset.packing!)
+      render()
+    })
     void store.sync()
     revealTarget()
   }
