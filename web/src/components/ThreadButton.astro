@@ -1,0 +1,28 @@
+---
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+
+interface Props {
+  /** Where the threads hang: `trip`, `day:<date>`, `item:<id>`, `idea:<id>`, … */
+  anchor: string
+  /** What the panel calls it. */
+  title: string
+  i18n: I18n
+}
+
+const { anchor, title, i18n } = Astro.props
+---
+
+{/* Shown by scripts/comments.ts: to those who may comment, or once there is a thread to read. */}
+<button
+  type="button"
+  class="thread-button"
+  data-thread={anchor}
+  data-thread-title={title}
+  title={i18n.t('comments.open')}
+  hidden
+>
+  <Icon name="chat" size={14} />
+  <span class="thread-count" data-thread-count></span>
+  <span class="visually-hidden">{i18n.t('comments.open')}</span>
+</button>

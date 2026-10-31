@@ -3,9 +3,11 @@ import type { TripExport } from '@taac/core'
 
 import Icon, { type IconName } from '@/components/Icon.astro'
 import CurrencyPicker from '@/components/CurrencyPicker.astro'
+import Discussions from '@/components/Discussions.astro'
 import LensMode from '@/components/LensMode.astro'
 import PeopleLens from '@/components/PeopleLens.astro'
 import ShareLinks from '@/components/ShareLinks.astro'
+import ThreadButton from '@/components/ThreadButton.astro'
 import { useI18n, type Locale } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
 import { changes } from '@/lib/build'
@@ -56,6 +58,7 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
   wide={bare}
 >
   <ShareLinks trip={trip} i18n={i18n} slot="nav" />
+  <Discussions trip={trip} i18n={i18n} />
   <CurrencyPicker trip={trip} i18n={i18n} slot="nav" />
   <div class="trip" data-section={section} style={`--hue:${tripHue(trip)}`}>
     {!bare && (
@@ -66,6 +69,7 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
         <div class="heading">
           <h1 class="large-title" data-large-title lang={trip.locale}>
             {section === 'overview' ? trip.title : current}
+            {section === 'overview' && <ThreadButton anchor="trip" title={t('comments.general')} i18n={i18n} />}
           </h1>
           <p class="subhead secondary meta">
             {section !== 'overview' && <span lang={trip.locale}>{trip.title}</span>}

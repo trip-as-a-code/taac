@@ -1,5 +1,6 @@
 ---
 import Icon from '@/components/Icon.astro'
+import ThreadButton from '@/components/ThreadButton.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPaths, tripPage } from '@/lib/paths'
 import { partyLabel, people } from '@/lib/trip'
@@ -93,6 +94,7 @@ const example = [
                     </span>
                   )}
                 </span>
+                <ThreadButton anchor={`task:${task.id}`} title={task.title} i18n={i18n} />
                 {task.required && (
                   <span class="badge" data-tone={task.done ? undefined : 'orange'} title={t('tasks.requiredHint')}>
                     {t('tasks.required')}

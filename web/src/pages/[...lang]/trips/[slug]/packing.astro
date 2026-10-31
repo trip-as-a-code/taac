@@ -1,6 +1,7 @@
 ---
 import Debts from '@/components/Debts.astro'
 import Money from '@/components/Money.astro'
+import ThreadButton from '@/components/ThreadButton.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { initials, memberHue, memberName, partyEmoji, partyLabel, people } from '@/lib/trip'
@@ -121,6 +122,7 @@ const whose = (members: string[]) => {
                         <span class="footnote tertiary" data-packing-by hidden />
                       </span>
                     </label>
+                    <ThreadButton anchor={`packing:${item.id}`} title={item.name} i18n={i18n} />
                     {/* Shared things: who has packed it, and a tap to tick for anyone. */}
                     {item.members.length > 1 && (
                       <div class="packers">

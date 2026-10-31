@@ -39,6 +39,8 @@ import {
   verifySession,
 } from './auth'
 import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
+import { discussionEvents, newestFirst } from './notifications'
+import { commentsRoute, MAX_THREADS, newComment, newId, validAnchor, validBody, type CommentsRoute } from './comments'
 import {
   describe,
   linkCookieAge,
@@ -184,6 +186,9 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
   /** Who may make and revoke a trip's links: its `member`s, when there is somewhere to keep them. */
   const mayShare = (slug: string, login: string | null) => !!config.store && roleOf(slug, login, manifest) === 'member'
 
+  /** Who may write in a trip's discussions: its members, whatever their role. */
+  const mayComment = (slug: string, login: string | null) => !!config.store && roleOf(slug, login, manifest) !== null
+
   /** Who is signed in, which trips they see, tick and share, their calendar keys, and the link they came by. */
   async function me(request: Request): Promise<Response> {
     const login = await loginOf(request)
@@ -195,11 +200,13 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       for (const slug of visibleTrips(login, manifest)) calendars[slug] = await calendarKey(config.sessionSecret, slug)
     const packing = manifest.slugs.filter((slug) => mayTick(slug, login, manifest))
     const share = manifest.slugs.filter((slug) => mayShare(slug, login))
+    const comments = manifest.slugs.filter((slug) => mayComment(slug, login))
     return json({
       login,
       trips,
       packing,
       share,
+      comments,
       calendars,
       link: link ? { trip: link.trip, label: link.label, expiresAt: link.expiresAt } : null,
     })
@@ -226,6 +233,89 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     return redirect(`${home}trips/${encodeURIComponent(link.trip)}/`, 303, [
       linkCookie(cookie, secure(request), linkCookieAge(link, now)),
     ])
+  }
+
+  /**
+   * A trip's discussions: its members read and write; someone who came by
+   * the trip's link reads. Every change answers with all the trip's threads.
+   */
+  async function discussions(request: Request, route: CommentsRoute): Promise<Response> {
+    const store = config.store
+    if (!manifest.slugs.includes(route.slug) || !store) return text('Not found\n', 404)
+    const login = await loginOf(request)
+    const writer = mayComment(route.slug, login)
+    const reader = writer || (await linkOf(request))?.trip === route.slug
+    if (!reader) return text(login ? 'Forbidden\n' : 'Unauthorized\n', login ? 403 : 401)
+    const all = async () => json({ threads: await store.threads(route.slug) })
+    if (request.method === 'GET' && route.kind === 'threads') return all()
+    if (!writer || !login) return text('Only the trip’s people comment\n', 403)
+    const now = config.now?.() ?? Date.now()
+    const body = (await request.json().catch(() => ({}))) as { anchor?: unknown; body?: unknown; resolved?: unknown }
+    const bad = () => text('Bad request\n', 400)
+
+    if (route.kind === 'threads' && request.method === 'POST') {
+      const textBody = validBody(body.body)
+      if (!validAnchor(body.anchor) || !textBody) return bad()
+      if ((await store.threads(route.slug)).length >= MAX_THREADS) return text('Too many threads\n', 409)
+      await store.createThread({
+        id: newId(),
+        trip: route.slug,
+        anchor: body.anchor,
+        createdBy: login,
+        createdAt: now,
+        resolvedAt: null,
+        resolvedBy: null,
+        comments: [newComment(login, textBody, now)],
+      })
+      return all()
+    }
+    if (route.kind === 'replies' || route.kind === 'thread') {
+      const thread = await store.thread(route.id)
+      if (thread?.trip !== route.slug) return text('Not found\n', 404)
+      if (route.kind === 'replies' && request.method === 'POST') {
+        const textBody = validBody(body.body)
+        if (!textBody) return bad()
+        await store.addComment(thread.id, newComment(login, textBody, now))
+        return all()
+      }
+      if (route.kind === 'thread' && request.method === 'PATCH') {
+        if (typeof body.resolved !== 'boolean') return bad()
+        await store.resolveThread(thread.id, body.resolved ? login : null, now)
+        return all()
+      }
+    }
+    if (route.kind === 'comment' && (request.method === 'PATCH' || request.method === 'DELETE')) {
+      const comment = await store.comment(route.id)
+      if (comment?.trip !== route.slug || comment.deletedAt !== null) return text('Not found\n', 404)
+      if (comment.author !== login) return text('Only its author changes a comment\n', 403)
+      if (request.method === 'DELETE') await store.deleteComment(comment.id, now)
+      else {
+        const textBody = validBody(body.body)
+        if (!textBody) return bad()
+        await store.editComment(comment.id, textBody, now)
+      }
+      return all()
+    }
+    return text('Method not allowed\n', 405)
+  }
+
+  /** `/api/notifications`: what others did on your trips (GET), and having read up to now (POST `seen`). */
+  async function notifications(request: Request, path: string): Promise<Response> {
+    const store = config.store
+    if (!store) return text('Not found\n', 404)
+    const login = await loginOf(request)
+    if (!login) return text('Unauthorized\n', 401)
+    const now = config.now?.() ?? Date.now()
+    if (path === '/api/notifications/seen' && request.method === 'POST') {
+      await store.markNotificationsSeen(login, now)
+      return json({ seenAt: await store.notificationsSeen(login) })
+    }
+    if (path !== '/api/notifications' || request.method !== 'GET') return text('Not found\n', 404)
+    const trips = manifest.slugs.filter((slug) => mayComment(slug, login))
+    const events = (
+      await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login, now)))
+    ).flat()
+    return json({ seenAt: await store.notificationsSeen(login), notifications: newestFirst(events) })
   }
 
   /** `/api/trips/<slug>/links`: the trip's working links (GET), a new one (POST), revoking one (DELETE). */
@@ -316,6 +406,10 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path === '/api/logout')
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
+    if (path === '/api/notifications' || path === '/api/notifications/seen')
+      return plain(await notifications(request, path))
+    const commentsApi = commentsRoute(path)
+    if (commentsApi) return plain(await discussions(request, commentsApi))
     const linkApi = linksRoute(path)
     if (linkApi) return plain(await links(request, linkApi.slug, linkApi.id))
     const pictured = avatarLogin(path)

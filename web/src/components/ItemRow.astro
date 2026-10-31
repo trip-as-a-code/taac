@@ -4,6 +4,7 @@ import type { Item, TripExport } from '@taac/core'
 import Avatars from '@/components/Avatars.astro'
 import Debts from '@/components/Debts.astro'
 import Icon from '@/components/Icon.astro'
+import ThreadButton from '@/components/ThreadButton.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { isLabelled, issuesOf, itemFacts } from '@/lib/facts'
@@ -349,17 +350,20 @@ const offsetLabel =
   </details>
   {/* Outside the summary: a link inside the toggle would be a control
      within a control. Positioned beside the title. */}
-  <a
-    class="anchor card-anchor"
-    href={`#${anchor}-${item.id}`}
-    data-anchor
-    aria-label={t('item.copyLink')}
-    title={t('item.copyLink')}
-    data-failed={t('item.copyFailed')}
-  >
-    <Icon name="link" size={14} class="anchor-link" />
-    <Icon name="check" size={14} class="anchor-check" />
-  </a>
+  <div class="card-tools">
+    <ThreadButton anchor={`${anchor}:${item.id}`} title={item.title} i18n={i18n} />
+    <a
+      class="anchor"
+      href={`#${anchor}-${item.id}`}
+      data-anchor
+      aria-label={t('item.copyLink')}
+      title={t('item.copyLink')}
+      data-failed={t('item.copyFailed')}
+    >
+      <Icon name="link" size={14} class="anchor-link" />
+      <Icon name="check" size={14} class="anchor-check" />
+    </a>
+  </div>
 </article>
 
 <style>
@@ -458,6 +462,11 @@ const offsetLabel =
     padding-right: 28px;
   }
 
+  /* And for the discussions button, once it shows. */
+  .item:has(> .card-tools :global(.thread-button:not([hidden]))) summary h3 {
+    padding-right: 56px;
+  }
+
   [data-expandable] > summary {
     position: relative;
   }
@@ -466,14 +475,23 @@ const offsetLabel =
     padding-right: 50px;
   }
 
-  .card-anchor {
+  .item:has(> .card-tools :global(.thread-button:not([hidden]))) [data-expandable] > summary h3 {
+    padding-right: 78px;
+  }
+
+  .card-tools {
     position: absolute;
     top: 14px;
     right: var(--space-4);
+    display: flex;
+    gap: 2px;
+  }
+
+  .card-tools .anchor {
     margin: 0;
   }
 
-  [data-expandable] ~ .card-anchor {
+  [data-expandable] ~ .card-tools {
     right: calc(var(--space-4) + 22px);
   }
 

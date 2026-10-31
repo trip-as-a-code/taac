@@ -1,0 +1,167 @@
+---
+import Icon from '@/components/Icon.astro'
+import { useI18n, type Locale } from '@/i18n'
+import { site } from '@/lib/build'
+import { initials, memberHue } from '@/lib/trip'
+
+interface Props {
+  lang: Locale
+}
+
+const { lang } = Astro.props
+const { t, path } = useI18n(lang)
+// Everyone on any trip, by GitHub login: their name, initials and colour.
+const people = Object.fromEntries(
+  site.trips.flatMap((trip) =>
+    trip.members
+      .filter((m) => m.github)
+      .map((m) => [m.github!.toLowerCase(), { name: m.name, initials: initials(m), hue: memberHue(m.id) }]),
+  ),
+)
+---
+
+{/* The bell: what others did on your trips, shown by scripts/notifications.ts once someone is signed in. */}
+<div
+  class="notifications"
+  data-notifications
+  data-lang={lang}
+  data-base={path('/')}
+  data-people={JSON.stringify(people)}
+  data-strings={JSON.stringify({
+    thread: t('notifications.thread'),
+    reply: t('notifications.reply'),
+    resolved: t('notifications.resolved'),
+    error: t('notifications.error'),
+  })}
+  data-several-trips={site.trips.length > 1 ? '' : undefined}
+>
+  <button class="nav-icon-button bell" type="button" data-notifications-open hidden title={t('notifications.title')}>
+    <Icon name="bell" size={19} />
+    <span class="badge-count" data-notifications-count></span>
+    <span class="visually-hidden">{t('notifications.title')}</span>
+  </button>
+  <dialog class="center" data-notifications-panel aria-labelledby="notifications-title">
+    <header>
+      <h2 id="notifications-title" class="headline">
+        {t('notifications.title')}
+      </h2>
+      <button class="nav-icon-button" type="button" data-notifications-close title={t('share.close')}>
+        <Icon name="close" size={18} />
+        <span class="visually-hidden">{t('share.close')}</span>
+      </button>
+    </header>
+    <ul class="list" data-notifications-list></ul>
+    <p class="footnote secondary" data-notifications-none hidden>
+      {t('notifications.none')}
+    </p>
+    <p class="footnote error" data-notifications-error hidden></p>
+  </dialog>
+</div>
+
+<style>
+  .notifications {
+    display: contents;
+  }
+
+  .bell {
+    position: relative;
+  }
+
+  .bell[hidden] {
+    display: none;
+  }
+
+  .badge-count {
+    position: absolute;
+    top: 2px;
+    right: 0;
+    display: grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--red, #ff453a);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    box-shadow: 0 0 0 1.5px var(--bg);
+  }
+
+  .badge-count:empty {
+    display: none;
+  }
+
+  /* A panel under the bell; a sheet across the top on phones. */
+  .center {
+    position: fixed;
+    inset: calc(var(--nav-height) + env(safe-area-inset-top) + 6px) var(--gutter) auto auto;
+    width: min(400px, calc(100vw - 2 * var(--gutter)));
+    max-height: min(640px, calc(100dvh - var(--nav-height) - 24px));
+    margin: 0;
+    padding: var(--space-4);
+    border: 0;
+    border-radius: 18px;
+    background: var(--bg-elevated);
+    color: var(--label);
+    box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+  }
+
+  .center::backdrop {
+    background: rgb(0 0 0 / 0.2);
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+  }
+
+  h2 {
+    margin: 0;
+  }
+
+  .list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .error {
+    color: var(--red, #ff453a);
+  }
+
+  /* Built by scripts/notifications.ts. */
+  .list :global(a) {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 2px var(--space-3);
+    padding: 10px 8px;
+    border-radius: 12px;
+    color: var(--label);
+    text-decoration: none;
+  }
+
+  .list :global(a:hover) {
+    background: var(--fill);
+  }
+
+  .list :global(a[data-new]) {
+    background: var(--tint-soft);
+  }
+
+  .list :global(.avatar) {
+    grid-row: span 3;
+    width: 32px;
+    height: 32px;
+  }
+
+  .list :global(.what),
+  .list :global(.text) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+</style>

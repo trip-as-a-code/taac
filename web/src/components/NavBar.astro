@@ -1,5 +1,6 @@
 ---
 import Icon from '@/components/Icon.astro'
+import Notifications from '@/components/Notifications.astro'
 import { locales, localeNames, localized, switchLocalePath, useI18n, type Locale } from '@/i18n'
 import { site } from '@/lib/build'
 
@@ -33,34 +34,49 @@ const pathname = Astro.url.pathname
       {title}
     </div>
     <div class="nav-trailing">
-      {/* Display settings for the page: a trip puts its currency here. */}
-      <slot name="tools" />
-      <nav class="lang" aria-label={t('nav.language')}>
-        {locales.map((l) => (
-          <a
-            href={switchLocalePath(pathname, l)}
-            hreflang={l}
-            lang={l}
-            data-set-lang={l}
-            aria-current={l === lang ? 'true' : undefined}
-            title={localeNames[l]}
-          >
-            {l.toUpperCase()}
-          </a>
-        ))}
-      </nav>
-      <button class="nav-icon-button theme" type="button" data-theme-toggle title={t('nav.theme')}>
-        <Icon name="moon" size={19} class="to-dark" />
-        <Icon name="sun" size={19} class="to-light" />
-        <span class="visually-hidden">{t('nav.theme')}</span>
+      <Notifications lang={lang} />
+      {/* On phones the rest folds into a menu; the bell stays out. */}
+      <button
+        class="nav-icon-button menu-toggle"
+        type="button"
+        data-nav-menu-toggle
+        aria-expanded="false"
+        aria-controls="nav-menu"
+        title={t('nav.menu')}
+      >
+        <Icon name="menu" size={20} />
+        <span class="visually-hidden">{t('nav.menu')}</span>
       </button>
-      {/* A real navigation: the view-transition router would replay the POST via fetch. */}
-      <form class="logout" method="post" action="/api/logout" data-astro-reload>
-        <button class="nav-icon-button" type="submit" title={t('nav.logout')}>
-          <Icon name="logout" size={19} />
-          <span class="visually-hidden">{t('nav.logout')}</span>
+      <div class="nav-menu" id="nav-menu" data-nav-menu>
+        {/* Display settings for the page: a trip puts its currency here. */}
+        <slot name="tools" />
+        <nav class="lang" aria-label={t('nav.language')}>
+          {locales.map((l) => (
+            <a
+              href={switchLocalePath(pathname, l)}
+              hreflang={l}
+              lang={l}
+              data-set-lang={l}
+              aria-current={l === lang ? 'true' : undefined}
+              title={localeNames[l]}
+            >
+              {l.toUpperCase()}
+            </a>
+          ))}
+        </nav>
+        <button class="nav-icon-button theme" type="button" data-theme-toggle title={t('nav.theme')}>
+          <Icon name="moon" size={19} class="to-dark" />
+          <Icon name="sun" size={19} class="to-light" />
+          <span class="visually-hidden">{t('nav.theme')}</span>
         </button>
-      </form>
+        {/* A real navigation: the view-transition router would replay the POST via fetch. */}
+        <form class="logout" method="post" action="/api/logout" data-astro-reload>
+          <button class="nav-icon-button" type="submit" title={t('nav.logout')}>
+            <Icon name="logout" size={19} />
+            <span class="visually-hidden">{t('nav.logout')}</span>
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 </header>
@@ -68,9 +84,27 @@ const pathname = Astro.url.pathname
 <script>
   import { toggleTheme } from '@/scripts/theme'
 
-  document.addEventListener('astro:page-load', () =>
-    document.querySelector('[data-theme-toggle]')?.addEventListener('click', toggleTheme),
-  )
+  document.addEventListener('astro:page-load', () => {
+    document.querySelector('[data-theme-toggle]')?.addEventListener('click', toggleTheme)
+    // The phone menu: opens under the bar, closes on a tap elsewhere or Escape.
+    const toggle = document.querySelector<HTMLButtonElement>('[data-nav-menu-toggle]')
+    const menu = document.querySelector<HTMLElement>('[data-nav-menu]')
+    if (!toggle || !menu) return
+    const set = (open: boolean) => {
+      toggle.setAttribute('aria-expanded', String(open))
+      menu.toggleAttribute('data-open', open)
+    }
+    toggle.addEventListener('click', (event) => {
+      event.stopPropagation()
+      set(!menu.hasAttribute('data-open'))
+    })
+    document.addEventListener('click', (event) => {
+      if (menu.hasAttribute('data-open') && !menu.contains(event.target as Node)) set(false)
+    })
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') set(false)
+    })
+  })
 </script>
 
 <style>
@@ -246,7 +280,8 @@ const pathname = Astro.url.pathname
     display: block;
   }
 
-  .nav-icon-button {
+  /* Also the bell's and the Share button's, which live in their own components. */
+  :global(.nav-icon-button) {
     display: grid;
     place-items: center;
     width: 34px;
@@ -258,13 +293,45 @@ const pathname = Astro.url.pathname
     cursor: pointer;
   }
 
-  .nav-icon-button:hover {
+  :global(.nav-icon-button:hover) {
     background: var(--tint-soft);
+  }
+
+  .menu-toggle {
+    display: none;
+  }
+
+  .nav-menu {
+    display: contents;
   }
 
   @media (max-width: 560px) {
     .nav-title {
       display: none;
+    }
+
+    .menu-toggle {
+      display: grid;
+    }
+
+    .nav-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: var(--gutter);
+      display: none;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-2);
+      max-width: calc(100vw - 2 * var(--gutter));
+      padding: 10px;
+      border-radius: 16px;
+      background: var(--bg-elevated);
+      box-shadow: 0 12px 40px rgb(0 0 0 / 0.3);
+    }
+
+    .nav-menu[data-open] {
+      display: flex;
     }
 
     .nav-inner {

@@ -170,8 +170,10 @@ trips:
 On a `github` site a trip is visible to its members' GitHub accounts (`members[].github`, or taken from a github.com
 link in their `links`). A member's `role` is `member` (the default: everything) or `viewer` (looks and comments).
 Members also make view-only links (Share, on a trip's pages): anyone holding one sees that trip without signing in,
-read-only, for a day, a week, a month or for good, until any member revokes it. With `source`, cards and issues link to
-`<repo>/blob/<branch>/<file>#L<line>`, and issues offer YAML to paste.
+read-only, for a day, a week, a month or for good, until any member revokes it. Members discuss anything on a trip (a
+speech bubble on each plan, day, idea, task and packing item); viewers comment too. The bell in the top bar collects
+what the others said. With `source`, cards and issues link to `<repo>/blob/<branch>/<file>#L<line>`, and issues offer
+YAML to paste.
 
 ## CLI
 

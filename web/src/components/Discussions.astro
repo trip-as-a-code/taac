@@ -1,0 +1,228 @@
+---
+import type { TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+import { initials, memberHue } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+}
+
+const { trip, i18n } = Astro.props
+const { t } = i18n
+// Authors by GitHub login: the member's name, initials and colour.
+const people = Object.fromEntries(
+  trip.members
+    .filter((m) => m.github)
+    .map((m) => [m.github!.toLowerCase(), { name: m.name, initials: initials(m), hue: memberHue(m.id) }]),
+)
+const strings = Object.fromEntries(
+  (
+    [
+      'reply',
+      'replyPlaceholder',
+      'send',
+      'resolve',
+      'reopen',
+      'resolvedBy',
+      'resolvedCount',
+      'edit',
+      'save',
+      'cancel',
+      'delete',
+      'confirm',
+      'edited',
+      'deleted',
+      'error',
+    ] as const
+  ).map((k) => [k, t(`comments.${k}`)]),
+)
+---
+
+{/* The discussions of one thing on the trip, opened by its ThreadButton (scripts/comments.ts). */}
+<dialog
+  class="thread-panel"
+  data-thread-panel={trip.slug}
+  data-lang={i18n.lang}
+  data-people={JSON.stringify(people)}
+  data-strings={JSON.stringify(strings)}
+  aria-labelledby="thread-panel-title"
+>
+  <header>
+    <div class="heading">
+      <span class="footnote secondary">{t('comments.title')}</span>
+      <h2 id="thread-panel-title" class="headline" data-panel-title></h2>
+    </div>
+    <button class="nav-icon-button" type="button" data-panel-close title={t('share.close')}>
+      <Icon name="close" size={18} />
+      <span class="visually-hidden">{t('share.close')}</span>
+    </button>
+  </header>
+  <div class="threads" data-panel-threads></div>
+  <p class="footnote secondary" data-panel-read-only hidden>
+    {t('comments.readOnly')}
+  </p>
+  <form class="composer" data-panel-new hidden>
+    <textarea name="body" rows="2" maxlength="4000" placeholder={t('comments.newPlaceholder')} required></textarea>
+    <button class="button button-primary" type="submit">
+      {t('comments.new')}
+    </button>
+  </form>
+  <p class="footnote error" data-panel-error hidden></p>
+</dialog>
+
+<style>
+  .thread-panel {
+    width: min(560px, calc(100vw - 24px));
+    max-height: min(760px, calc(100dvh - 24px));
+    padding: var(--space-5);
+    border: 0;
+    border-radius: 20px;
+    background: var(--bg-elevated);
+    color: var(--label);
+    box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+  }
+
+  .thread-panel::backdrop {
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(2px);
+  }
+
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .heading {
+    display: grid;
+    min-width: 0;
+  }
+
+  h2 {
+    margin: 0;
+  }
+
+  .threads {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .composer {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
+
+  .composer .button {
+    justify-self: end;
+  }
+
+  .error {
+    color: var(--red, #ff453a);
+  }
+
+  /* Built by scripts/comments.ts. */
+  .thread-panel :global(.thread) {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: 14px;
+    background: var(--fill);
+  }
+
+  .thread-panel :global(.thread[data-resolved]) {
+    opacity: 0.75;
+  }
+
+  .thread-panel :global(.comment) {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 0 var(--space-3);
+  }
+
+  .thread-panel :global(.comment .avatar) {
+    grid-row: span 2;
+  }
+
+  .thread-panel :global(.comment-head) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+  }
+
+  .thread-panel :global(.comment-body) {
+    margin: 2px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .thread-panel :global(.comment-body.gone) {
+    color: var(--label-tertiary);
+    font-style: italic;
+  }
+
+  .thread-panel :global(.comment-actions),
+  .thread-panel :global(.thread-actions) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .thread-panel :global(.thread-actions) {
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .thread-panel :global(.reply) {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-end;
+  }
+
+  .thread-panel :global(textarea) {
+    flex: 1;
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid var(--separator);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    color: var(--label);
+    font: inherit;
+    resize: vertical;
+  }
+
+  .thread-panel :global(textarea:focus-visible) {
+    outline: 2px solid var(--tint);
+    outline-offset: 1px;
+  }
+
+  .thread-panel :global(.resolved-list summary) {
+    cursor: pointer;
+    color: var(--label-secondary);
+  }
+
+  .thread-panel :global(.resolved-list[open] summary) {
+    margin-bottom: var(--space-3);
+  }
+
+  .thread-panel :global(.comment-actions .button) {
+    min-height: 24px;
+    padding: 0 6px;
+    font-size: 13px;
+  }
+
+  .thread-panel :global(.comment-actions) {
+    margin-left: -6px;
+  }
+
+  .thread-panel :global(.danger) {
+    color: var(--red, #ff453a);
+  }
+</style>
