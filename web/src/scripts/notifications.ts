@@ -4,6 +4,7 @@
 // unread, and "mark all as read" reads everything. Also this device's switch
 // for browser notifications, on the full page.
 
+import { closeOnBackdrop } from '@/scripts/sheet'
 import { avatarPhoto } from '@/scripts/avatars'
 import { pushState, testPush, turnOff, turnOn } from '@/scripts/push'
 import { me, type Me } from '@/scripts/session'
@@ -305,9 +306,7 @@ export async function setupNotifications() {
     if ((event.target as Element).closest('a')) panel.close()
   })
   root.querySelector('[data-notifications-close]')!.addEventListener('click', () => panel.close())
-  panel.addEventListener('click', (event) => {
-    if (event.target === panel) panel.close()
-  })
+  closeOnBackdrop(panel)
   if (!listening) {
     listening = true
     document.addEventListener('visibilitychange', () => {

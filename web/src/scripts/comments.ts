@@ -3,6 +3,7 @@
 // notification links here (`?thread=<anchor>`). Threads come from the server for the whole trip and are
 // fetched again when the page comes back into view.
 
+import { closeOnBackdrop } from '@/scripts/sheet'
 import { avatarPhoto } from '@/scripts/avatars'
 import { markNotifications } from '@/scripts/notifications'
 import { me } from '@/scripts/session'
@@ -216,7 +217,7 @@ function renderThread(thread: Thread, panel: HTMLElement): HTMLElement {
         s.delete!,
         () => {
           // A second tap confirms.
-          if (!del.dataset.armed) {
+          if (!('armed' in del.dataset)) {
             del.dataset.armed = ''
             del.textContent = s.confirm!
             setTimeout(() => {
@@ -335,9 +336,7 @@ export async function setupComments() {
     refresh()
   })
   panel.querySelector('[data-panel-close]')!.addEventListener('click', () => panel.close())
-  panel.addEventListener('click', (event) => {
-    if (event.target === panel) panel.close()
-  })
+  closeOnBackdrop(panel)
   const form = panel.querySelector<HTMLFormElement>('[data-panel-new]')!
   const area = form.querySelector('textarea')!
   area.addEventListener('keydown', (event) => {

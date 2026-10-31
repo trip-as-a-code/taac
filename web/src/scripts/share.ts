@@ -1,6 +1,7 @@
 // View-only links: the members' Share sheet (list, make, copy, revoke), and
 // for someone who came by a link, a badge saying so.
 
+import { closeOnBackdrop } from '@/scripts/sheet'
 import { me } from '@/scripts/session'
 
 interface Link {
@@ -106,7 +107,7 @@ export async function setupShare() {
         revoke.textContent = d.revoke!
         revoke.addEventListener('click', async () => {
           // A second tap confirms.
-          if (!revoke.dataset.armed) {
+          if (!('armed' in revoke.dataset)) {
             revoke.dataset.armed = ''
             revoke.textContent = d.confirm!
             setTimeout(() => {
@@ -133,10 +134,7 @@ export async function setupShare() {
     if (links) render(links)
   })
   root.querySelector('[data-share-close]')!.addEventListener('click', () => dialog.close())
-  // A tap on the backdrop closes it.
-  dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) dialog.close()
-  })
+  closeOnBackdrop(dialog)
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-lifetime]'))
     button.addEventListener('click', () => {
       for (const other of root.querySelectorAll('[data-lifetime]')) other.setAttribute('aria-pressed', 'false')
