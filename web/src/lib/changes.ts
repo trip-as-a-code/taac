@@ -31,6 +31,8 @@ export interface ChangeSet {
   /** ISO date-time of the commit. */
   date: string
   author: string
+  /** The author's GitHub login, lowercase, when GitHub knows it. */
+  login?: string
   pr?: number
   events: ChangeEvent[]
 }

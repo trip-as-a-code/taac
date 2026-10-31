@@ -95,6 +95,7 @@ export interface PushStrings {
   resolved: string
   /** The one sent to check they arrive. */
   test: string
+  change: string
 }
 
 const PUSH: Record<string, PushStrings> = {
@@ -103,12 +104,14 @@ const PUSH: Record<string, PushStrings> = {
     reply: '{name} replied',
     resolved: '{name} resolved a discussion',
     test: 'Notifications work on this device.',
+    change: '{name} changed the plan',
   },
   ru: {
     thread: '{name}: новое обсуждение',
     reply: '{name}: ответ',
     resolved: '{name}: обсуждение решено',
     test: 'Уведомления на этом устройстве работают.',
+    change: '{name}: изменения в плане',
   },
 }
 

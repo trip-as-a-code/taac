@@ -92,46 +92,51 @@ export function postpone(never: boolean) {
   }
 }
 
-let offered = false
+let shown = false
+let timer: ReturnType<typeof setTimeout> | undefined
+
+/** Shows the prompt on the page as it is then, wiring its buttons for this page. */
+function showPrompt(publicKey: string): boolean {
+  const prompt = document.querySelector<HTMLDialogElement>('[data-push-prompt]')
+  // Not over another sheet; the next page tries again.
+  if (!prompt || document.querySelector('dialog[open]')) return false
+  const choose = (action: () => void) => () => {
+    prompt.close()
+    action()
+  }
+  prompt.querySelector<HTMLButtonElement>('[data-push-allow]')!.onclick = choose(() => {
+    // Whatever the browser answers, the choice is made: don't ask again here.
+    postpone(true)
+    void turnOn(publicKey).catch(() => undefined)
+  })
+  prompt.querySelector<HTMLButtonElement>('[data-push-later]')!.onclick = choose(() => postpone(false))
+  prompt.querySelector<HTMLButtonElement>('[data-push-never]')!.onclick = choose(() => postpone(true))
+  prompt.oncancel = () => postpone(false)
+  prompt.showModal()
+  return true
+}
 
 /**
- * Offers notifications to a signed-in member once the page has settled,
+ * Offers notifications to a signed-in member once a page has settled,
  * unless the browser can't, they already chose, or they put it off; and keeps
- * the server's subscription in step when they are already on.
+ * the server's subscription in step when they are already on. Runs on every
+ * page: a page left before its prompt showed hands it to the next one.
  */
 export async function offerPush(session: Me | null) {
-  if (offered || !session?.push || !pushSupported()) return
-  offered = true
+  clearTimeout(timer)
+  if (shown || !session?.push || !pushSupported()) return
+  const publicKey = session.push
   if (Notification.permission === 'granted') {
-    if (!(await subscription().catch(() => null))) await turnOn(session.push).catch(() => undefined)
+    shown = true
+    if (!(await subscription().catch(() => null))) await turnOn(publicKey).catch(() => undefined)
     return
   }
   if (Notification.permission === 'denied') return
   const state = asked()
   if (state.never || (state.until ?? 0) > Date.now()) return
-  const prompt = document.querySelector<HTMLDialogElement>('[data-push-prompt]')
-  if (!prompt) return
-  setTimeout(() => {
-    // Not over another sheet.
-    if (document.querySelector('dialog[open]')) return
-    prompt.showModal()
+  timer = setTimeout(() => {
+    if (showPrompt(publicKey)) shown = true
   }, 4000)
-  const publicKey = session.push
-  prompt.querySelector('[data-push-allow]')!.addEventListener('click', async () => {
-    prompt.close()
-    // Whatever the browser answers, the choice is made: don't ask again here.
-    postpone(true)
-    await turnOn(publicKey).catch(() => undefined)
-  })
-  prompt.querySelector('[data-push-later]')!.addEventListener('click', () => {
-    postpone(false)
-    prompt.close()
-  })
-  prompt.querySelector('[data-push-never]')!.addEventListener('click', () => {
-    postpone(true)
-    prompt.close()
-  })
-  prompt.addEventListener('cancel', () => postpone(false))
 }
 
 /** Sends one notification to each of your browsers; how many got it. */

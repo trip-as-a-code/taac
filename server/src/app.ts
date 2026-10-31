@@ -42,8 +42,17 @@ import {
   verifySession,
 } from './auth'
 import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
-import { parseSubscription, type PushSender } from './push'
-import { discussionEvents, isRead, NOTIFICATION_LIMIT, page } from './notifications'
+import { parseSubscription, type PushMessage, type PushSender } from './push'
+import {
+  changeEvents,
+  discussionEvents,
+  isRead,
+  KINDS,
+  NOTIFICATION_LIMIT,
+  page,
+  type ChangeSet,
+  type Kind,
+} from './notifications'
 import { commentsRoute, MAX_THREADS, newComment, newId, validAnchor, validBody, type CommentsRoute } from './comments'
 import {
   describe,
@@ -60,7 +69,7 @@ import {
 import { handleFx } from './fx'
 import { authorizeUrl, userFor, type GithubApp } from './github'
 import { robotsTxt, secureResponse } from './headers'
-import { languageRedirect, pageLanguage, pushStrings } from './i18n'
+import { LANG_COOKIE, languageRedirect, pageLanguage, pushStrings } from './i18n'
 import { renderForbiddenPage, renderLinkGonePage, renderLoginPage, type Theme } from './login-page'
 import { packingSlug } from './packing'
 import { serveStatic } from './static'
@@ -118,7 +127,12 @@ function themeOf(request: Request): Theme {
   return readCookie(request.headers.get('Cookie'), 'taac_theme') === 'light' ? 'light' : 'dark'
 }
 
-export function createHandler(config: Config, manifest: AccessManifest): (request: Request) => Promise<Response> {
+export type Handler = ((request: Request) => Promise<Response>) & {
+  /** Pushes the plan's changes members haven't heard of; for once the server has started. */
+  announceChanges: () => Promise<void>
+}
+
+export function createHandler(config: Config, manifest: AccessManifest): Handler {
   const origin = (request: Request) => config.publicUrl?.replace(/\/$/, '') ?? new URL(request.url).origin
   const secure = (request: Request) => origin(request).startsWith('https:')
   const ready = !isProtected(manifest) || (!!config.sessionSecret && !!config.github)
@@ -161,8 +175,14 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     )
     if (!user) return failed()
     const value = await signSession(config.sessionSecret, { login: user.login, exp: nowSec(config) + SESSION_MAX_AGE })
+    // Their language follows them to this browser.
+    const lang = await config.store?.userLang(user.login).catch(() => null)
+    const langCookie = lang
+      ? [`${LANG_COOKIE}=${lang}; Path=/; Max-Age=31536000; SameSite=Lax${secure(request) ? '; Secure' : ''}`]
+      : []
     return redirect(next, 303, [
       ...sessionCookies(value, secure(request)),
+      ...langCookie,
       clearedCookie(STATE_COOKIE, secure(request)),
     ])
   }
@@ -200,19 +220,52 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
   /** Who may make and revoke a trip's links: its `member`s, when there is somewhere to keep them. */
   const mayShare = (slug: string, login: string | null) => !!config.store && roleOf(slug, login, manifest) === 'member'
 
-  /** A trip's titles, anchors and people as the build wrote them for a language (`threads.json`). */
-  const described = new Map<string, Promise<TripDescription | null>>()
-  function describeTrip(slug: string, lang: string): Promise<TripDescription | null> {
-    const key = `${lang}/${slug}`
-    let found = described.get(key)
+  /** What the build wrote for a trip in a language: `threads.json` (titles, anchors, people) and `changes.json`. */
+  const built = new Map<string, Promise<unknown>>()
+  function readBuilt<T>(slug: string, lang: string, file: string): Promise<T | null> {
+    const key = `${lang}/${slug}/${file}`
+    let found = built.get(key)
     if (!found) {
       const prefix = lang === manifest.defaultLocale ? '' : lang
-      found = readFile(join(config.dist, prefix, 'trips', slug, 'threads.json'), 'utf8')
-        .then((text) => JSON.parse(text) as TripDescription)
+      found = readFile(join(config.dist, prefix, 'trips', slug, file), 'utf8')
+        .then((text) => JSON.parse(text) as T)
         .catch(() => null)
-      described.set(key, found)
+      built.set(key, found)
     }
-    return found
+    return found as Promise<T | null>
+  }
+  const describeTrip = (slug: string, lang: string) => readBuilt<TripDescription>(slug, lang, 'threads.json')
+  const changesOf = async (slug: string, lang: string) =>
+    (await readBuilt<{ sets: ChangeSet[] }>(slug, lang, 'changes.json'))?.sets ?? []
+
+  /**
+   * Sends `kind` to the trip's other members' browsers, worded per browser by
+   * `message` in the language they chose (else the one the browser had),
+   * except to those who turned that kind off.
+   */
+  async function pushToMembers(
+    slug: string,
+    by: string | undefined,
+    kind: Kind,
+    message: (lang: string) => Promise<PushMessage>,
+  ) {
+    const push = config.push
+    if (!push || !config.store) return
+    const store = config.store
+    const others = Object.keys(manifest.trips[slug]?.roles ?? {}).filter((login) => login !== by)
+    const settings = new Map(
+      await Promise.all(
+        others.map(
+          async (login) => [login, { lang: await store.userLang(login), muted: await store.userMuted(login) }] as const,
+        ),
+      ),
+    )
+    for (const sub of await store.subscriptionsFor(others)) {
+      const chosen = settings.get(sub.login)
+      if (chosen?.muted.includes(kind)) continue
+      const result = await push.send(sub, await message(chosen?.lang ?? sub.lang))
+      if (result === 'gone') await store.removeSubscription(sub.endpoint)
+    }
   }
 
   /** Tells the trip's other members' browsers what `by` just did in a discussion. */
@@ -224,22 +277,71 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     anchor: string,
     said: string,
   ) {
-    const push = config.push
-    if (!push || !config.store) return
-    const others = Object.keys(manifest.trips[slug]?.roles ?? {}).filter((login) => login !== by)
-    for (const sub of await config.store.subscriptionsFor(others)) {
-      const trip = await describeTrip(slug, sub.lang)
+    await pushToMembers(slug, by, kind, async (lang) => {
+      const trip = await describeTrip(slug, lang)
       const target = trip?.targets[anchor]
-      const what = pushStrings(sub.lang)[kind].replace('{name}', trip?.people[by] ?? `@${by}`)
+      const what = pushStrings(lang)[kind].replace('{name}', trip?.people[by] ?? `@${by}`)
       const [page, hash] = (target?.href ?? `/trips/${slug}/`).split('#')
-      const result = await push.send(sub, {
+      return {
         title: target?.title ?? trip?.title ?? slug,
         body: said ? `${what}: ${said.length > 180 ? `${said.slice(0, 179)}…` : said}` : what,
         url: `${page}?thread=${encodeURIComponent(anchor)}${hash ? `#${hash}` : ''}`,
         tag: `thread:${thread}`,
-      })
-      if (result === 'gone') await config.store.removeSubscription(sub.endpoint)
+      }
+    })
+  }
+
+  /**
+   * After a deploy: tells members about the plan's changes they haven't heard
+   * of (from the last week). The first time, it only takes note of them.
+   */
+  async function announceChanges(): Promise<void> {
+    const store = config.store
+    if (!store) return
+    const now = config.now?.() ?? Date.now()
+    for (const slug of manifest.slugs) {
+      const sets = await changesOf(slug, manifest.defaultLocale)
+      const { fresh, first } = await store.unannounced(
+        slug,
+        sets.map((s) => s.id),
+      )
+      if (first) continue
+      for (const set of sets.filter((s) => fresh.includes(s.id) && s.at > now - 7 * 24 * 60 * 60 * 1000))
+        await pushToMembers(slug, set.login, 'change', async (lang) => {
+          const trip = await describeTrip(slug, lang)
+          const worded = (await changesOf(slug, lang)).find((s) => s.id === set.id) ?? set
+          const name = set.login ? (trip?.people[set.login] ?? `@${set.login}`) : set.author
+          return {
+            title: trip?.title ?? slug,
+            body: `${pushStrings(lang).change.replace('{name}', name)}: ${worded.summary}`,
+            url: worded.href,
+            tag: `change:${set.id}`,
+          }
+        })
     }
+  }
+
+  /** `POST /api/me/notifications`: the notification kinds the account turned off (`{muted}`). */
+  async function setMuted(request: Request): Promise<Response> {
+    if (!config.store || request.method !== 'POST') return text('Not found\n', 404)
+    const login = await loginOf(request)
+    if (!login) return text('Unauthorized\n', 401)
+    const body = (await request.json().catch(() => ({}))) as { muted?: unknown }
+    if (!Array.isArray(body.muted)) return text('Bad request\n', 400)
+    const muted = KINDS.filter((kind) => (body.muted as unknown[]).includes(kind))
+    await config.store.setUserMuted(login, muted)
+    return json({ muted })
+  }
+
+  /** `POST /api/me/lang`: the signed-in account's language, kept for every browser and its notifications. */
+  async function setLang(request: Request): Promise<Response> {
+    if (!config.store || request.method !== 'POST') return text('Not found\n', 404)
+    const login = await loginOf(request)
+    if (!login) return text('Unauthorized\n', 401)
+    const body = (await request.json().catch(() => ({}))) as { lang?: unknown }
+    if (typeof body.lang !== 'string' || !manifest.locales.includes(body.lang)) return text('Bad request\n', 400)
+    await config.store.setUserLang(login, body.lang)
+    return json({ lang: body.lang })
   }
 
   /** Fire and forget: a slow push service never holds up the answer. */
@@ -270,11 +372,13 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       const lang = typeof body.lang === 'string' ? body.lang : manifest.defaultLocale
       const strings = pushStrings(lang)
       let sent = 0
+      const chosen = await config.store.userLang(login)
       for (const sub of subs) {
+        const subLang = chosen ?? sub.lang
         const result = await config.push.send(sub, {
-          title: localizedText(manifest.title, sub.lang),
-          body: pushStrings(sub.lang).test,
-          url: localeRoot(sub.lang === manifest.defaultLocale ? null : sub.lang, manifest),
+          title: localizedText(manifest.title, subLang),
+          body: pushStrings(subLang).test,
+          url: localeRoot(subLang === manifest.defaultLocale ? null : subLang, manifest),
           tag: 'test',
         })
         if (result === 'ok') sent++
@@ -302,6 +406,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     const packing = manifest.slugs.filter((slug) => mayTick(slug, login, manifest))
     const share = manifest.slugs.filter((slug) => mayShare(slug, login))
     const comments = manifest.slugs.filter((slug) => mayComment(slug, login))
+    const lang = login && config.store ? await config.store.userLang(login).catch(() => null) : null
     return json({
       login,
       trips,
@@ -311,6 +416,8 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       calendars,
       link: link ? { trip: link.trip, label: link.label, expiresAt: link.expiresAt } : null,
       push: config.push && config.store && login && comments.length ? config.push.publicKey : null,
+      lang,
+      muted: login && config.store ? await config.store.userMuted(login).catch(() => []) : [],
     })
   }
 
@@ -418,9 +525,17 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (!login) return text('Unauthorized\n', 401)
     const now = config.now?.() ?? Date.now()
     const trips = manifest.slugs.filter((slug) => mayComment(slug, login))
+    const muted = new Set<string>(await store.userMuted(login))
     const events = (
-      await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login)))
-    ).flat()
+      await Promise.all(
+        trips.map(async (slug) => [
+          ...discussionEvents(slug, await store.threads(slug), login),
+          ...changeEvents(slug, await changesOf(slug, manifest.defaultLocale), login),
+        ]),
+      )
+    )
+      .flat()
+      .filter((n) => !muted.has(n.kind))
     const state = async () => {
       const [seenAt, marks] = await Promise.all([store.notificationsSeen(login), store.notificationMarks(login)])
       return { seenAt, marks, unread: events.filter((n) => !isRead(n, seenAt, marks)).length }
@@ -543,6 +658,8 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path === '/api/logout')
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
+    if (path === '/api/me/lang') return plain(await setLang(request))
+    if (path === '/api/me/notifications') return plain(await setMuted(request))
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe' || path === '/api/push/test')
       return plain(await pushApi(request, path))
     if (path === '/api/notifications' || path === '/api/notifications/read' || path === '/api/notifications/unread')
@@ -624,7 +741,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     return { response: await serveStatic(config.dist, request), underProtection }
   }
 
-  return async (request) => {
+  const handle = async (request: Request) => {
     const url = new URL(request.url)
     const { response, underProtection } = await route(request)
     return secureResponse(response, {
@@ -635,4 +752,5 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       underProtection,
     })
   }
+  return Object.assign(handle, { announceChanges })
 }

@@ -1,6 +1,7 @@
 /**
  * Shared state in Postgres: packing ticks, kept GitHub pictures, view-only links, discussions
- * how far each account has read its notifications, and the browsers to push them to. Migrations are plain SQL
+ * how far each account has read its notifications, the browsers to push them to, and each
+ * account's language. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -16,6 +17,14 @@ import type { PushStore } from './push'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
 export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore, PushStore {
+  /** The language an account chose, or null. */
+  userLang(login: string): Promise<string | null>
+  setUserLang(login: string, lang: string): Promise<void>
+  /** The notification kinds an account turned off. */
+  userMuted(login: string): Promise<string[]>
+  setUserMuted(login: string, muted: string[]): Promise<void>
+  /** Of these change ids, the ones not announced yet; all of them are announced after. */
+  unannounced(trip: string, ids: string[]): Promise<{ fresh: string[]; first: boolean }>
   ticks(trip: string): Promise<Ticks>
   /** Stores the valid changes newer than what is there, as set by `by`. */
   apply(trip: string, changes: unknown, now: number, by: string | null): Promise<void>
@@ -272,6 +281,40 @@ export async function openStore(connectionString: string): Promise<Store> {
         created_at: string
       }>('select * from push_subscriptions where login = any($1)', [logins])
       return rows.map((r) => ({ ...r, createdAt: Number(r.created_at) }))
+    },
+    async userLang(login) {
+      const { rows } = await pool.query<{ lang: string }>('select lang from user_settings where login = $1', [login])
+      return rows[0]?.lang ?? null
+    },
+    async setUserLang(login, lang) {
+      await pool.query(
+        `insert into user_settings (login, lang) values ($1, $2)
+         on conflict (login) do update set lang = excluded.lang`,
+        [login, lang],
+      )
+    },
+    async userMuted(login) {
+      const { rows } = await pool.query<{ muted: string[] }>('select muted from user_settings where login = $1', [
+        login,
+      ])
+      return rows[0]?.muted ?? []
+    },
+    async setUserMuted(login, muted) {
+      await pool.query(
+        `insert into user_settings (login, muted) values ($1, $2)
+         on conflict (login) do update set muted = excluded.muted`,
+        [login, muted],
+      )
+    },
+    async unannounced(trip, ids) {
+      const { rows } = await pool.query<{ id: string }>('select id from announced_changes where trip = $1', [trip])
+      const known = new Set(rows.map((r) => r.id))
+      if (ids.length)
+        await pool.query(
+          'insert into announced_changes (trip, id) select $1, unnest($2::text[]) on conflict do nothing',
+          [trip, ids],
+        )
+      return { fresh: ids.filter((id) => !known.has(id)), first: rows.length === 0 }
     },
     close: () => pool.end(),
   }
