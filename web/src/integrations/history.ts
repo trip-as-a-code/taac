@@ -2,8 +2,8 @@
 // branch that touched a trip's files (a merged PR is one), loaded as it was
 // and diffed against the version before. Without git or history (a shallow
 // clone, a tarball) there are simply no changes to show. On GitHub, authors
-// are their accounts (the trip member of that name, else their GitHub username); without
-// API access, the name on the commit.
+// are their accounts (the trip member with that GitHub username, else
+// `@username`); without API access, the name on the commit.
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -62,7 +62,11 @@ function githubToken(): string | undefined {
 }
 
 /** Replaces commit names with GitHub accounts: the PR's author, else the commit's. */
-async function withAccounts(sets: ChangeSet[], repo: string, members: string[]): Promise<void> {
+async function withAccounts(
+  sets: ChangeSet[],
+  repo: string,
+  members: { name: string; github?: string | null }[],
+): Promise<void> {
   const token = githubToken()
   const logins = new Map<string, Promise<string | undefined>>()
   const ask = (path: string, pick: (body: Record<string, { login?: string } | undefined>) => string | undefined) => {
@@ -86,7 +90,7 @@ async function withAccounts(sets: ChangeSet[], repo: string, members: string[]):
         ? await ask(`pulls/${set.pr}`, (b) => b.user?.login)
         : await ask(`commits/${set.sha}`, (b) => b.author?.login)
       if (!login) return
-      set.author = members.find((m) => m.toLowerCase() === login.toLowerCase()) ?? login
+      set.author = members.find((m) => m.github?.toLowerCase() === login.toLowerCase())?.name ?? `@${login}`
     }),
   )
 }
@@ -146,15 +150,6 @@ export async function tripChanges(sitePath: string, site: SiteExport): Promise<R
       out[trip.slug] = []
     }
   })
-  if (repo)
-    await Promise.all(
-      site.trips.map((trip) =>
-        withAccounts(
-          out[trip.slug] ?? [],
-          repo,
-          trip.members.map((m) => m.name),
-        ),
-      ),
-    )
+  if (repo) await Promise.all(site.trips.map((trip) => withAccounts(out[trip.slug] ?? [], repo, trip.members)))
   return out
 }

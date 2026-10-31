@@ -137,7 +137,7 @@ describe('signing in', () => {
     )
     expect(trip.status).toBe(403)
     const body = await trip.text()
-    expect(body).toContain('<strong>stranger</strong>')
+    expect(body).toContain('<strong>@stranger</strong>')
     expect(body).toContain('action="/api/logout"')
   })
 
