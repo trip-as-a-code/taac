@@ -30,12 +30,13 @@ h1{font-size:28px;line-height:1.14;font-weight:600;letter-spacing:-.015em;margin
 p{margin:0 0 24px;color:var(--muted);font-size:15px}
 strong{color:var(--text);font-weight:600}
 .error{color:var(--danger);font-size:14px;margin:0 0 4px}
-.button{display:flex;align-items:center;justify-content:center;gap:10px}
+button,.button{display:flex;align-items:center;justify-content:center;gap:10px;box-sizing:border-box;width:100%;
+margin-top:20px;font:inherit;font-weight:500;line-height:1.25;color:#fff;background:var(--accent);
+border:0;border-radius:980px;padding:12px 20px;cursor:pointer;text-decoration:none;transition:background .15s,transform .1s}
+.button svg{flex:none}
+button:hover,.button:hover{background:var(--accent-press)}
 .secondary{color:var(--accent);background:transparent;margin-top:8px}
 .secondary:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
-button,.button{display:block;width:100%;margin-top:20px;font:inherit;font-weight:500;color:#fff;background:var(--accent);
-border:0;border-radius:980px;padding:12px 20px;cursor:pointer;text-decoration:none;transition:background .15s,transform .1s}
-button:hover,.button:hover{background:var(--accent-press)}
 button:active,.button:active{transform:scale(.98)}
 button:focus-visible,.button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
