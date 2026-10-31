@@ -1,5 +1,5 @@
 /**
- * Shared state in Postgres: packing ticks, kept GitHub pictures and view-only links. Migrations are plain SQL
+ * Shared state in Postgres: packing ticks, kept GitHub pictures, view-only links and discussions. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -8,10 +8,11 @@ import { readdir, readFile } from 'node:fs/promises'
 import pg from 'pg'
 
 import type { Avatar, AvatarStore } from './avatars'
+import type { Comment, CommentStore, Thread } from './comments'
 import type { LinkStore, ShareLink } from './links'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
-export interface Store extends AvatarStore, LinkStore {
+export interface Store extends AvatarStore, LinkStore, CommentStore {
   ticks(trip: string): Promise<Ticks>
   /** Stores the valid changes newer than what is there, as set by `by`. */
   apply(trip: string, changes: unknown, now: number, by: string | null): Promise<void>
@@ -152,6 +153,70 @@ export async function openStore(connectionString: string): Promise<Store> {
     async touchLink(id, now) {
       await pool.query('update share_links set last_used_at = $2 where id = $1', [id, now])
     },
+    async threads(trip) {
+      const { rows: threads } = await pool.query<ThreadRow>(
+        'select * from threads where trip = $1 order by created_at',
+        [trip],
+      )
+      const { rows: comments } = await pool.query<CommentRow>(
+        `select c.* from comments c join threads t on t.id = c.thread_id where t.trip = $1 order by c.created_at`,
+        [trip],
+      )
+      return withComments(threads, comments)
+    },
+    async thread(id) {
+      const { rows: threads } = await pool.query<ThreadRow>('select * from threads where id = $1', [id])
+      if (!threads.length) return null
+      const { rows: comments } = await pool.query<CommentRow>(
+        'select * from comments where thread_id = $1 order by created_at',
+        [id],
+      )
+      return withComments(threads, comments)[0] ?? null
+    },
+    async createThread(thread) {
+      const client = await pool.connect()
+      try {
+        await client.query('begin')
+        await client.query(
+          'insert into threads (id, trip, anchor, created_by, created_at) values ($1, $2, $3, $4, $5)',
+          [thread.id, thread.trip, thread.anchor, thread.createdBy, thread.createdAt],
+        )
+        for (const c of thread.comments) await insertComment(client, thread.id, c)
+        await client.query('commit')
+      } catch (error) {
+        await client.query('rollback')
+        throw error
+      } finally {
+        client.release()
+      }
+    },
+    async addComment(threadId, comment) {
+      await insertComment(pool, threadId, comment)
+    },
+    async resolveThread(id, by, now) {
+      await pool.query('update threads set resolved_at = $2, resolved_by = $3 where id = $1', [
+        id,
+        by === null ? null : now,
+        by,
+      ])
+    },
+    async editComment(id, body, now) {
+      await pool.query('update comments set body = $2, edited_at = $3 where id = $1 and deleted_at is null', [
+        id,
+        body,
+        now,
+      ])
+    },
+    async deleteComment(id, now) {
+      await pool.query("update comments set body = '', deleted_at = $2 where id = $1", [id, now])
+    },
+    async comment(id) {
+      const { rows } = await pool.query<CommentRow & { trip: string }>(
+        'select c.*, t.trip from comments c join threads t on t.id = c.thread_id where c.id = $1',
+        [id],
+      )
+      return rows[0] ? { ...fromComment(rows[0]), trip: rows[0].trip } : null
+    },
     close: () => pool.end(),
   }
 }
@@ -184,4 +249,60 @@ function fromRow(r: LinkRow): ShareLink {
     revokedBy: r.revoked_by,
     lastUsedAt: num(r.last_used_at),
   }
+}
+
+interface ThreadRow {
+  id: string
+  trip: string
+  anchor: string
+  created_by: string
+  created_at: string
+  resolved_at: string | null
+  resolved_by: string | null
+}
+
+interface CommentRow {
+  id: string
+  thread_id: string
+  author: string
+  body: string
+  created_at: string
+  edited_at: string | null
+  deleted_at: string | null
+}
+
+function fromComment(r: CommentRow): Comment {
+  return {
+    id: r.id,
+    author: r.author,
+    body: r.body,
+    createdAt: Number(r.created_at),
+    editedAt: num(r.edited_at),
+    deletedAt: num(r.deleted_at),
+  }
+}
+
+function withComments(threads: ThreadRow[], comments: CommentRow[]): Thread[] {
+  const byThread = new Map<string, CommentRow[]>()
+  for (const c of comments) byThread.set(c.thread_id, [...(byThread.get(c.thread_id) ?? []), c])
+  return threads.map((t) => ({
+    id: t.id,
+    trip: t.trip,
+    anchor: t.anchor,
+    createdBy: t.created_by,
+    createdAt: Number(t.created_at),
+    resolvedAt: num(t.resolved_at),
+    resolvedBy: t.resolved_by,
+    comments: (byThread.get(t.id) ?? []).map(fromComment),
+  }))
+}
+
+function insertComment(db: pg.Pool | pg.PoolClient, threadId: string, c: Comment) {
+  return db.query('insert into comments (id, thread_id, author, body, created_at) values ($1, $2, $3, $4, $5)', [
+    c.id,
+    threadId,
+    c.author,
+    c.body,
+    c.createdAt,
+  ])
 }
