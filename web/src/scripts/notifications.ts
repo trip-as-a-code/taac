@@ -4,6 +4,7 @@
 // unread, and "mark all as read" reads everything. Also this device's switch
 // for browser notifications, on the full page.
 
+import { avatarPhoto } from '@/scripts/avatars'
 import { pushState, testPush, turnOff, turnOn } from '@/scripts/push'
 import { me, type Me } from '@/scripts/session'
 
@@ -147,14 +148,7 @@ async function renderItem(n: Notification, ctx: Context, withToggle: boolean): P
   avatar.className = 'avatar'
   avatar.style.setProperty('--hue', String(person?.hue ?? 210))
   avatar.textContent = person?.initials ?? (n.by || n.author || '?').slice(0, 1).toUpperCase()
-  const img = document.createElement('img')
-  img.className = 'avatar-photo'
-  img.alt = ''
-  img.dataset.avatarPhoto = ''
-  if (n.by) {
-    img.src = `/api/avatars/${n.by}`
-    avatar.append(img)
-  }
+  if (n.by) avatar.append(avatarPhoto(n.by))
   const what = document.createElement('span')
   what.className = 'subhead title'
   what.textContent = ctx.strings[n.kind]!.replace('{name}', person?.name ?? (n.by ? `@${n.by}` : (n.author ?? '')))

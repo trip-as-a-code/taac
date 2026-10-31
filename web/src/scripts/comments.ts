@@ -3,6 +3,7 @@
 // notification links here (`?thread=<anchor>`). Threads come from the server for the whole trip and are
 // fetched again when the page comes back into view.
 
+import { avatarPhoto } from '@/scripts/avatars'
 import { markNotifications } from '@/scripts/notifications'
 import { me } from '@/scripts/session'
 
@@ -156,11 +157,7 @@ function avatar(login: string, people: Record<string, Person>) {
   const person = people[login]
   const span = el('span', 'avatar', person?.initials ?? login.slice(0, 1).toUpperCase())
   span.style.setProperty('--hue', String(person?.hue ?? 210))
-  const img = el('img', 'avatar-photo')
-  img.src = `/api/avatars/${login}`
-  img.alt = ''
-  img.dataset.avatarPhoto = ''
-  span.append(img)
+  span.append(avatarPhoto(login))
   return span
 }
 

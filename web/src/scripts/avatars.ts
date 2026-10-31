@@ -26,3 +26,19 @@ export function setupAvatars() {
   // Pictures that finished before this ran.
   document.querySelectorAll<HTMLImageElement>(PHOTO).forEach(settle)
 }
+
+/**
+ * A picture made by a script: it watches its own loading, since one already
+ * in the cache can finish before it is on the page, where the listeners above
+ * would never hear of it.
+ */
+export function avatarPhoto(login: string): HTMLImageElement {
+  const img = document.createElement('img')
+  img.className = 'avatar-photo'
+  img.alt = ''
+  img.dataset.avatarPhoto = ''
+  img.addEventListener('load', () => settle(img))
+  img.addEventListener('error', () => settle(img))
+  img.src = `/api/avatars/${login}`
+  return img
+}
