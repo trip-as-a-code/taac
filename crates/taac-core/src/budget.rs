@@ -613,6 +613,7 @@ packing:
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn one_person_can_owe_for_everyone() {
         let b = compute(&trip(
             "      - { amount: 100, currency: EUR, who: [b, c], paidBy: a, settled: false, owedBy: b }",
