@@ -85,6 +85,11 @@ tasks:
     cmds:
       - npm run typecheck -w @taac/server
 
+  chart:check:
+    desc: Lint the Helm chart
+    cmds:
+      - helm lint --strict deploy/helm/taac
+
   server:build:
     desc: Bundle the server into server/dist/main.mjs
     cmds:
@@ -116,5 +121,6 @@ tasks:
       - task: lint
       - task: web:check
       - task: server:check
+      - task: chart:check
       - npx vitest run
       - task: build

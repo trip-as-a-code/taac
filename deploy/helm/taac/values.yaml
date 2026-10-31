@@ -1,0 +1,74 @@
+# Your instance's image: built from deploy/Dockerfile.site. The default serves the demo.
+image:
+  repository: ghcr.io/trip-as-a-code/taac
+  tag: latest
+  # Pin by digest (sha256:…); wins over tag.
+  digest: ''
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+replicas: 1
+
+# Where the site answers, such as https://trips.example.com (the GitHub App's callback is <publicUrl>/api/auth/callback).
+publicUrl: ''
+# Keep search engines out of a public site.
+noindex: false
+
+# A Secret with SESSION_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and, without database.cnpg, DATABASE_URL.
+# Each key is optional: without the GitHub keys only public sites work; without a database packing is read-only.
+existingSecret: ''
+
+database:
+  # A CloudNativePG Cluster for this release (needs the CNPG operator); DATABASE_URL then comes from its app secret.
+  cnpg:
+    enabled: false
+    instances: 1
+    storage:
+      size: 1Gi
+      storageClass: ''
+
+extraEnv: []
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ''
+  annotations: {}
+  host: trips.example.com
+  tls: []
+
+# Gateway API instead of an Ingress.
+httpRoute:
+  enabled: false
+  parentRefs: []
+  #  - name: gateway
+  #    namespace: gateway
+  #    sectionName: https
+  hostnames: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

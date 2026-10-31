@@ -8,3 +8,4 @@ schema/
 CHANGELOG.md
 package-lock.json
 examples/**/overlays/
+deploy/helm/*/templates/
