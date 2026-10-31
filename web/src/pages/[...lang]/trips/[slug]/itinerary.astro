@@ -1,5 +1,6 @@
 ---
 import Avatars from '@/components/Avatars.astro'
+import ThreadButton from '@/components/ThreadButton.astro'
 import DayBody from '@/components/DayBody.astro'
 import FilterBar from '@/components/FilterBar.astro'
 import Icon from '@/components/Icon.astro'
@@ -111,6 +112,11 @@ const span = (from: string, to: string) =>
               </span>
               <span class="date-line">
                 <span class="tabular">{span(days[0].date, days.at(-1)!.date)}</span>
+                <ThreadButton
+                  anchor={`day:${days[0].date}`}
+                  title={span(days[0].date, days.at(-1)!.date)}
+                  i18n={i18n}
+                />
                 <a
                   class="anchor"
                   href={`#${days[0].date}`}
@@ -148,6 +154,11 @@ const span = (from: string, to: string) =>
                 {/* The link stays on the date's line. */}
                 <span class="date-line">
                   <span class="tabular">{date(day.date, { day: 'numeric', month: 'long' })}</span>
+                  <ThreadButton
+                    anchor={`day:${day.date}`}
+                    title={date(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}
+                    i18n={i18n}
+                  />
                   <a
                     class="anchor"
                     href={`#${day.date}`}

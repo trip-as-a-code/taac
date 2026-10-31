@@ -3,6 +3,7 @@ import type { TripExport } from '@taac/core'
 
 import Icon, { type IconName } from '@/components/Icon.astro'
 import CurrencyPicker from '@/components/CurrencyPicker.astro'
+import Discussions from '@/components/Discussions.astro'
 import LensMode from '@/components/LensMode.astro'
 import PeopleLens from '@/components/PeopleLens.astro'
 import ShareLinks from '@/components/ShareLinks.astro'
@@ -11,7 +12,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro'
 import { changes } from '@/lib/build'
 import { tripHue } from '@/lib/trip'
 
-export type Section = 'overview' | 'itinerary' | 'ideas' | 'map' | 'bookings' | 'tasks' | 'packing' | 'budget'
+export type Section =
+  'overview' | 'itinerary' | 'ideas' | 'map' | 'bookings' | 'tasks' | 'packing' | 'budget' | 'discussions'
 
 interface Props {
   trip: TripExport
@@ -39,6 +41,8 @@ const sections: { id: Section; icon: IconName; href: string }[] = [
   // Some things get bought before they can be packed: the budget comes last.
   { id: 'packing', icon: 'packing', href: path(`${base}/packing/`) },
   { id: 'budget', icon: 'budget', href: path(`${base}/budget/`) },
+  // Talking it over, about any of the above.
+  { id: 'discussions', icon: 'chat', href: path(`${base}/discussions/`) },
 ]
 const current = t(`nav.${section}`)
 // When each plan or idea last changed, for the "since your last visit" dots.
@@ -56,6 +60,7 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
   wide={bare}
 >
   <ShareLinks trip={trip} i18n={i18n} slot="nav" />
+  <Discussions trip={trip} i18n={i18n} />
   <CurrencyPicker trip={trip} i18n={i18n} slot="nav" />
   <div class="trip" data-section={section} style={`--hue:${tripHue(trip)}`}>
     {!bare && (
@@ -79,9 +84,14 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
       <div class="container">
         <div class="segmented tab-bar">
           {sections.map((s) => (
-            <a href={s.href} aria-current={s.id === section ? 'page' : undefined}>
+            <a
+              href={s.href}
+              aria-current={s.id === section ? 'page' : undefined}
+              data-discussions-tab={s.id === 'discussions' ? '' : undefined}
+            >
               <Icon name={s.icon} size={16} />
               <span>{t(`nav.${s.id}`)}</span>
+              {s.id === 'discussions' && <span class="tab-count" data-discussions-count />}
             </a>
           ))}
         </div>
@@ -238,6 +248,24 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
     font-size: 14px;
   }
 
+  /* Open discussions on the Discussions tab. */
+  .tab-bar a .tab-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--tint);
+    color: var(--label-on-tint);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .tab-bar a .tab-count:empty {
+    display: none;
+  }
+
   .content {
     padding-top: var(--space-6);
   }
@@ -353,6 +381,20 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .tab-bar a {
+      position: relative;
+    }
+
+    .tab-bar a .tab-count {
+      position: absolute;
+      top: 2px;
+      left: calc(50% + 6px);
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      font-size: 10px;
     }
   }
 
