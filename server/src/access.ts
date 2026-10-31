@@ -1,57 +1,71 @@
 /**
  * The access manifest the web build emits at /_taac/access.json, and the
- * routing rules derived from it: which paths are public, which need the
- * site password, which a trip's.
+ * rules derived from it: which paths are open to everyone, which need a
+ * signed-in GitHub account, and which trip that account must be on.
  */
+
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 /** One string for every language, or one per language. */
 export type Text = string | Record<string, string>
 
+export interface TripAccess {
+  title: string
+  /** Open to everyone, signed in or not. */
+  public: boolean
+  /** Lowercase GitHub usernames who may see it: its members' and its viewers. */
+  logins: string[]
+}
+
 export interface AccessManifest {
   title: Text
-  site: { secret: string } | null
-  trips: Record<string, { secret: string; title: string }>
+  /** `github`: signing in is required for everything not public. */
+  auth: 'github' | null
+  trips: Record<string, TripAccess>
   /** Every trip on the site. */
   slugs: string[]
   locales: string[]
   defaultLocale: string
 }
 
-export type Scope = 'site' | `trip:${string}`
-
 export const EMPTY_MANIFEST: AccessManifest = {
   title: 'taac',
-  site: null,
+  auth: null,
   trips: {},
   slugs: [],
   locales: ['en'],
   defaultLocale: 'en',
 }
 
-export const MANIFEST_PATH = '/_taac/access.json'
+export const MANIFEST_PATH = '_taac/access.json'
 
-let cached: Promise<AccessManifest> | undefined
-
-/** Loads the manifest once per isolate; a missing one means no protection. */
-export function loadManifest(assets: Fetcher, requestUrl: string): Promise<AccessManifest> {
-  cached ??= assets
-    .fetch(new Request(new URL(MANIFEST_PATH, requestUrl)))
-    .then(async (response) => (response.ok ? normalise(await response.json()) : EMPTY_MANIFEST))
-    .catch(() => EMPTY_MANIFEST)
-  return cached
-}
-
-export function resetManifestCache(): void {
-  cached = undefined
+/** Reads the manifest from the built site; a missing one means everything is open. */
+export async function loadManifest(dist: string): Promise<AccessManifest> {
+  try {
+    return normalise(JSON.parse(await readFile(join(dist, MANIFEST_PATH), 'utf8')))
+  } catch {
+    return EMPTY_MANIFEST
+  }
 }
 
 export function normalise(raw: unknown): AccessManifest {
   const value = (raw ?? {}) as Partial<AccessManifest>
   const locales = Array.isArray(value.locales) && value.locales.length ? value.locales : EMPTY_MANIFEST.locales
+  const trips: Record<string, TripAccess> = {}
+  for (const [slug, trip] of Object.entries(value.trips && typeof value.trips === 'object' ? value.trips : {})) {
+    trips[slug] = {
+      title: typeof trip?.title === 'string' ? trip.title : slug,
+      public: trip?.public === true,
+      logins: Array.isArray(trip?.logins)
+        ? trip.logins.filter((l): l is string => typeof l === 'string').map((l) => l.toLowerCase())
+        : [],
+    }
+  }
   return {
     title: isText(value.title) ? value.title : EMPTY_MANIFEST.title,
-    site: value.site && typeof value.site.secret === 'string' ? { secret: value.site.secret } : null,
-    trips: value.trips && typeof value.trips === 'object' ? value.trips : {},
+    auth: value.auth === 'github' ? 'github' : null,
+    trips,
     slugs: Array.isArray(value.slugs) ? value.slugs.filter((s): s is string => typeof s === 'string') : [],
     locales,
     defaultLocale: typeof value.defaultLocale === 'string' ? value.defaultLocale : (locales[0] ?? 'en'),
@@ -72,7 +86,7 @@ export function localizedText(text: Text, lang: string): string {
 }
 
 export function isProtected(manifest: AccessManifest): boolean {
-  return manifest.site !== null || Object.keys(manifest.trips).length > 0
+  return manifest.auth !== null
 }
 
 export function extraLocales(manifest: AccessManifest): string[] {
@@ -90,8 +104,11 @@ export function splitLocale(path: string, manifest: AccessManifest): { locale: s
 
 const PUBLIC_EXACT = new Set([
   '/login',
-  '/api/login',
+  '/api/auth/github',
+  '/api/auth/callback',
   '/api/logout',
+  '/api/me',
+  '/healthz',
   '/favicon.svg',
   '/robots.txt',
   '/manifest.webmanifest',
@@ -110,31 +127,30 @@ export function tripOf(path: string, manifest: AccessManifest): string | null {
   return match?.[1] ? decodeURIComponent(match[1]) : null
 }
 
-/** Scopes a request to `path` must hold, outermost first. */
-export function requiredScopes(path: string, manifest: AccessManifest): Scope[] {
-  const scopes: Scope[] = []
-  if (manifest.site && !isPublicPath(path, manifest)) scopes.push('site')
+/** Every GitHub username on any trip of the site: who may sign in at all. */
+export function siteLogins(manifest: AccessManifest): Set<string> {
+  return new Set(Object.values(manifest.trips).flatMap((t) => t.logins))
+}
+
+export type Decision = 'open' | 'sign-in' | 'forbidden'
+
+/**
+ * What a request to `path` needs from `login` (lowercase, or null when not
+ * signed in): nothing, to sign in first, or it isn't theirs to see.
+ */
+export function decide(path: string, login: string | null, manifest: AccessManifest): Decision {
+  if (manifest.auth === null || isPublicPath(path, manifest)) return 'open'
   const slug = tripOf(path, manifest)
-  if (slug && manifest.trips[slug]) scopes.push(`trip:${slug}`)
-  return scopes
+  const trip = slug ? manifest.trips[slug] : undefined
+  if (trip?.public) return 'open'
+  if (!login) return 'sign-in'
+  if (trip) return trip.logins.includes(login) ? 'open' : 'forbidden'
+  return siteLogins(manifest).has(login) ? 'open' : 'forbidden'
 }
 
-export function parseScope(raw: string | null, manifest: AccessManifest): Scope | null {
-  if (raw === 'site') return manifest.site ? 'site' : null
-  if (raw?.startsWith('trip:')) {
-    const slug = raw.slice(5)
-    return manifest.trips[slug] ? `trip:${slug}` : null
-  }
-  return null
-}
-
-export function secretNameFor(scope: Scope, manifest: AccessManifest): string | undefined {
-  if (scope === 'site') return manifest.site?.secret
-  return manifest.trips[scope.slice(5)]?.secret
-}
-
-export function cookieName(scope: Scope): string {
-  return scope === 'site' ? 'taac_site' : `taac_trip_${scope.slice(5)}`
+/** The trips `login` may see, for the page to show only those. */
+export function visibleTrips(login: string | null, manifest: AccessManifest): string[] {
+  return manifest.slugs.filter((slug) => decide(`/trips/${slug}/`, login, manifest) === 'open')
 }
 
 /** Same-origin absolute paths only; anything else falls back. */

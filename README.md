@@ -8,11 +8,12 @@ shared ledger. The YAML is the single source of truth; everything else is genera
 - **CLI** — `taac validate | build | export | schema`, with readable errors that point at the offending line.
 - **Website** — a static Astro site for any number of trips: overview, day-by-day itinerary, map, bookings, budget and
   packing list. English and Russian, dark or light, works offline.
-- **Edge** — a Cloudflare Worker in front of the site: optional site-wide and per-trip passwords, private calendar
-  feeds, live exchange rates, shared packing ticks, strict security headers.
+- **Server** — a small Node server in front of the site, for any host or cluster: signing in with GitHub, trips
+  visible only to their people, private calendar feeds, live exchange rates, shared packing ticks in Postgres, strict
+  security headers.
 
 Confidential values (booking references, phone numbers) are never written into a trip. A trip names a secret; only a
-local `taac build --reveal` ever resolves it. The website never sees them, password or not.
+local `taac build --reveal` ever resolves it. The website never sees them, signed in or not.
 
 ## Quick start
 
@@ -156,18 +157,18 @@ apiVersion: taac/v1alpha4
 kind: Site
 metadata:
   title: Our trips # or per language: { en: Our trips, ru: Наши поездки }
-access: # optional: password-protect the whole site
-  password: { secret: SITE_PASSWORD }
+access: github # optional: sign in with GitHub to see anything (default: public)
 source: # optional: link every card and issue to its line
   repo: https://github.com/you/trips # branch: main, dir: '' (site file's folder in the repo)
 trips:
   - path: trips/lisbon.yaml
   - path: trips/japan
-    access: # optional: and/or one trip
-      password: { secret: JAPAN_PASSWORD }
+    public: true # optional: anyone may see this trip, even on a github site
+    viewers: [grandma] # optional: GitHub accounts that may see it besides its members
 ```
 
-`secret` names a Worker secret. Without `access` the site is public. With `source`, cards and issues link to
+On a `github` site a trip is visible to its members' GitHub accounts (`members[].github`, or taken from a github.com
+link in their `links`) and its `viewers`. With `source`, cards and issues link to
 `<repo>/blob/<branch>/<file>#L<line>`, and issues offer YAML to paste.
 
 ## CLI
@@ -180,36 +181,41 @@ cargo run -p taac-cli -- export site.yaml              # the JSON the website re
 cargo run -p taac-cli -- schema --out schema           # regenerate the JSON Schemas
 ```
 
-## Deploy your own (Cloudflare Workers)
+## Deploy your own
 
-1. Copy [`wrangler.example.jsonc`](wrangler.example.jsonc) to `wrangler.jsonc` next to your `site.yaml`, adjust the
-   name, paths and (optionally) your custom domain.
-2. Build: `TAAC_SITE=$PWD/site.yaml task web:build`. Build from a git checkout with history (in CI,
+1. Build the site: `TAAC_SITE=$PWD/site.yaml task web:build`. Build from a git checkout with history (in CI,
    `fetch-depth: 0`): the overview's "Recent changes" and the "changed since your last visit" dots replay the last 30
    commits that touched each trip.
-3. If the site uses `access`, set the secrets once:
-   `wrangler secret put SESSION_SECRET` (`openssl rand -hex 32`) and one per password named in `site.yaml`.
-4. `wrangler deploy`.
+2. Build the server: `task server:build` (`server/dist/main.mjs`, Node 22+, needs `server/node_modules` and
+   `server/migrations`).
+3. Run it: `TAAC_DIST=web/dist node server/dist/main.mjs`, behind a TLS-terminating proxy that sets
+   `X-Forwarded-Proto`.
 
-For local testing behind the Worker, put the same secrets in `.dev.vars` and run `wrangler dev`.
+- `PORT`: default 8080.
+- `TAAC_DIST`: the built site, default `web/dist`.
+- `TAAC_PUBLIC_URL`: e.g. `https://trips.example.com`; default from each request.
+- `SESSION_SECRET`: `openssl rand -hex 32`; signs sessions and calendar keys.
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: a GitHub App (no permissions needed) whose callback URL is
+  `<public URL>/api/auth/callback`.
+- `DATABASE_URL`: Postgres; migrations run at start. Without it the packing list is read-only.
+- `TAAC_NOINDEX`: `true` keeps search engines out of a public site.
 
-With the `PACKING` Durable Object binding (see the example config), packing ticks are shared by everyone on a trip,
-behind the trip's password, and merge after offline edits; without it the packing list is read-only.
+`/healthz` answers `ok` for probes.
 
 ## How it fits together
 
 ```text
 trip YAML ──► taac-core (Rust) ──► CLI: validate, ICS/GeoJSON/Beancount/Markdown
                     │
-                    └─► WebAssembly (@taac/core) ──► Astro build ──► static site ──► Worker (auth, feeds, fx)
+                    └─► WebAssembly (@taac/core) ──► Astro build ──► static site ──► server (auth, feeds, fx, packing)
 ```
 
 - `crates/taac-core` — model (also the JSON Schema source), loader, validation, budgeting, generators, web export.
 - `crates/taac-cli` — the `taac` binary.
 - `crates/taac-wasm` + `packages/core` — the core for Node, used by the website build.
 - `web/` — the Astro site. Pages never import trip data into client bundles; it is rendered into HTML, which the
-  Worker can protect.
-- `worker/` — the Cloudflare Worker.
+  server can protect.
+- `server/` — the Node server.
 
 Trips change through commits, not through the UI; the one thing the site writes is packing ticks, which are progress,
 not plan. A new deploy is offered to open tabs when they regain focus.

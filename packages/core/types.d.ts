@@ -41,7 +41,8 @@ export interface Rates {
 
 export interface SiteExport {
   apiVersion: 'taac/v1alpha4'
-  site: { title: Text; description?: Text; passwordSecret?: string; source?: SourceRepo }
+  /** `github`: signing in with GitHub is required (see each trip's `public` and `logins`). */
+  site: { title: Text; description?: Text; access: 'public' | 'github'; source?: SourceRepo }
   trips: TripExport[]
   diagnostics: Diagnostic[]
 }
@@ -55,6 +56,8 @@ export interface Member {
   name: string
   emoji?: string
   links?: string[]
+  /** GitHub username: who signs in as this member; their picture stands for them. */
+  github?: string
   /** ISO 4217 code this person pays with. */
   currency?: string
 }
@@ -329,7 +332,10 @@ export interface TripExport {
   timezone: string
   cover?: { emoji?: string; hue?: number }
   tags: string[]
-  passwordSecret?: string
+  /** On a `github` site: open to everyone. */
+  public: boolean
+  /** On a `github` site: lowercase GitHub usernames who may see it — its members' and viewers. */
+  logins: string[]
   startDate?: ISODate
   endDate?: ISODate
   currency?: { base: string }

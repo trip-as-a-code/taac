@@ -80,10 +80,15 @@ tasks:
     cmds:
       - npm run typecheck -w @taac/web
 
-  worker:check:
-    desc: Type-check the worker
+  server:check:
+    desc: Type-check the server
     cmds:
-      - npm run typecheck -w @taac/worker
+      - npm run typecheck -w @taac/server
+
+  server:build:
+    desc: Bundle the server into server/dist/main.mjs
+    cmds:
+      - npm run build -w @taac/server
 
   lint:
     desc: Lint TypeScript, JavaScript and Astro with eslint
@@ -110,6 +115,6 @@ tasks:
       - task: schema:check
       - task: lint
       - task: web:check
-      - task: worker:check
+      - task: server:check
       - npx vitest run
       - task: build

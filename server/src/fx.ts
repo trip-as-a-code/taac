@@ -1,4 +1,4 @@
-/** `/api/fx`: ECB rates via Frankfurter, edge-cached so browsers never call a third party. */
+/** `/api/fx`: ECB rates via Frankfurter, cached here so browsers never call a third party. */
 
 const UPSTREAM = 'https://api.frankfurter.dev/v2/rates'
 const TTL_SECONDS = 6 * 60 * 60
@@ -38,33 +38,35 @@ export function shapeRates(
   return { date, base, rates }
 }
 
-function json(body: unknown, status: number, cacheControl = 'no-store'): Response {
-  return new Response(JSON.stringify(body), {
+function json(body: string, status: number, cacheControl = 'no-store'): Response {
+  return new Response(body, {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cacheControl },
   })
 }
 
-export async function handleFx(url: URL, ctx: ExecutionContext): Promise<Response> {
-  const query = parseFxQuery(url)
-  if (!query) return json({ error: 'expected ?base=XXX&quotes=YYY[,ZZZ]' }, 400)
+/** Answers by query, kept for the TTL; a failed fetch isn't kept. */
+const cache = new Map<string, { body: string; until: number }>()
 
-  const cacheKey = new Request(`https://fx.taac.internal/${query.base}/${query.quotes.join(',')}`)
-  const cache = (caches as unknown as { default: Cache }).default
-  const hit = await cache.match(cacheKey)
-  if (hit) return hit
+export async function handleFx(url: URL, fetcher: typeof fetch = fetch, now = Date.now()): Promise<Response> {
+  const query = parseFxQuery(url)
+  if (!query) return json(JSON.stringify({ error: 'expected ?base=XXX&quotes=YYY[,ZZZ]' }), 400)
+
+  const key = `${query.base}/${query.quotes.join(',')}`
+  const hit = cache.get(key)
+  if (hit && hit.until > now) return json(hit.body, 200, `public, max-age=${Math.round((hit.until - now) / 1000)}`)
 
   try {
-    const upstream = await fetch(`${UPSTREAM}?base=${query.base}&quotes=${query.quotes.join(',')}&providers=ECB`, {
+    const upstream = await fetcher(`${UPSTREAM}?base=${query.base}&quotes=${query.quotes.join(',')}&providers=ECB`, {
       headers: { Accept: 'application/json' },
     })
-    if (!upstream.ok) return json({ error: `upstream ${upstream.status}` }, 502)
+    if (!upstream.ok) return json(JSON.stringify({ error: `upstream ${upstream.status}` }), 502)
     const rows = (await upstream.json()) as UpstreamRate[]
-    if (!Array.isArray(rows)) return json({ error: 'unexpected upstream response' }, 502)
-    const response = json(shapeRates(query.base, rows), 200, `public, max-age=${TTL_SECONDS}`)
-    ctx.waitUntil(cache.put(cacheKey, response.clone()))
-    return response
+    if (!Array.isArray(rows)) return json(JSON.stringify({ error: 'unexpected upstream response' }), 502)
+    const body = JSON.stringify(shapeRates(query.base, rows))
+    cache.set(key, { body, until: now + TTL_SECONDS * 1000 })
+    return json(body, 200, `public, max-age=${TTL_SECONDS}`)
   } catch {
-    return json({ error: 'upstream unreachable' }, 502)
+    return json(JSON.stringify({ error: 'upstream unreachable' }), 502)
   }
 }

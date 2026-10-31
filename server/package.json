@@ -1,0 +1,23 @@
+{
+  "name": "@taac/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The taac server: the built site, signing in with GitHub, calendar feeds, exchange rates, shared state in Postgres",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/main.ts",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=dist/main.mjs",
+    "start": "node dist/main.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "esbuild": "0.28.2"
+  }
+}

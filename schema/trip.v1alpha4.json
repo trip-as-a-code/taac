@@ -237,6 +237,14 @@
             "type": "string"
           }
         },
+        "github": {
+          "description": "GitHub username: signing in with it is being this member, and their\nGitHub picture stands for them. Defaults to the username of a\n`https://github.com/<username>` link.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"
+        },
         "currency": {
           "description": "ISO 4217 code of the money this person pays with; defaults to the\ntrip's base currency.",
           "type": [

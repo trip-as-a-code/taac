@@ -124,6 +124,12 @@ pub struct Member {
     pub emoji: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
+    /// GitHub username: signing in with it is being this member, and their
+    /// GitHub picture stands for them. Defaults to the username of a
+    /// `https://github.com/<username>` link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(regex(pattern = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"))]
+    pub github: Option<String>,
     /// ISO 4217 code of the money this person pays with; defaults to the
     /// trip's base currency.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1202,9 +1208,9 @@ pub struct SiteFile {
     pub kind: SiteKind,
     pub metadata: SiteMetadata,
     pub trips: Vec<SiteTrip>,
-    /// Password-protects the whole site.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub access: Option<Access>,
+    /// Who sees the site: everyone, or people signed in with GitHub.
+    #[serde(default)]
+    pub access: SiteAccess,
     /// Where the trip files live, so the site can link each entry to its line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<SourceRepo>,
@@ -1274,14 +1280,22 @@ impl From<String> for Text {
 pub struct SiteTrip {
     /// Trip file or directory, relative to the site file.
     pub path: String,
-    /// Password-protects this trip only.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub access: Option<Access>,
+    /// On a `github` site: open to everyone, signed in or not.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub public: bool,
+    /// On a `github` site: GitHub usernames who may see the trip besides its
+    /// members.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub viewers: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Access {
-    /// Worker secret holding the password.
-    pub password: Secret,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum SiteAccess {
+    /// Everything is open.
+    #[default]
+    Public,
+    /// Signing in with GitHub is required; a trip shows to its members (by
+    /// their `github`), its `viewers`, or everyone when `public`.
+    Github,
 }

@@ -2,49 +2,37 @@
 import type { TripExport } from '@taac/core'
 
 import Avatars from '@/components/Avatars.astro'
-import Icon from '@/components/Icon.astro'
 import type { I18n } from '@/i18n'
 import { tripHue } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
   i18n: I18n
-  locked: boolean
 }
 
-const { trip, i18n, locked } = Astro.props
+const { trip, i18n } = Astro.props
 const { t, plural, dateRange, path } = i18n
 const hue = tripHue(trip)
 ---
 
-<a class="trip-card" href={path(`/trips/${trip.slug}/`)} style={`--hue:${hue}`}>
+<a class="trip-card" href={path(`/trips/${trip.slug}/`)} style={`--hue:${hue}`} data-trip-card={trip.slug}>
   <div class="cover" transition:name={`cover-${trip.slug}`}>
     <span class="emoji" aria-hidden="true">
       {trip.cover?.emoji ?? '🧭'}
     </span>
-    {locked && (
-      <span class="lock" title={t('site.locked')}>
-        <Icon name="lock" size={15} />
-      </span>
-    )}
   </div>
   <div class="body">
     <h2 class="title-3" lang={trip.locale}>
       {trip.title}
     </h2>
-    {!locked && (
-      <>
-        <p class="subhead secondary">{dateRange(trip.startDate, trip.endDate)}</p>
-        <div class="meta">
-          <Avatars members={trip.members} size={24} />
-          <span class="footnote secondary">{plural('trip.days', trip.days.length)}</span>
-          {trip.startDate && (
-            <time class="footnote countdown" data-relative={trip.startDate} data-template={t('trip.startsIn')} />
-          )}
-        </div>
-      </>
-    )}
-    {locked && <p class="subhead secondary">{t('site.locked')}</p>}
+    <p class="subhead secondary">{dateRange(trip.startDate, trip.endDate)}</p>
+    <div class="meta">
+      <Avatars members={trip.members} size={24} />
+      <span class="footnote secondary">{plural('trip.days', trip.days.length)}</span>
+      {trip.startDate && (
+        <time class="footnote countdown" data-relative={trip.startDate} data-template={t('trip.startsIn')} />
+      )}
+    </div>
   </div>
 </a>
 
@@ -97,21 +85,6 @@ const hue = tripHue(trip)
 
   .trip-card:hover .emoji {
     transform: scale(1.06) rotate(-3deg);
-  }
-
-  .lock {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    color: white;
-    background: rgb(0 0 0 / 0.28);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
   }
 
   .body {

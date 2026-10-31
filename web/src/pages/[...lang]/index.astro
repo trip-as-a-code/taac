@@ -29,7 +29,7 @@ const trips = [...site.trips].sort((a, b) => (a.startDate ?? '').localeCompare(b
     ) : (
       <div class="grid">
         {trips.map((trip) => (
-          <TripCard trip={trip} i18n={i18n} locked={Boolean(trip.passwordSecret)} />
+          <TripCard trip={trip} i18n={i18n} />
         ))}
       </div>
     )}
