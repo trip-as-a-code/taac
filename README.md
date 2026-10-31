@@ -42,6 +42,7 @@ currency:
 members:
   - { name: Alex }
   - { name: Sam, currency: GBP } # the money Sam pays with
+  - { name: Robin, github: robin, role: viewer } # signs in as @robin; looks and comments, doesn't tick
 groups:
   - { name: Early birds, emoji: 🌅, members: [Alex] } # a saved set of people
   - { members: [Sam, Robin] } # no name: shown as "Sam & Robin"; plans list them
@@ -164,11 +165,11 @@ trips:
   - path: trips/lisbon.yaml
   - path: trips/japan
     public: true # optional: anyone may see this trip, even on a github site
-    viewers: [grandma] # optional: GitHub accounts that may see it besides its members
 ```
 
 On a `github` site a trip is visible to its members' GitHub accounts (`members[].github`, or taken from a github.com
-link in their `links`) and its `viewers`. With `source`, cards and issues link to
+link in their `links`). A member's `role` is `member` (the default: everything) or `viewer` (looks and comments). With
+`source`, cards and issues link to
 `<repo>/blob/<branch>/<file>#L<line>`, and issues offer YAML to paste.
 
 ## CLI
