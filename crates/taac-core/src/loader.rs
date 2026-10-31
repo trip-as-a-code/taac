@@ -11,8 +11,8 @@ use crate::diagnostics::Diagnostic;
 use chrono::NaiveDate;
 
 use crate::model::{
-    Access, Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
-    Pass, Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Task, TripFile,
+    Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory, Pass,
+    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Task, TripFile,
     TripKind, TripMetadata,
 };
 
@@ -21,7 +21,7 @@ pub type Files = BTreeMap<String, String>;
 #[derive(Debug, Clone)]
 pub struct Site {
     pub metadata: SiteMetadata,
-    pub access: Option<Access>,
+    pub access: crate::model::SiteAccess,
     pub source: Option<SourceRepo>,
     pub trips: Vec<Trip>,
 }
@@ -46,7 +46,10 @@ pub struct Trip {
     pub passes: Vec<Pass>,
     pub packing: Vec<PackingCategory>,
     pub overlays: Vec<LoadedOverlay>,
-    pub access: Option<Access>,
+    /// On a `github` site: open to everyone.
+    pub public: bool,
+    /// On a `github` site: GitHub usernames who may see it besides its members.
+    pub viewers: Vec<String>,
 }
 
 /// A set of people doing something together: everyone, a declared group, or
@@ -324,7 +327,8 @@ pub fn load_site(files: &Files, site_path: &str) -> (Option<Site>, Vec<Diagnosti
     for entry in &site_file.trips {
         let path = join(site_dir, &entry.path);
         if let Some(mut trip) = load_trip(files, &path, &mut diagnostics) {
-            trip.access.clone_from(&entry.access);
+            trip.public = entry.public;
+            trip.viewers.clone_from(&entry.viewers);
             trips.push(trip);
         }
     }
@@ -346,7 +350,7 @@ pub fn load_standalone_trip(files: &Files, path: &str) -> (Option<Site>, Vec<Dia
             title: trip.metadata.title.clone().into(),
             description: trip.metadata.summary.clone().map(Into::into),
         },
-        access: None,
+        access: crate::model::SiteAccess::Public,
         source: None,
         trips: vec![trip],
     });
@@ -440,7 +444,8 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         passes: Vec::new(),
         packing: Vec::new(),
         overlays: Vec::new(),
-        access: None,
+        public: false,
+        viewers: Vec::new(),
     };
 
     for (file, mut doc) in std::iter::once((main_path, root)).chain(parts) {
@@ -606,6 +611,9 @@ fn resolve_names(trip: &mut Trip) {
 
     for member in &mut trip.members {
         member.id = slug(&member.name);
+        if member.github.is_none() {
+            member.github = member.links.iter().find_map(|link| github_username(link));
+        }
     }
     for group in &mut trip.groups {
         group.id = group.name.as_deref().map(slug).unwrap_or_default();
@@ -876,6 +884,19 @@ pub fn join(dir: &str, relative: &str) -> String {
     parts.join("/")
 }
 
+/// `https://github.com/<username>` (nothing after it but a slash) → the username.
+fn github_username(link: &str) -> Option<String> {
+    let rest = link
+        .strip_prefix("https://github.com/")
+        .or_else(|| link.strip_prefix("http://github.com/"))?;
+    let name = rest.strip_suffix('/').unwrap_or(rest);
+    let valid = !name.is_empty()
+        && name.len() <= 39
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !name.starts_with('-');
+    valid.then(|| name.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -981,6 +1002,45 @@ groups: [{ name: Duo, members: [a, B] }]
         assert_eq!(trip.party(&["a", "b"]).id, "duo");
         assert_eq!(trip.party(&["a", "b", "c"]).id, "everyone");
         assert_eq!(trip.party(&["a", "c"]).id, "a+c");
+    }
+
+    #[test]
+    fn github_usernames_come_from_profile_links() {
+        let site_yaml = r"
+apiVersion: taac/v1alpha4
+kind: Site
+metadata: { title: S }
+access: github
+trips: [{ path: trip.yaml, viewers: [friend] }]
+";
+        let trip_yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+members:
+  - { name: A, links: [https://github.com/Alex-1/] }
+  - { name: B, github: bee }
+  - { name: C, links: [https://github.com/someone/repo] }
+";
+        let fs = files(&[("site.yaml", site_yaml), ("trip.yaml", trip_yaml)]);
+        let (site, diagnostics) = load_site(&fs, "site.yaml");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let site = site.unwrap();
+        let github: Vec<_> = site.trips[0]
+            .members
+            .iter()
+            .map(|m| m.github.as_deref())
+            .collect();
+        // A repository link isn't a profile.
+        assert_eq!(github, [Some("Alex-1"), Some("bee"), None]);
+        assert_eq!(site.trips[0].viewers, ["friend"]);
+        let warnings = crate::validate::validate_site(&site);
+        let unnamed: Vec<_> = warnings
+            .iter()
+            .filter(|d| d.code == "member.github")
+            .collect();
+        assert_eq!(unnamed.len(), 1, "{warnings:?}");
+        assert!(unnamed[0].message.starts_with("C "));
     }
 
     #[test]

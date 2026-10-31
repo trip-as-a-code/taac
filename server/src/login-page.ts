@@ -1,4 +1,4 @@
-/** Worker-rendered pages: self-contained, no external assets, nothing from the build. */
+/** Server-rendered pages: self-contained, no external assets, nothing from the build. */
 
 import { loginStrings } from './i18n'
 
@@ -28,12 +28,11 @@ animation:rise .45s cubic-bezier(.2,.8,.2,1)}
 background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
 h1{font-size:28px;line-height:1.14;font-weight:600;letter-spacing:-.015em;margin:0 0 8px;overflow-wrap:anywhere}
 p{margin:0 0 24px;color:var(--muted);font-size:15px}
-label{display:block;text-align:left;font-size:13px;font-weight:500;color:var(--muted);margin:0 0 6px 4px}
-input[type=password]{width:100%;font:inherit;color:var(--text);background:var(--field);border:1px solid var(--line);
-border-radius:12px;padding:12px 14px;outline:none;transition:border-color .15s,box-shadow .15s}
-input[type=password]:focus{border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
-input[aria-invalid=true]{border-color:var(--danger)}
-.error{color:var(--danger);font-size:14px;text-align:left;margin:8px 0 0 4px}
+strong{color:var(--text);font-weight:600}
+.error{color:var(--danger);font-size:14px;margin:0 0 4px}
+.button{display:flex;align-items:center;justify-content:center;gap:10px}
+.secondary{color:var(--accent);background:transparent;margin-top:8px}
+.secondary:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 button,.button{display:block;width:100%;margin-top:20px;font:inherit;font-weight:500;color:#fff;background:var(--accent);
 border:0;border-radius:980px;padding:12px 20px;cursor:pointer;text-decoration:none;transition:background .15s,transform .1s}
 button:hover,.button:hover{background:var(--accent-press)}
@@ -54,38 +53,50 @@ function page(lang: string, title: string, body: string, theme: Theme = 'dark'):
 <body><main>${body}</main></body></html>`
 }
 
+const GITHUB = `<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`
+
 export interface LoginPageOptions {
   lang: string
   title: string
-  scope: string
   next: string
+  /** Signing in went wrong last time. */
   error: boolean
-  trip: boolean
   theme?: Theme
 }
 
 export function renderLoginPage(o: LoginPageOptions): string {
   const t = loginStrings(o.lang)
-  const error = o.error ? `<div class="error" id="error" role="alert">${escapeHtml(t.error)}</div>` : ''
+  const error = o.error ? `<p class="error" role="alert">${escapeHtml(t.error)}</p>` : ''
+  const start = `/api/auth/github?next=${encodeURIComponent(o.next)}`
   return page(
     o.lang,
     o.title,
-    `<div class="glyph">${LOCK}</div><h1>${escapeHtml(o.title)}</h1><p>${escapeHtml(o.trip ? t.tripLead : t.siteLead)}</p>
-<form method="post" action="/api/login"><input type="hidden" name="scope" value="${escapeHtml(o.scope)}">
-<input type="hidden" name="next" value="${escapeHtml(o.next)}"><label for="password">${escapeHtml(t.password)}</label>
-<input id="password" name="password" type="password" autocomplete="current-password" autofocus required${o.error ? ' aria-invalid="true" aria-describedby="error"' : ''}>${error}
-<button type="submit">${escapeHtml(t.submit)}</button></form>`,
+    `<div class="glyph">${LOCK}</div><h1>${escapeHtml(o.title)}</h1><p>${escapeHtml(t.lead)}</p>${error}
+<a class="button" href="${escapeHtml(start)}">${GITHUB}<span>${escapeHtml(t.github)}</span></a>`,
     o.theme,
   )
 }
 
-export function renderTooManyAttempts(lang: string, back: string, theme?: Theme): string {
-  const t = loginStrings(lang)
+export interface ForbiddenPageOptions {
+  lang: string
+  title: string
+  login: string
+  /** It's a trip page (else the whole site). */
+  trip: boolean
+  home: string
+  theme?: Theme
+}
+
+/** Signed in, but this isn't theirs to see: say who they are, offer another account. */
+export function renderForbiddenPage(o: ForbiddenPageOptions): string {
+  const t = loginStrings(o.lang)
+  const who = `<strong>@${escapeHtml(o.login)}</strong>`
   return page(
-    lang,
-    t.tooManyTitle,
-    `<div class="glyph">${LOCK}</div><h1>${escapeHtml(t.tooManyTitle)}</h1><p>${escapeHtml(t.tooManyBody)}</p>
-<a class="button" href="${escapeHtml(back)}">${escapeHtml(t.back)}</a>`,
-    theme,
+    o.lang,
+    o.title,
+    `<div class="glyph">${LOCK}</div><h1>${escapeHtml(o.title)}</h1><p>${(o.trip ? escapeHtml(t.notOnTrip) : escapeHtml(t.notOnSite)).replace('{login}', who)}</p>
+${o.trip ? `<a class="button" href="${escapeHtml(o.home)}">${escapeHtml(t.home)}</a>` : ''}
+<form method="post" action="/api/logout" data-astro-reload><button type="submit"${o.trip ? ' class="secondary"' : ''}>${escapeHtml(t.switch)}</button></form>`,
+    o.theme,
   )
 }

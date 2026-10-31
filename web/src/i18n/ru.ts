@@ -5,7 +5,6 @@ export const ru: Messages = {
   'site.empty': 'Поездок пока нет. Добавьте первую в файл сайта.',
   'site.upcoming': 'Впереди',
   'site.past': 'Прошедшие',
-  'site.locked': 'Защищено паролем',
 
   'nav.overview': 'Обзор',
   'nav.itinerary': 'Маршрут',

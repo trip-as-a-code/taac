@@ -3,7 +3,6 @@ export const en = {
   'site.empty': 'No trips yet. Add one to your site file.',
   'site.upcoming': 'Upcoming',
   'site.past': 'Past',
-  'site.locked': 'Password protected',
 
   'nav.overview': 'Overview',
   'nav.itinerary': 'Itinerary',

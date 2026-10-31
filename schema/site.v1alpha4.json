@@ -20,15 +20,9 @@
       }
     },
     "access": {
-      "description": "Password-protects the whole site.",
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Access"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "description": "Who sees the site: everyone, or people signed in with GitHub.",
+      "$ref": "#/$defs/SiteAccess",
+      "default": "public"
     },
     "source": {
       "description": "Where the trip files live, so the site can link each entry to its line.",
@@ -105,16 +99,16 @@
           "description": "Trip file or directory, relative to the site file.",
           "type": "string"
         },
-        "access": {
-          "description": "Password-protects this trip only.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Access"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "public": {
+          "description": "On a `github` site: open to everyone, signed in or not.",
+          "type": "boolean"
+        },
+        "viewers": {
+          "description": "On a `github` site: GitHub usernames who may see the trip besides its\nmembers.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false,
@@ -122,31 +116,18 @@
         "path"
       ]
     },
-    "Access": {
-      "type": "object",
-      "properties": {
-        "password": {
-          "description": "Worker secret holding the password.",
-          "$ref": "#/$defs/Secret"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "password"
-      ]
-    },
-    "Secret": {
-      "description": "A confidential value, resolved by name from `.env`, `secrets.yaml` or the\nenvironment. Only local builds run with `--reveal` ever see it.",
-      "type": "object",
-      "properties": {
-        "secret": {
+    "SiteAccess": {
+      "oneOf": [
+        {
+          "description": "Everything is open.",
           "type": "string",
-          "pattern": "^[A-Z][A-Z0-9_]*$"
+          "const": "public"
+        },
+        {
+          "description": "Signing in with GitHub is required; a trip shows to its members (by\ntheir `github`), its `viewers`, or everyone when `public`.",
+          "type": "string",
+          "const": "github"
         }
-      },
-      "additionalProperties": false,
-      "required": [
-        "secret"
       ]
     },
     "SourceRepo": {

@@ -112,7 +112,7 @@ function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
 
 /**
  * Wires trips into Astro: the `virtual:taac/site` module for pages and
- * `/_taac/access.json` for the worker (which paths need which password).
+ * `/_taac/access.json` for the server (who may see which trip).
  */
 export function taac(): AstroIntegration {
   let latest: SiteExport | undefined
@@ -128,13 +128,11 @@ export function taac(): AstroIntegration {
         const access = {
           // The login page localizes the site title itself.
           title: site.site.title,
-          site: site.site.passwordSecret ? { secret: site.site.passwordSecret } : null,
+          auth: site.site.access === 'github' ? 'github' : null,
           trips: Object.fromEntries(
-            site.trips
-              .filter((t) => t.passwordSecret)
-              .map((t) => [t.slug, { secret: t.passwordSecret, title: t.title }]),
+            site.trips.map((t) => [t.slug, { title: t.title, public: t.public, logins: t.logins }]),
           ),
-          // Every trip, protected or not: the worker serves shared state only for these.
+          // Every trip: the server serves shared state only for these.
           slugs: site.trips.map((t) => t.slug),
           locales: ['en', 'ru'],
           defaultLocale: 'en',
@@ -144,7 +142,7 @@ export function taac(): AstroIntegration {
         writeFileSync(out, JSON.stringify(access, null, 2))
         const warnings = [...site.diagnostics, ...site.trips.flatMap((t) => t.diagnostics)]
         if (warnings.length) logger.warn(`\n${format(warnings)}`)
-        logger.info(`${site.trips.length} trip(s); access: ${access.site ? 'site password' : 'public'}`)
+        logger.info(`${site.trips.length} trip(s); access: ${access.auth ?? 'public'}`)
       },
     },
   }

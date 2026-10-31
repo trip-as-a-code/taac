@@ -30,9 +30,8 @@ pub struct SiteInfo {
     pub title: Text,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<Text>,
-    /// Worker secret name guarding the whole site, if any.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub password_secret: Option<String>,
+    /// Who sees the site.
+    pub access: crate::model::SiteAccess,
     /// Repository the trip files live in, for links to entries' lines.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<SourceRepo>,
@@ -51,9 +50,11 @@ pub struct TripExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<Cover>,
     pub tags: Vec<String>,
-    /// Worker secret name guarding this trip, if any.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub password_secret: Option<String>,
+    /// On a `github` site: open to everyone.
+    pub public: bool,
+    /// On a `github` site: the GitHub usernames who may see it — its members'
+    /// and its `viewers`.
+    pub logins: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -503,7 +504,7 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
         site: SiteInfo {
             title: site.metadata.title.clone(),
             description: site.metadata.description.clone(),
-            password_secret: site.access.as_ref().map(|a| a.password.secret.clone()),
+            access: site.access,
             source: site.source.clone(),
         },
         trips,
@@ -681,7 +682,19 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         timezone: trip.metadata.timezone.clone(),
         cover: trip.metadata.cover.clone(),
         tags: trip.metadata.tags.clone(),
-        password_secret: trip.access.as_ref().map(|a| a.password.secret.clone()),
+        public: trip.public,
+        logins: {
+            let mut logins: Vec<String> = trip
+                .members
+                .iter()
+                .filter_map(|m| m.github.clone())
+                .chain(trip.viewers.iter().cloned())
+                .map(|l| l.to_lowercase())
+                .collect();
+            logins.sort();
+            logins.dedup();
+            logins
+        },
         start_date,
         end_date,
         currency: trip.currency.as_ref().map(|c| CurrencyExport {

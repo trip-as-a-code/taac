@@ -36,7 +36,7 @@ export function languageRedirect(input: RedirectInput, manifest: AccessManifest)
   return `/${lang}${input.path}${input.search}`
 }
 
-/** UI language for worker-rendered pages. */
+/** UI language for server-rendered pages. */
 export function pageLanguage(
   path: string,
   cookie: string | null,
@@ -52,36 +52,33 @@ export function pageLanguage(
 }
 
 export interface LoginStrings {
-  siteLead: string
-  tripLead: string
-  password: string
-  submit: string
+  lead: string
+  github: string
   error: string
-  tooManyTitle: string
-  tooManyBody: string
-  back: string
+  notOnSite: string
+  notOnTrip: string
+  home: string
+  switch: string
 }
 
 const STRINGS: Record<string, LoginStrings> = {
   en: {
-    siteLead: 'This site is private. Enter the password to continue.',
-    tripLead: 'This trip is private. Enter the password to continue.',
-    password: 'Password',
-    submit: 'Continue',
-    error: 'Incorrect password. Try again.',
-    tooManyTitle: 'Too many attempts',
-    tooManyBody: 'Wait a minute, then try again.',
-    back: 'Back',
+    lead: 'This site is private. Sign in with GitHub to continue.',
+    github: 'Sign in with GitHub',
+    error: 'Signing in didn’t work. Try again.',
+    notOnSite: '{login} isn’t on any trip here.',
+    notOnTrip: 'This trip isn’t shared with {login}.',
+    home: 'All trips',
+    switch: 'Use another account',
   },
   ru: {
-    siteLead: 'Этот сайт закрыт. Введите пароль, чтобы продолжить.',
-    tripLead: 'Эта поездка закрыта. Введите пароль, чтобы продолжить.',
-    password: 'Пароль',
-    submit: 'Продолжить',
-    error: 'Неверный пароль. Попробуйте ещё раз.',
-    tooManyTitle: 'Слишком много попыток',
-    tooManyBody: 'Подождите минуту и попробуйте снова.',
-    back: 'Назад',
+    lead: 'Этот сайт закрыт. Войдите через GitHub, чтобы продолжить.',
+    github: 'Войти через GitHub',
+    error: 'Не удалось войти. Попробуйте ещё раз.',
+    notOnSite: '{login} не участвует ни в одной поездке.',
+    notOnTrip: 'Эта поездка не открыта для {login}.',
+    home: 'Все поездки',
+    switch: 'Войти в другой аккаунт',
   },
 }
 

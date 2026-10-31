@@ -20,6 +20,21 @@ pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
             ));
         }
         out.extend(validate_trip(trip));
+        // Signing in with GitHub is how a member gets to their own trip.
+        if site.access == crate::model::SiteAccess::Github {
+            for member in trip.members.iter().filter(|m| m.github.is_none()) {
+                out.push(
+                    Diagnostic::warning(
+                        "member.github",
+                        format!(
+                            "{} has no GitHub username, so they can't sign in: add `github:` (or a github.com link)",
+                            member.name
+                        ),
+                    )
+                    .in_trip(&trip.slug),
+                );
+            }
+        }
     }
     out
 }

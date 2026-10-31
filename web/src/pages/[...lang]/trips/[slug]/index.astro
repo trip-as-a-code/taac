@@ -584,6 +584,11 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
     }
   }
 
+  // Calendar keys arrive with the session, after the links were first set.
+  document.addEventListener('taac:session', () => {
+    if (document.querySelector<HTMLElement>('[data-section]')?.dataset.section === 'overview') follow(getLens())
+  })
+
   onPage('overview', () => {
     status()
     copyButtons()

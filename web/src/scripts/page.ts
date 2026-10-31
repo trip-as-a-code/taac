@@ -4,6 +4,7 @@ import { revealTarget } from '@/scripts/filters'
 import { fitAll } from '@/scripts/fit'
 import { onMoney, renderMoney } from '@/scripts/money'
 import { setupPickers } from '@/scripts/picker'
+import { applySession } from '@/scripts/session'
 import { setupTooltips } from '@/scripts/tooltip'
 
 const LANG_COOKIE = 'taac_lang'
@@ -28,6 +29,7 @@ export function setupPage() {
   showByDate()
   renderMoney()
   fitAll()
+  void applySession()
   setupPickers()
   setupTooltips()
   if (!once) {
