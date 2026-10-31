@@ -454,7 +454,6 @@ export const en = {
   'notifications.filterUnread': 'Unread',
   'notifications.today': 'Today',
   'notifications.yesterday': 'Yesterday',
-  'notifications.device': 'These settings are for this device and browser only.',
   'push.hint': 'Replies and new discussions, even when the site is closed.',
 
   'push.unsupported': 'This browser doesn’t show notifications from sites.',
