@@ -14,6 +14,7 @@ import {
   localizedText,
   loginPath,
   mayTick,
+  roleOf,
   sanitizeNext,
   splitLocale,
   tripOf,
@@ -23,6 +24,8 @@ import {
 import {
   calendarKey,
   clearedCookie,
+  LINK_COOKIE,
+  linkCookie,
   randomState,
   readCookie,
   sameState,
@@ -36,11 +39,23 @@ import {
   verifySession,
 } from './auth'
 import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
+import {
+  describe,
+  linkCookieAge,
+  linksRoute,
+  linkToken,
+  MAX_LINKS,
+  newLink,
+  signLinkCookie,
+  verifyLinkCookie,
+  works,
+  type ShareLink,
+} from './links'
 import { handleFx } from './fx'
 import { authorizeUrl, userFor, type GithubApp } from './github'
 import { robotsTxt, secureResponse } from './headers'
 import { languageRedirect, pageLanguage } from './i18n'
-import { renderForbiddenPage, renderLoginPage, type Theme } from './login-page'
+import { renderForbiddenPage, renderLinkGonePage, renderLoginPage, type Theme } from './login-page'
 import { packingSlug } from './packing'
 import { serveStatic } from './static'
 import type { Store } from './store'
@@ -143,15 +158,100 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     ])
   }
 
-  /** Who is signed in, which trips they see and tick, and their calendar keys. */
+  /** Links checked in the last half minute, so a page's many requests ask the database once. */
+  const checked = new Map<string, { link: ShareLink | null; until: number }>()
+
+  /** The view-only link this browser opened, while it still works. */
+  async function linkOf(request: Request): Promise<ShareLink | null> {
+    if (!config.store || !config.sessionSecret) return null
+    const cookie = await verifyLinkCookie(readCookie(request.headers.get('Cookie'), LINK_COOKIE), config.sessionSecret)
+    if (!cookie || !manifest.slugs.includes(cookie.trip)) return null
+    const now = config.now?.() ?? Date.now()
+    let hit = checked.get(cookie.id)
+    if (!hit || hit.until < now) {
+      hit = { link: await config.store.linkById(cookie.id), until: now + 30_000 }
+      checked.set(cookie.id, hit)
+    }
+    return works(hit.link, now) && hit.link.trip === cookie.trip ? hit.link : null
+  }
+
+  /** The trips a request may see: its account's, and its link's. */
+  function tripsFor(login: string | null, link: ShareLink | null): string[] {
+    const trips = visibleTrips(login, manifest)
+    return link && !trips.includes(link.trip) ? [...trips, link.trip] : trips
+  }
+
+  /** Who may make and revoke a trip's links: its `member`s, when there is somewhere to keep them. */
+  const mayShare = (slug: string, login: string | null) => !!config.store && roleOf(slug, login, manifest) === 'member'
+
+  /** Who is signed in, which trips they see, tick and share, their calendar keys, and the link they came by. */
   async function me(request: Request): Promise<Response> {
     const login = await loginOf(request)
-    const trips = visibleTrips(login, manifest)
+    const link = await linkOf(request)
+    const trips = tripsFor(login, link)
     const calendars: Record<string, string> = {}
+    // A link holder gets no calendar key: keys don't expire, links do.
     if (config.sessionSecret && (login || !isProtected(manifest)))
-      for (const slug of trips) calendars[slug] = await calendarKey(config.sessionSecret, slug)
+      for (const slug of visibleTrips(login, manifest)) calendars[slug] = await calendarKey(config.sessionSecret, slug)
     const packing = manifest.slugs.filter((slug) => mayTick(slug, login, manifest))
-    return json({ login, trips, packing, calendars })
+    const share = manifest.slugs.filter((slug) => mayShare(slug, login))
+    return json({
+      login,
+      trips,
+      packing,
+      share,
+      calendars,
+      link: link ? { trip: link.trip, label: link.label, expiresAt: link.expiresAt } : null,
+    })
+  }
+
+  /** `/s/<token>`: remembers the link in this browser and opens its trip. */
+  async function openLink(request: Request, token: string): Promise<Response> {
+    const now = config.now?.() ?? Date.now()
+    const link = config.store ? await config.store.linkByToken(token) : null
+    const lang = language(request, '/')
+    if (!works(link, now) || !config.sessionSecret || !manifest.slugs.includes(link.trip))
+      return html(
+        renderLinkGonePage({
+          lang,
+          title: localizedText(manifest.title, lang),
+          signIn: loginPath(lang === manifest.defaultLocale ? null : lang, manifest),
+          theme: themeOf(request),
+        }),
+        410,
+      )
+    await config.store!.touchLink(link.id, now).catch(() => undefined)
+    const cookie = await signLinkCookie(config.sessionSecret, link)
+    const home = localeRoot(lang === manifest.defaultLocale ? null : lang, manifest)
+    return redirect(`${home}trips/${encodeURIComponent(link.trip)}/`, 303, [
+      linkCookie(cookie, secure(request), linkCookieAge(link, now)),
+    ])
+  }
+
+  /** `/api/trips/<slug>/links`: the trip's working links (GET), a new one (POST), revoking one (DELETE). */
+  async function links(request: Request, slug: string, id: string | null): Promise<Response> {
+    const login = await loginOf(request)
+    if (!manifest.slugs.includes(slug) || !config.store) return text('Not found\n', 404)
+    if (!login) return text('Unauthorized\n', 401)
+    if (!mayShare(slug, login)) return text('Only the trip’s members share it\n', 403)
+    const now = config.now?.() ?? Date.now()
+    const list = async () =>
+      json({ links: (await config.store!.links(slug, now)).map((l) => describe(l, origin(request))) })
+    if (request.method === 'GET' && !id) return list()
+    if (request.method === 'POST' && !id) {
+      const body = (await request.json().catch(() => ({}))) as { label?: unknown; expires?: unknown }
+      const link = newLink(slug, body.label, body.expires, login, now)
+      if (!link) return text('expected {label, expires: 1d|1w|1m|never}\n', 400)
+      if ((await config.store.links(slug, now)).length >= MAX_LINKS) return text('Too many links\n', 409)
+      await config.store.createLink(link)
+      return list()
+    }
+    if (request.method === 'DELETE' && id) {
+      if (!(await config.store.revokeLink(slug, id, login, now))) return text('Not found\n', 404)
+      checked.delete(id)
+      return list()
+    }
+    return text('Method not allowed\n', 405)
   }
 
   /** Unlocks the calendar feed for subscribers, who cannot sign in. */
@@ -165,7 +265,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
   /** A trip person's GitHub picture, or 404 so the site keeps their initials. */
   async function avatar(request: Request, login: string): Promise<Response> {
     const none = () => new Response(null, { status: 404, headers: { 'Cache-Control': 'private, max-age=3600' } })
-    if (!mayShowAvatar(login, await loginOf(request), manifest)) return none()
+    if (!mayShowAvatar(login, tripsFor(await loginOf(request), await linkOf(request)), manifest)) return none()
     const found = await avatarOf(login, config.now?.() ?? Date.now())
     if (!found?.image || !found.type) return none()
     return new Response(found.image, {
@@ -194,6 +294,10 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path.startsWith('/_taac/')) return plain(text('Not found\n', 404))
     if (path === '/robots.txt') return plain(text(robotsTxt(noindex), 200))
 
+    // Before the language redirect: a link is one address, in any language.
+    const token = linkToken(path)
+    if (token) return plain(await openLink(request, token))
+
     const languageTarget = languageRedirect(
       {
         method: request.method,
@@ -212,6 +316,8 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path === '/api/logout')
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
+    const linkApi = linksRoute(path)
+    if (linkApi) return plain(await links(request, linkApi.slug, linkApi.id))
     const pictured = avatarLogin(path)
     if (pictured) return plain(await avatar(request, pictured))
 
@@ -236,6 +342,18 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     const login = await loginOf(request)
     let decision = decide(path, login, manifest)
     if (decision !== 'open' && (await calendarKeyValid(path, url))) decision = 'open'
+    if (decision !== 'open') {
+      // A link opens its own trip and what its pages load, never another trip
+      // or the list of them: the home page sends it to its trip.
+      const link = await linkOf(request)
+      const slug = tripOf(path, manifest)
+      if (link && slug === link.trip) decision = 'open'
+      else if (link && slug === null) {
+        if (rest === '/')
+          return plain(redirect(`${localeRoot(locale, manifest)}trips/${encodeURIComponent(link.trip)}/`, 302))
+        decision = 'open'
+      }
+    }
     if (decision !== 'open' && !ready)
       return plain(text('taac: signing in is configured but its secrets are missing\n', 500))
     if (decision === 'sign-in') {

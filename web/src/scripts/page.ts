@@ -6,6 +6,7 @@ import { fitAll } from '@/scripts/fit'
 import { onMoney, renderMoney } from '@/scripts/money'
 import { setupPickers } from '@/scripts/picker'
 import { applySession } from '@/scripts/session'
+import { setupShare } from '@/scripts/share'
 import { setupTooltips } from '@/scripts/tooltip'
 
 const LANG_COOKIE = 'taac_lang'
@@ -32,6 +33,7 @@ export function setupPage() {
   fitAll()
   setupAvatars()
   void applySession()
+  void setupShare()
   setupPickers()
   setupTooltips()
   if (!once) {

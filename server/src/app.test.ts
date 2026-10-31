@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { normalise } from './access'
 import { createHandler } from './app'
 import { calendarKey } from './auth'
+import { works, type ShareLink } from './links'
 import { merge, type Ticks } from './packing'
 import type { Store } from './store'
 
@@ -50,7 +51,22 @@ function github(who: string): typeof fetch {
 
 function memoryStore(): Store {
   const trips = new Map<string, Ticks>()
+  const links: ShareLink[] = []
   return {
+    createLink: async (link) => void links.push(link),
+    links: async (trip, now) => links.filter((l) => l.trip === trip && works(l, now)),
+    linkByToken: async (token) => links.find((l) => l.token === token) ?? null,
+    linkById: async (id) => links.find((l) => l.id === id) ?? null,
+    revokeLink: async (trip, id, by, now) => {
+      const link = links.find((l) => l.trip === trip && l.id === id && l.revokedAt === null)
+      if (!link) return false
+      Object.assign(link, { revokedAt: now, revokedBy: by })
+      return true
+    },
+    touchLink: async (id, now) => {
+      const link = links.find((l) => l.id === id)
+      if (link) link.lastUsedAt = now
+    },
     ticks: async (trip) => trips.get(trip) ?? {},
     avatar: async () => null,
     putAvatar: async () => undefined,
@@ -63,14 +79,15 @@ function memoryStore(): Store {
   }
 }
 
-function handler(who = 'Alex') {
+function handler(who = 'Alex', store = memoryStore(), now?: () => number) {
   return createHandler(
     {
+      now,
       dist,
       publicUrl: 'https://trips.example',
       sessionSecret: 'secret',
       github: { clientId: 'id', clientSecret: 'shh' },
-      store: memoryStore(),
+      store,
       fetcher: github(who),
     },
     manifest,
@@ -121,6 +138,8 @@ describe('signing in', () => {
       login: 'alex',
       trips: ['japan'],
       packing: ['japan'],
+      share: ['japan'],
+      link: null,
       calendars: { japan: await calendarKey('secret', 'japan') },
     })
   })
@@ -223,5 +242,96 @@ describe('the rest', () => {
     const response = await handler()(new Request('https://trips.example/healthz'))
     expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'self'")
     expect(response.headers.get('X-Robots-Tag')).toBe('noindex, nofollow')
+  })
+})
+
+describe('view-only links', () => {
+  const cookieOf = (response: Response) =>
+    response.headers
+      .getSetCookie()
+      .map((c) => c.split(';')[0]!)
+      .join('; ')
+
+  async function makeLink(store: Store, expires = '1w', now?: () => number) {
+    const member = handler('Alex', store, now)
+    const cookies = await signIn(member)
+    const made = await member(
+      new Request('https://trips.example/api/trips/japan/links', {
+        method: 'POST',
+        headers: { Cookie: cookies },
+        body: JSON.stringify({ label: 'for mum', expires }),
+      }),
+    )
+    expect(made.status).toBe(200)
+    const [link] = ((await made.json()) as { links: { id: string; url: string; createdBy: string }[] }).links
+    expect(link!.createdBy).toBe('alex')
+    return { member, cookies, link: link! }
+  }
+
+  it('shows its trip, read-only, to anyone holding it', async () => {
+    const store = memoryStore()
+    const { link } = await makeLink(store)
+    const visitor = handler('nobody', store)
+    const opened = await visitor(new Request(link.url, { headers: { ...page, Cookie: 'taac_lang=ru' } }))
+    expect(opened.status).toBe(303)
+    expect(opened.headers.get('Location')).toBe('/ru/trips/japan/')
+    const cookie = cookieOf(opened)
+    const get = (path: string) =>
+      visitor(new Request(`https://trips.example${path}`, { headers: { ...page, Cookie: cookie } }))
+    expect((await get('/trips/japan/')).status).toBe(200)
+    expect((await get('/')).headers.get('Location')).toBe('/trips/japan/')
+    const me = (await (await get('/api/me')).json()) as { trips: string[]; packing: string[]; link: { label: string } }
+    expect(me.trips).toEqual(['japan'])
+    expect(me.packing).toEqual([])
+    expect(me.link.label).toBe('for mum')
+    const tick = await visitor(
+      new Request('https://trips.example/trips/japan/_packing', {
+        method: 'POST',
+        headers: { Cookie: cookie },
+        body: JSON.stringify({ changes: [{ item: 'a', member: 'alex', packed: true, at: 1 }] }),
+      }),
+    )
+    expect(tick.status).toBe(403)
+    expect((await get('/api/trips/japan/links')).status).toBe(401)
+  })
+
+  it('stops working once any member revokes it', async () => {
+    const store = memoryStore()
+    const { member, cookies, link } = await makeLink(store)
+    const visitor = handler('nobody', store)
+    const cookie = cookieOf(await visitor(new Request(link.url)))
+    const revoked = await member(
+      new Request(`https://trips.example/api/trips/japan/links/${link.id}`, {
+        method: 'DELETE',
+        headers: { Cookie: cookies },
+      }),
+    )
+    expect(((await revoked.json()) as { links: unknown[] }).links).toEqual([])
+    const trip = await visitor(
+      new Request('https://trips.example/trips/japan/', { headers: { ...page, Cookie: cookie } }),
+    )
+    expect(trip.status).toBe(302)
+    expect((await visitor(new Request(link.url))).status).toBe(410)
+  })
+
+  it('expires', async () => {
+    const store = memoryStore()
+    let now = Date.now()
+    const { link } = await makeLink(store, '1d', () => now)
+    now += 2 * 24 * 60 * 60 * 1000
+    expect((await handler('nobody', store, () => now)(new Request(link.url))).status).toBe(410)
+  })
+
+  it('is made by members only', async () => {
+    const viewer = handler('grandma')
+    const cookies = await signIn(viewer)
+    const made = await viewer(
+      new Request('https://trips.example/api/trips/japan/links', {
+        method: 'POST',
+        headers: { Cookie: cookies },
+        body: JSON.stringify({ label: 'x', expires: 'never' }),
+      }),
+    )
+    expect(made.status).toBe(403)
   })
 })

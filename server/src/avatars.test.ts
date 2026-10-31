@@ -2,7 +2,7 @@ import { deflateSync } from 'node:zlib'
 
 import { describe, expect, it } from 'vitest'
 
-import { normalise } from './access'
+import { normalise, visibleTrips } from './access'
 import { avatarLogin, avatarSource, isIdenticon, mayShowAvatar } from './avatars'
 
 /** A PNG of `size`² pixels painted by `paint`, every row with the Up filter. */
@@ -61,11 +61,11 @@ describe('who may see whose picture', () => {
   })
 
   it('shows the people of the trips the viewer can see', () => {
-    expect(mayShowAvatar('sam', 'alex', manifest)).toBe(true)
-    expect(mayShowAvatar('sam', null, manifest)).toBe(false)
-    expect(mayShowAvatar('sam', 'stranger', manifest)).toBe(false)
-    expect(mayShowAvatar('robin', null, manifest)).toBe(true)
-    expect(mayShowAvatar('torvalds', 'alex', manifest)).toBe(false)
+    expect(mayShowAvatar('sam', visibleTrips('alex', manifest), manifest)).toBe(true)
+    expect(mayShowAvatar('sam', visibleTrips(null, manifest), manifest)).toBe(false)
+    expect(mayShowAvatar('sam', visibleTrips('stranger', manifest), manifest)).toBe(false)
+    expect(mayShowAvatar('robin', visibleTrips(null, manifest), manifest)).toBe(true)
+    expect(mayShowAvatar('torvalds', visibleTrips('alex', manifest), manifest)).toBe(false)
   })
 
   it('reads only usernames from the path', () => {
