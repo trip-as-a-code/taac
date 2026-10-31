@@ -90,6 +90,7 @@ async function withAccounts(
         ? await ask(`pulls/${set.pr}`, (b) => b.user?.login)
         : await ask(`commits/${set.sha}`, (b) => b.author?.login)
       if (!login) return
+      set.login = login.toLowerCase()
       set.author = members.find((m) => m.github?.toLowerCase() === login.toLowerCase())?.name ?? `@${login}`
     }),
   )

@@ -78,6 +78,7 @@ async function main(): Promise<void> {
         : undefined,
   }
   const handle = createHandler(config, manifest)
+  void handle.announceChanges().catch((error: unknown) => console.error(error))
   const server = createServer((req, res) => {
     handle(toRequest(req))
       .then((response) => send(response, res))

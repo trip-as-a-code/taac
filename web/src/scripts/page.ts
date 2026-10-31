@@ -41,6 +41,7 @@ export function setupPage() {
   void setupComments()
   void setupNotifications()
   void me().then(offerPush)
+  void adoptLanguage()
   setupPickers()
   setupTooltips()
   if (!once) {
@@ -104,6 +105,8 @@ function rememberLanguageOnSwitch() {
     link.addEventListener('click', () => {
       const lang = link.dataset.setLang!
       document.cookie = `${LANG_COOKIE}=${lang}; Path=/; Max-Age=31536000; SameSite=Lax`
+      // Signed in: kept for the account, so other browsers and its notifications follow.
+      if (document.documentElement.hasAttribute('data-auth')) saveLanguage(lang)
       try {
         localStorage.setItem(LANG_COOKIE, lang)
       } catch {
@@ -111,6 +114,22 @@ function rememberLanguageOnSwitch() {
       }
     })
   }
+}
+
+function saveLanguage(lang: string) {
+  void fetch('/api/me/lang', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lang }),
+    keepalive: true,
+  }).catch(() => undefined)
+}
+
+/** An account without a language yet takes the one it is reading in. */
+async function adoptLanguage() {
+  const session = await me()
+  if (session?.login && session.lang === null) saveLanguage(document.documentElement.lang)
 }
 
 function forgetOfflineCopiesOnLogout() {

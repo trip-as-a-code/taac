@@ -10,10 +10,12 @@ import { me, type Me } from '@/scripts/session'
 interface Notification {
   id: string
   trip: string
-  kind: 'thread' | 'reply' | 'resolved'
+  kind: 'thread' | 'reply' | 'resolved' | 'change'
   anchor: string
   thread: string
   by: string
+  /** Their name when there is no login. */
+  author?: string
   text: string
   at: number
   read: boolean
@@ -55,6 +57,21 @@ function context(): Context | null {
     people: JSON.parse(root.dataset.people ?? '{}') as Record<string, Person>,
     strings: JSON.parse(root.dataset.strings ?? '{}') as Record<string, string>,
   }
+}
+
+/** The trip's change sets in this language, fetched once per trip. */
+const changeSets = new Map<string, Promise<{ id: string; summary: string; href: string }[]>>()
+
+function changesOf(base: string, trip: string) {
+  let found = changeSets.get(trip)
+  if (!found) {
+    found = fetch(`${base}trips/${encodeURIComponent(trip)}/changes.json`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : { sets: [] }))
+      .then((body: { sets: { id: string; summary: string; href: string }[] }) => body.sets)
+      .catch(() => [])
+    changeSets.set(trip, found)
+  }
+  return found
 }
 
 function targetsOf(base: string, trip: string) {
@@ -114,38 +131,48 @@ export async function markNotifications(read: boolean, which: { ids?: string[]; 
 async function renderItem(n: Notification, ctx: Context, withToggle: boolean): Promise<HTMLLIElement> {
   const trip = await targetsOf(ctx.base, n.trip)
   const target = trip?.targets[n.anchor]
+  // A change set: worded in this language, linking to "Recent changes".
+  const change =
+    n.kind === 'change' ? (await changesOf(ctx.base, n.trip)).find((c) => `change:${c.id}` === n.id) : undefined
   const item = document.createElement('li')
   item.toggleAttribute('data-unread', !n.read)
   const link = document.createElement('a')
-  link.href = target ? linkTo(target.href, n.anchor) : `${ctx.base}trips/${encodeURIComponent(n.trip)}/`
+  link.href = change
+    ? change.href
+    : target
+      ? linkTo(target.href, n.anchor)
+      : `${ctx.base}trips/${encodeURIComponent(n.trip)}/`
   const person = ctx.people[n.by]
   const avatar = document.createElement('span')
   avatar.className = 'avatar'
   avatar.style.setProperty('--hue', String(person?.hue ?? 210))
-  avatar.textContent = person?.initials ?? n.by.slice(0, 1).toUpperCase()
+  avatar.textContent = person?.initials ?? (n.by || n.author || '?').slice(0, 1).toUpperCase()
   const img = document.createElement('img')
   img.className = 'avatar-photo'
-  img.src = `/api/avatars/${n.by}`
   img.alt = ''
   img.dataset.avatarPhoto = ''
-  avatar.append(img)
+  if (n.by) {
+    img.src = `/api/avatars/${n.by}`
+    avatar.append(img)
+  }
   const what = document.createElement('span')
   what.className = 'subhead title'
-  what.textContent = ctx.strings[n.kind]!.replace('{name}', person?.name ?? `@${n.by}`)
+  what.textContent = ctx.strings[n.kind]!.replace('{name}', person?.name ?? (n.by ? `@${n.by}` : (n.author ?? '')))
   const where = document.createElement('span')
   where.className = 'footnote secondary meta'
   where.textContent = [
-    target?.title,
-    ctx.root.hasAttribute('data-several-trips') ? trip?.title : undefined,
+    n.kind === 'change' ? trip?.title : target?.title,
+    ctx.root.hasAttribute('data-several-trips') && n.kind !== 'change' ? trip?.title : undefined,
     when(n.at, ctx.lang),
   ]
     .filter(Boolean)
     .join(' · ')
   link.append(avatar, what, where)
-  if (n.text) {
+  const said = change?.summary ?? n.text
+  if (said) {
     const text = document.createElement('span')
     text.className = 'subhead secondary text'
-    text.textContent = n.text
+    text.textContent = said
     link.append(text)
   }
   link.addEventListener('click', () => {
@@ -213,6 +240,30 @@ async function setupToggle(toggle: HTMLElement, session: Me) {
     const result = await testPush()
     test.disabled = false
     testStatus.textContent = result && result.sent > 0 ? d.sent! : d.failed!
+  }
+}
+
+/** `[data-kind-switch]`es: the notification kinds this account gets, kept on the server. */
+function setupKinds(page: HTMLElement, session: Me, changed: () => void) {
+  const muted = new Set(session.muted)
+  for (const button of page.querySelectorAll<HTMLButtonElement>('[data-kind-switch]')) {
+    const kind = button.dataset.kindSwitch!
+    button.setAttribute('aria-checked', String(!muted.has(kind)))
+    button.onclick = async () => {
+      const on = button.getAttribute('aria-checked') !== 'true'
+      if (on) muted.delete(kind)
+      else muted.add(kind)
+      button.setAttribute('aria-checked', String(on))
+      const response = await fetch('/api/me/notifications', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ muted: [...muted] }),
+      }).catch(() => null)
+      if (!response?.ok) return
+      document.dispatchEvent(new CustomEvent(CHANGED))
+      changed()
+    }
   }
 }
 
@@ -286,6 +337,7 @@ export async function setupNotificationsPage() {
   const none = page.querySelector<HTMLElement>('[data-page-none]')!
   const readAll = page.querySelector<HTMLButtonElement>('[data-page-read-all]')!
   void setupToggle(page.querySelector<HTMLElement>('[data-push-toggle]')!, session)
+  setupKinds(page, session, () => void restart())
 
   let unreadOnly = false
   let before: number | undefined

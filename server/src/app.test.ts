@@ -37,6 +37,7 @@ beforeAll(() => {
   writeFileSync(join(dist, 'trips/japan/index.html'), '<h1>japan</h1>')
   writeFileSync(join(dist, 'trips/japan/calendar.ics'), 'BEGIN:VCALENDAR')
   writeFileSync(join(dist, '404.html'), '<h1>nope</h1>')
+  changes([{ id: 'c1', login: 'grandma', author: 'Grandma', at: Date.now() - 1000, summary: 'Moved: Walk' }])
   writeFileSync(
     join(dist, 'trips/japan/threads.json'),
     JSON.stringify({
@@ -46,6 +47,14 @@ beforeAll(() => {
     }),
   )
 })
+
+/** The build's change sets for the trip. */
+function changes(sets: { id: string; login?: string; author: string; at: number; summary: string }[]) {
+  writeFileSync(
+    join(dist, 'trips/japan/changes.json'),
+    JSON.stringify({ sets: sets.map((s) => ({ ...s, href: '/trips/japan/#changes' })) }),
+  )
+}
 
 /** GitHub, answering every code with `who`. */
 function github(who: string): typeof fetch {
@@ -70,7 +79,21 @@ function memoryStore(): Store {
   let seen = 0
   const marks = new Map<string, boolean>()
   const subscriptions: PushSubscription[] = []
+  const langs = new Map<string, string>()
+  const mutes = new Map<string, string[]>()
+  const announced = new Map<string, Set<string>>()
   return {
+    userMuted: async (login) => mutes.get(login) ?? [],
+    setUserMuted: async (login, muted) => void mutes.set(login, muted),
+    unannounced: async (trip, ids) => {
+      const known = announced.get(trip) ?? new Set<string>()
+      const first = known.size === 0
+      const fresh = ids.filter((id) => !known.has(id))
+      announced.set(trip, new Set([...known, ...ids]))
+      return { fresh, first }
+    },
+    userLang: async (login) => langs.get(login) ?? null,
+    setUserLang: async (login, lang) => void langs.set(login, lang),
     addSubscription: async (sub) => void subscriptions.push(sub),
     removeSubscription: async (endpoint) => {
       subscriptions.splice(0, subscriptions.length, ...subscriptions.filter((s) => s.endpoint !== endpoint))
@@ -194,6 +217,8 @@ describe('signing in', () => {
       comments: ['japan'],
       link: null,
       push: null,
+      lang: null,
+      muted: [],
       calendars: { japan: await calendarKey('secret', 'japan') },
     })
   })
@@ -463,6 +488,8 @@ describe('discussions', () => {
 describe('notifications', () => {
   it('tells each member what the others said and settled, and remembers how far they read', async () => {
     const store = memoryStore()
+    // Only discussions here; the plan's changes have their own test.
+    await store.setUserMuted('alex', ['change'])
     const me = handler('Alex', store)
     const mine = await signIn(me)
     const viewer = handler('grandma', store)
@@ -570,11 +597,102 @@ describe('browser notifications', () => {
       },
     ])
     expect((await store.subscriptionsFor(['grandma'])).map((s) => s.endpoint)).toEqual(['https://push.example/1'])
+    // Their own language, once they chose one, over the browser's.
+    sent.length = 0
+    await grandma(
+      new Request('https://trips.example/api/me/lang', {
+        method: 'POST',
+        headers: { Cookie: theirs },
+        body: JSON.stringify({ lang: 'ru' }),
+      }),
+    )
+    await alex(
+      new Request(`https://trips.example/api/trips/japan/threads`, {
+        method: 'POST',
+        headers: { Cookie: mine },
+        body: JSON.stringify({ anchor: 'trip', body: 'Ещё?' }),
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    // No Russian build in this fixture: the login stands in for the name.
+    expect(sent[0]![1].body).toBe('@alex: новое обсуждение: Ещё?')
+    expect(await store.userLang('grandma')).toBe('ru')
     sent.length = 0
     const test = await grandma(
       new Request('https://trips.example/api/push/test', { method: 'POST', headers: { Cookie: theirs }, body: '{}' }),
     )
     expect(await test.json()).toMatchObject({ sent: 1, of: 1 })
-    expect(sent[0]![1]).toMatchObject({ body: 'Notifications work on this device.', tag: 'test' })
+    expect(sent[0]![1]).toMatchObject({ body: 'Уведомления на этом устройстве работают.', tag: 'test' })
+  })
+})
+
+describe('change notifications', () => {
+  it('lists others’ changes to the plan, unless turned off', async () => {
+    const store = memoryStore()
+    const me = handler('Alex', store)
+    const mine = await signIn(me)
+    const list = async () =>
+      (
+        (await (
+          await me(new Request('https://trips.example/api/notifications', { headers: { Cookie: mine } }))
+        ).json()) as {
+          notifications: { kind: string; by: string; text: string }[]
+        }
+      ).notifications
+    expect(await list()).toEqual([expect.objectContaining({ kind: 'change', by: 'grandma', text: 'Moved: Walk' })])
+    const muted = await me(
+      new Request('https://trips.example/api/me/notifications', {
+        method: 'POST',
+        headers: { Cookie: mine },
+        body: JSON.stringify({ muted: ['change', 'nonsense'] }),
+      }),
+    )
+    expect(await muted.json()).toEqual({ muted: ['change'] })
+    expect(await list()).toEqual([])
+  })
+
+  it('pushes changes from a new deploy once, after taking note of the old ones', async () => {
+    const store = memoryStore()
+    const sent: [string, PushMessage][] = []
+    const push = {
+      publicKey: 'key',
+      send: async (sub: PushSubscription, message: PushMessage) => {
+        sent.push([sub.login, message])
+        return 'ok' as const
+      },
+    }
+    for (const who of ['Alex', 'grandma']) {
+      const handle = handler(who, store, undefined, push)
+      const cookies = await signIn(handle)
+      await handle(
+        new Request('https://trips.example/api/push/subscribe', {
+          method: 'POST',
+          headers: { Cookie: cookies },
+          body: JSON.stringify({
+            subscription: { endpoint: `https://push.example/${who}`, keys: { p256dh: 'p', auth: 'a' } },
+          }),
+        }),
+      )
+    }
+    await handler('nobody', store, undefined, push).announceChanges()
+    expect(sent).toEqual([])
+    changes([
+      { id: 'c2', login: 'grandma', author: 'Grandma', at: Date.now(), summary: 'Added: Onsen' },
+      { id: 'c1', login: 'grandma', author: 'Grandma', at: Date.now() - 1000, summary: 'Moved: Walk' },
+    ])
+    await handler('nobody', store, undefined, push).announceChanges()
+    await handler('nobody', store, undefined, push).announceChanges()
+    expect(sent).toEqual([
+      [
+        'alex',
+        {
+          title: 'Japan',
+          body: 'Grandma changed the plan: Added: Onsen',
+          url: '/trips/japan/#changes',
+          tag: 'change:c2',
+        },
+      ],
+    ])
+    changes([{ id: 'c1', login: 'grandma', author: 'Grandma', at: Date.now() - 1000, summary: 'Moved: Walk' }])
   })
 })

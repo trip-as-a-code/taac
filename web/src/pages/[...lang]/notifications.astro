@@ -21,6 +21,17 @@ const { t, path } = useI18n(lang)
       <h1 class="large-title" data-large-title>
         {t('notifications.allTitle')}
       </h1>
+      {/* Two views of one page, so the back button moves between them. */}
+      <nav class="segmented views" aria-label={t('notifications.allTitle')}>
+        <a href="#" data-view="list" aria-current="page">
+          {t('notifications.allTitle')}
+        </a>
+        <a href="#settings" data-view="settings">
+          {t('notifications.settings')}
+        </a>
+      </nav>
+    </header>
+    <div class="view" data-view-panel="list">
       <div class="tools">
         <div class="segmented" role="group">
           <button type="button" data-filter="all" aria-pressed="true">
@@ -30,39 +41,81 @@ const { t, path } = useI18n(lang)
             {t('notifications.filterUnread')}
           </button>
         </div>
-        <div class="actions">
-          <button class="button button-plain" type="button" data-page-read-all hidden>
-            <Icon name="check" size={16} />
-            {t('notifications.readAll')}
-          </button>
-          <a class="button button-plain" href="#settings">
-            <Icon name="sliders" size={16} />
-            {t('notifications.settings')}
-          </a>
+        <button class="button button-plain" type="button" data-page-read-all hidden>
+          <Icon name="check" size={16} />
+          {t('notifications.readAll')}
+        </button>
+      </div>
+      <div class="days" data-page-days></div>
+      <p class="card card-pad secondary none" data-page-none hidden>
+        {t('notifications.none')}
+      </p>
+      <button class="button more" type="button" data-page-more hidden>
+        {t('notifications.more')}
+      </button>
+    </div>
+    <div class="view" data-view-panel="settings" hidden>
+      <section class="group">
+        <h2 class="title-3">{t('settings.kinds')}</h2>
+        <ul class="card list">
+          {(['thread', 'reply', 'resolved', 'change'] as const).map((kind) => (
+            <li class="row">
+              <span class="grow" id={`kind-${kind}`}>
+                {t(`settings.kind.${kind}`)}
+              </span>
+              <button
+                class="switch"
+                type="button"
+                role="switch"
+                aria-checked="true"
+                aria-labelledby={`kind-${kind}`}
+                data-kind-switch={kind}
+              >
+                <span class="knob" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p class="footnote secondary note">{t('settings.kindsNote')}</p>
+      </section>
+      <section class="group" data-push-section hidden>
+        <h2 class="title-3">{t('settings.browser')}</h2>
+        <div class="card">
+          <PushToggle lang={lang} />
         </div>
-      </div>
-    </header>
-    <div class="days" data-page-days></div>
-    <p class="card card-pad secondary none" data-page-none hidden>
-      {t('notifications.none')}
-    </p>
-    <button class="button more" type="button" data-page-more hidden>
-      {t('notifications.more')}
-    </button>
-    <section class="day settings" id="settings" data-push-section hidden>
-      <h2 class="title-3 day-title">{t('notifications.settings')}</h2>
-      <div class="card">
-        <PushToggle lang={lang} />
-      </div>
-      <p class="footnote secondary note">{t('notifications.device')}</p>
-    </section>
+        <p class="footnote secondary note">{t('notifications.device')}</p>
+      </section>
+    </div>
   </div>
 </BaseLayout>
 
 <script>
   import { setupNotificationsPage } from '@/scripts/notifications'
 
-  document.addEventListener('astro:page-load', () => void setupNotificationsPage())
+  // `#settings` shows the settings, anything else the notifications.
+  function showView() {
+    const view = location.hash === '#settings' ? 'settings' : 'list'
+    for (const panel of document.querySelectorAll<HTMLElement>('[data-view-panel]'))
+      panel.hidden = panel.dataset.viewPanel !== view
+    for (const tab of document.querySelectorAll<HTMLElement>('[data-view]'))
+      if (tab.dataset.view === view) tab.setAttribute('aria-current', 'page')
+      else tab.removeAttribute('aria-current')
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    if (!document.querySelector('[data-notifications-page]')) return
+    showView()
+    // The page router keeps same-page links to itself: switch here, in history too.
+    for (const tab of document.querySelectorAll<HTMLAnchorElement>('[data-view]'))
+      tab.addEventListener('click', (event) => {
+        event.preventDefault()
+        history.pushState(history.state, '', tab.dataset.view === 'settings' ? '#settings' : location.pathname)
+        showView()
+      })
+    void setupNotificationsPage()
+  })
+  addEventListener('popstate', showView)
+  addEventListener('hashchange', showView)
 </script>
 
 <style>
@@ -101,15 +154,27 @@ const { t, path } = useI18n(lang)
     margin: 0;
   }
 
-  .settings {
-    margin-top: var(--space-12);
-    scroll-margin-top: calc(var(--nav-height) + var(--space-6));
+  .view {
+    display: grid;
+    gap: var(--space-6);
   }
 
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
+  .views {
+    justify-self: start;
+  }
+
+  .group {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .group h2 {
+    margin: 0;
+  }
+
+  .grow {
+    flex: 1;
+    min-width: 0;
   }
 
   .note {

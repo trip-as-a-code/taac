@@ -1,7 +1,8 @@
 /**
  * The notification center: what happened on the trips someone is on, by
- * others, newest first. Discussions are the first source: a thread started,
- * a reply, a thread resolved. A notification is read when it is older than
+ * others, newest first: in discussions (a thread started, a reply, a thread
+ * resolved) and in the plan itself (a change set, as "Recent changes" shows
+ * it). Each kind can be turned off per account. A notification is read when it is older than
  * the account's "read up to" (mark all as read), unless marked otherwise one
  * by one.
  */
@@ -22,15 +23,20 @@ export function isRead(n: Notification, seenAt: number, marks: Map<string, boole
   return marks.get(n.id) ?? n.at <= seenAt
 }
 
+export const KINDS = ['thread', 'reply', 'resolved', 'change'] as const
+export type Kind = (typeof KINDS)[number]
+
 export interface Notification {
   id: string
   trip: string
-  kind: 'thread' | 'reply' | 'resolved'
+  kind: Kind
   /** Where it happened (a thread's anchor) and in which thread. */
   anchor: string
   thread: string
-  /** Lowercase GitHub login of whoever did it. */
+  /** Lowercase GitHub login of whoever did it; empty when only a name is known. */
   by: string
+  /** Their name when there is no login (a commit made outside GitHub). */
+  author?: string
   /** The comment's text, if it was one. */
   text: string
   at: number
@@ -68,6 +74,33 @@ export function discussionEvents(trip: string, threads: Thread[], login: string)
       })
   }
   return events
+}
+
+/** A change set as the build wrote it (`trips/<slug>/changes.json`). */
+export interface ChangeSet {
+  id: string
+  login?: string
+  author: string
+  at: number
+  summary: string
+  href: string
+}
+
+/** Others' changes to a trip's plan. */
+export function changeEvents(trip: string, sets: ChangeSet[], login: string): Notification[] {
+  return sets
+    .filter((set) => set.login !== login)
+    .map((set) => ({
+      id: `change:${set.id}`,
+      trip,
+      kind: 'change' as const,
+      anchor: 'changes',
+      thread: '',
+      by: set.login ?? '',
+      author: set.login ? undefined : set.author,
+      text: set.summary,
+      at: set.at,
+    }))
 }
 
 /** A page of them, newest first: `limit` from before `before` (epoch ms), if given. */

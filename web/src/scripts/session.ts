@@ -11,6 +11,10 @@ export interface Me {
   comments: string[]
   /** Trips whose view-only links they may see, make and revoke. */
   share: string[]
+  /** The notification kinds the account turned off. */
+  muted: string[]
+  /** The language the account chose, kept on the server; null until it chose one. */
+  lang: string | null
   /** The VAPID public key to subscribe to browser notifications with, when they can be had. */
   push: string | null
   /** The view-only link this browser came by, while it works. */

@@ -465,6 +465,17 @@ export const en = {
   'push.sendFailed': 'It didn’t arrive. Turn notifications off and on again.',
   'notifications.settings': 'Settings',
 
+  'settings.browser': 'In this browser',
+
+  'notifications.change': '{name} changed the plan',
+  'settings.kinds': 'Notify me about',
+  'settings.kind.thread': 'New discussions',
+  'settings.kind.reply': 'Replies',
+  'settings.kind.resolved': 'Resolved discussions',
+  'settings.kind.change': 'Changes to the plan',
+  'settings.kindsNote':
+    'For your account: in the bell and in browser notifications, in the language you chose at the top.',
+
   'a11y.skip': 'Skip to content',
   'a11y.openMenu': 'Open menu',
 }
