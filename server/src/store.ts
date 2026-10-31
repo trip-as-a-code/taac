@@ -1,5 +1,5 @@
 /**
- * Shared state in Postgres: packing ticks and kept GitHub pictures. Migrations are plain SQL
+ * Shared state in Postgres: packing ticks, kept GitHub pictures and view-only links. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -8,9 +8,10 @@ import { readdir, readFile } from 'node:fs/promises'
 import pg from 'pg'
 
 import type { Avatar, AvatarStore } from './avatars'
+import type { LinkStore, ShareLink } from './links'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
-export interface Store extends AvatarStore {
+export interface Store extends AvatarStore, LinkStore {
   ticks(trip: string): Promise<Ticks>
   /** Stores the valid changes newer than what is there, as set by `by`. */
   apply(trip: string, changes: unknown, now: number, by: string | null): Promise<void>
@@ -118,6 +119,69 @@ export async function openStore(connectionString: string): Promise<Store> {
         [login, avatar.type, avatar.image ? Buffer.from(avatar.image) : null, avatar.fetchedAt],
       )
     },
+    async createLink(link) {
+      await pool.query(
+        `insert into share_links (id, trip, token, label, created_by, created_at, expires_at)
+         values ($1, $2, $3, $4, $5, $6, $7)`,
+        [link.id, link.trip, link.token, link.label, link.createdBy, link.createdAt, link.expiresAt],
+      )
+    },
+    async links(trip, now) {
+      const { rows } = await pool.query<LinkRow>(
+        `select * from share_links where trip = $1 and revoked_at is null and (expires_at is null or expires_at > $2)
+         order by created_at desc`,
+        [trip, now],
+      )
+      return rows.map(fromRow)
+    },
+    async linkByToken(token) {
+      const { rows } = await pool.query<LinkRow>('select * from share_links where token = $1', [token])
+      return rows[0] ? fromRow(rows[0]) : null
+    },
+    async linkById(id) {
+      const { rows } = await pool.query<LinkRow>('select * from share_links where id = $1', [id])
+      return rows[0] ? fromRow(rows[0]) : null
+    },
+    async revokeLink(trip, id, by, now) {
+      const { rowCount } = await pool.query(
+        'update share_links set revoked_at = $4, revoked_by = $3 where trip = $1 and id = $2 and revoked_at is null',
+        [trip, id, by, now],
+      )
+      return (rowCount ?? 0) > 0
+    },
+    async touchLink(id, now) {
+      await pool.query('update share_links set last_used_at = $2 where id = $1', [id, now])
+    },
     close: () => pool.end(),
+  }
+}
+
+interface LinkRow {
+  id: string
+  trip: string
+  token: string
+  label: string
+  created_by: string
+  created_at: string
+  expires_at: string | null
+  revoked_at: string | null
+  revoked_by: string | null
+  last_used_at: string | null
+}
+
+const num = (v: string | null) => (v === null ? null : Number(v))
+
+function fromRow(r: LinkRow): ShareLink {
+  return {
+    id: r.id,
+    trip: r.trip,
+    token: r.token,
+    label: r.label,
+    createdBy: r.created_by,
+    createdAt: Number(r.created_at),
+    expiresAt: num(r.expires_at),
+    revokedAt: num(r.revoked_at),
+    revokedBy: r.revoked_by,
+    lastUsedAt: num(r.last_used_at),
   }
 }

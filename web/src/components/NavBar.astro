@@ -232,6 +232,11 @@ const pathname = Astro.url.pathname
     box-shadow: var(--shadow-sm);
   }
 
+  /* A view-only link shows one trip: there is no list of them to go back to. */
+  :global(html[data-link]) .nav-back {
+    visibility: hidden;
+  }
+
   .logout {
     display: none;
     margin: 0;

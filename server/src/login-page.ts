@@ -88,6 +88,25 @@ export interface ForbiddenPageOptions {
   theme?: Theme
 }
 
+export interface LinkGonePageOptions {
+  lang: string
+  title: string
+  signIn: string
+  theme?: Theme
+}
+
+/** A view-only link that expired or was revoked. */
+export function renderLinkGonePage(o: LinkGonePageOptions): string {
+  const t = loginStrings(o.lang)
+  return page(
+    o.lang,
+    o.title,
+    `<div class="glyph">${LOCK}</div><h1>${escapeHtml(t.linkGone)}</h1><p>${escapeHtml(t.linkGoneLead)}</p>
+<a class="button" href="${escapeHtml(o.signIn)}">${GITHUB}<span>${escapeHtml(t.github)}</span></a>`,
+    o.theme,
+  )
+}
+
 /** Signed in, but this isn't theirs to see: say who they are, offer another account. */
 export function renderForbiddenPage(o: ForbiddenPageOptions): string {
   const t = loginStrings(o.lang)

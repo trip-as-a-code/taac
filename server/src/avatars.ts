@@ -6,7 +6,7 @@
 
 import { inflateSync } from 'node:zlib'
 
-import { visibleTrips, type AccessManifest } from './access'
+import type { AccessManifest } from './access'
 
 export interface Avatar {
   /** Null when there is no picture of their own. */
@@ -33,9 +33,9 @@ export function avatarLogin(path: string): string | null {
   return login && LOGIN.test(login) ? login : null
 }
 
-/** The viewer may see this person's picture: they share a trip the viewer can see. */
-export function mayShowAvatar(login: string, viewer: string | null, manifest: AccessManifest): boolean {
-  return visibleTrips(viewer, manifest).some((slug) => manifest.trips[slug]?.logins.includes(login))
+/** The viewer may see this person's picture: they are on one of the trips the viewer can see. */
+export function mayShowAvatar(login: string, trips: string[], manifest: AccessManifest): boolean {
+  return trips.some((slug) => manifest.trips[slug]?.logins.includes(login))
 }
 
 /** RGB(A) pixels of an 8-bit, non-interlaced PNG, or null for anything else. */

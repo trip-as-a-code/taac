@@ -7,6 +7,10 @@ export interface Me {
   trips: string[]
   /** Trips whose packing list they may tick. */
   packing: string[]
+  /** Trips whose view-only links they may see, make and revoke. */
+  share: string[]
+  /** The view-only link this browser came by, while it works. */
+  link: { trip: string; label: string; expiresAt: number | null } | null
   calendars: Record<string, string>
 }
 

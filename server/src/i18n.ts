@@ -59,6 +59,8 @@ export interface LoginStrings {
   notOnTrip: string
   home: string
   switch: string
+  linkGone: string
+  linkGoneLead: string
 }
 
 const STRINGS: Record<string, LoginStrings> = {
@@ -70,6 +72,8 @@ const STRINGS: Record<string, LoginStrings> = {
     notOnTrip: 'This trip isn’t shared with {login}.',
     home: 'All trips',
     switch: 'Use another account',
+    linkGone: 'This link no longer works',
+    linkGoneLead: 'It expired or was revoked. Ask whoever sent it for a new one, or sign in.',
   },
   ru: {
     lead: 'Этот сайт закрыт. Войдите через GitHub, чтобы продолжить.',
@@ -79,6 +83,8 @@ const STRINGS: Record<string, LoginStrings> = {
     notOnTrip: 'Эта поездка не открыта для {login}.',
     home: 'Все поездки',
     switch: 'Войти в другой аккаунт',
+    linkGone: 'Ссылка больше не работает',
+    linkGoneLead: 'Срок её действия истёк, или её отозвали. Попросите новую у того, кто её прислал, или войдите.',
   },
 }
 

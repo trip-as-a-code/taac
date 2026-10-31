@@ -5,6 +5,7 @@ import Icon, { type IconName } from '@/components/Icon.astro'
 import CurrencyPicker from '@/components/CurrencyPicker.astro'
 import LensMode from '@/components/LensMode.astro'
 import PeopleLens from '@/components/PeopleLens.astro'
+import ShareLinks from '@/components/ShareLinks.astro'
 import { useI18n, type Locale } from '@/i18n'
 import BaseLayout from '@/layouts/BaseLayout.astro'
 import { changes } from '@/lib/build'
@@ -54,6 +55,7 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
   back={{ href: path('/'), label: t('nav.allTrips') }}
   wide={bare}
 >
+  <ShareLinks trip={trip} i18n={i18n} slot="nav" />
   <CurrencyPicker trip={trip} i18n={i18n} slot="nav" />
   <div class="trip" data-section={section} style={`--hue:${tripHue(trip)}`}>
     {!bare && (

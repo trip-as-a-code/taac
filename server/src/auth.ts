@@ -49,10 +49,34 @@ function fromBase64url(value: string): Uint8Array | null {
   }
 }
 
-/** `<payload>.<signature>`, both base64url. */
-export async function signSession(sessionSecret: string, session: Session): Promise<string> {
-  const payload = base64url(encoder.encode(JSON.stringify({ login: session.login, exp: session.exp })))
-  return `${payload}.${base64url(await hmac(encoder.encode(sessionSecret), `session|${payload}`))}`
+/** `<payload>.<signature>`, both base64url; `purpose` keeps one kind from passing for another. */
+export async function signValue(secret: string, purpose: string, value: object): Promise<string> {
+  const payload = base64url(encoder.encode(JSON.stringify(value)))
+  return `${payload}.${base64url(await hmac(encoder.encode(secret), `${purpose}|${payload}`))}`
+}
+
+/** The signed value, or null when it was tampered with or isn't one. */
+export async function verifyValue(
+  value: string | null | undefined,
+  secret: string,
+  purpose: string,
+): Promise<Record<string, unknown> | null> {
+  const [payload, signature, extra] = value?.split('.') ?? []
+  if (!payload || !signature || extra !== undefined) return null
+  const expected = base64url(await hmac(encoder.encode(secret), `${purpose}|${payload}`))
+  if (!equalBytes(encoder.encode(signature), encoder.encode(expected))) return null
+  const bytes = fromBase64url(payload)
+  if (!bytes) return null
+  try {
+    const parsed: unknown = JSON.parse(decoder.decode(bytes))
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+export function signSession(sessionSecret: string, session: Session): Promise<string> {
+  return signValue(sessionSecret, 'session', { login: session.login, exp: session.exp })
 }
 
 export async function verifySession(
@@ -60,19 +84,9 @@ export async function verifySession(
   sessionSecret: string,
   nowSec: number,
 ): Promise<Session | null> {
-  const [payload, signature, extra] = value?.split('.') ?? []
-  if (!payload || !signature || extra !== undefined) return null
-  const expected = base64url(await hmac(encoder.encode(sessionSecret), `session|${payload}`))
-  if (!equalBytes(encoder.encode(signature), encoder.encode(expected))) return null
-  const bytes = fromBase64url(payload)
-  if (!bytes) return null
-  try {
-    const session = JSON.parse(decoder.decode(bytes)) as Partial<Session>
-    if (typeof session.login !== 'string' || typeof session.exp !== 'number' || session.exp < nowSec) return null
-    return { login: session.login, exp: session.exp }
-  } catch {
-    return null
-  }
+  const session = await verifyValue(value, sessionSecret, 'session')
+  if (typeof session?.login !== 'string' || typeof session.exp !== 'number' || session.exp < nowSec) return null
+  return { login: session.login, exp: session.exp }
 }
 
 /** A random value for the GitHub round trip's `state`. */
@@ -115,6 +129,13 @@ export function sessionCookies(value: string, secure: boolean): string[] {
     `${SESSION_COOKIE}=${value}; HttpOnly; ${attributes(secure)}; Max-Age=${SESSION_MAX_AGE}`,
     `${SIGNED_IN_COOKIE}=1; ${attributes(secure)}; Max-Age=${SESSION_MAX_AGE}`,
   ]
+}
+
+/** A view-only link opened in this browser; HttpOnly, checked against the link on every request. */
+export const LINK_COOKIE = 'taac_link'
+
+export function linkCookie(value: string, secure: boolean, maxAge: number): string {
+  return `${LINK_COOKIE}=${value}; HttpOnly; ${attributes(secure)}; Max-Age=${maxAge}`
 }
 
 /** Lives for the GitHub round trip only. */

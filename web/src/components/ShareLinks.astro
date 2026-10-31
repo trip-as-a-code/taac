@@ -1,0 +1,212 @@
+---
+import type { TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+}
+
+const { trip, i18n } = Astro.props
+const { t, path } = i18n
+const lifetimes = ['1d', '1w', '1m', 'never'] as const
+---
+
+{/* Members: the trip's view-only links. Someone who came by a link: which one, and a way to sign in. */}
+<div
+  class="share"
+  data-share={trip.slug}
+  data-lang={i18n.lang}
+  data-logins={JSON.stringify(
+    Object.fromEntries(trip.members.filter((m) => m.github).map((m) => [m.github!.toLowerCase(), m.name])),
+  )}
+  data-untitled={t('share.untitled')}
+  data-until={t('share.until')}
+  data-forever={t('share.forever')}
+  data-opened={t('share.opened')}
+  data-unopened={t('share.unopened')}
+  data-copy={t('share.copy')}
+  data-copied={t('share.copied')}
+  data-revoke={t('share.revoke')}
+  data-confirm={t('share.confirm')}
+  data-error={t('share.error')}
+>
+  <a class="badge" href={path('/login')} data-link-badge hidden title={t('link.signIn')}>
+    <Icon name="link" size={14} />
+    <span data-link-badge-text>{t('link.badge')}</span>
+  </a>
+  <button class="nav-icon-button" type="button" data-share-open hidden title={t('share.button')}>
+    <Icon name="share" size={19} />
+    <span class="visually-hidden">{t('share.button')}</span>
+  </button>
+  <dialog class="sheet" data-share-dialog aria-labelledby="share-title">
+    <header>
+      <h2 id="share-title" class="headline">
+        {t('share.title')}
+      </h2>
+      <button class="nav-icon-button" type="button" data-share-close title={t('share.close')}>
+        <Icon name="close" size={18} />
+        <span class="visually-hidden">{t('share.close')}</span>
+      </button>
+    </header>
+    <p class="footnote secondary">{t('share.lead')}</p>
+    <form data-share-form>
+      <label class="field">
+        <span class="footnote secondary">{t('share.label')}</span>
+        <input name="label" maxlength="60" autocomplete="off" autofocus placeholder={t('share.placeholder')} />
+      </label>
+      <div class="field">
+        <span class="footnote secondary">{t('share.expires')}</span>
+        <div class="segmented" role="group" aria-label={t('share.expires')}>
+          {lifetimes.map((l) => (
+            <button type="button" data-lifetime={l} aria-pressed={l === '1w' ? 'true' : 'false'}>
+              {t(`share.${l}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button class="button button-primary" type="submit">
+        <Icon name="link" size={16} />
+        {t('share.create')}
+      </button>
+      <p class="footnote error" data-share-error hidden></p>
+    </form>
+    <ul class="links" data-share-list></ul>
+    <p class="footnote secondary" data-share-none hidden>
+      {t('share.none')}
+    </p>
+  </dialog>
+</div>
+
+<style>
+  .share {
+    display: contents;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--tint-soft);
+    color: var(--tint);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+
+  .badge[hidden],
+  .nav-icon-button[hidden] {
+    display: none;
+  }
+
+  @media (max-width: 560px) {
+    .badge span {
+      display: none;
+    }
+  }
+
+  .sheet {
+    width: min(480px, calc(100vw - 32px));
+    max-height: min(680px, calc(100dvh - 32px));
+    padding: var(--space-5);
+    border: 0;
+    border-radius: 20px;
+    background: var(--bg-elevated);
+    color: var(--label);
+    box-shadow: var(--shadow-lg, 0 20px 60px rgb(0 0 0 / 0.35));
+  }
+
+  .sheet::backdrop {
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(2px);
+  }
+
+  .sheet header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+  }
+
+  .sheet h2 {
+    margin: 0;
+  }
+
+  form {
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-4) 0;
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+  }
+
+  input {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--separator);
+    border-radius: 10px;
+    background: var(--fill);
+    color: var(--label);
+    font: inherit;
+  }
+
+  input:focus-visible {
+    outline: 2px solid var(--tint);
+    outline-offset: 1px;
+  }
+
+  form .button {
+    justify-self: start;
+  }
+
+  .error {
+    margin: 0;
+    color: var(--red, #ff453a);
+  }
+
+  .links {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .links :global(li) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 10px 0;
+    border-top: 1px solid var(--separator);
+  }
+
+  .links :global(.what) {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .links :global(.what .subhead) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .links :global(.actions) {
+    display: flex;
+    flex: none;
+    gap: 4px;
+  }
+
+  .links :global(.revoke) {
+    color: var(--red, #ff453a);
+  }
+</style>
