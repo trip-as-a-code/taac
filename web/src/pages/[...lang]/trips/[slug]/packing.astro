@@ -180,8 +180,8 @@ const whose = (members: string[]) => {
     if (!root) return
     const names = JSON.parse(root.dataset.names ?? '{}') as Record<string, string>
     const logins = JSON.parse(root.dataset.logins ?? '{}') as Record<string, string>
-    // The member a GitHub login belongs to, else the GitHub username as is.
-    const ticker = (login: string) => logins[login] ?? login
+    // The member a GitHub login belongs to, else `@username`.
+    const ticker = (login: string) => logins[login] ?? `@${login}`
     const rows = [...root.querySelectorAll<HTMLElement>('[data-packing-row]')]
     const packersOf = (row: HTMLElement) => row.dataset.packers!.split(' ')
     const store = new PackingStore(root.dataset.packing!, () => render())
