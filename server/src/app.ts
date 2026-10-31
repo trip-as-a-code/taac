@@ -245,7 +245,10 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
   /** Fire and forget: a slow push service never holds up the answer. */
   const tell = (...args: Parameters<typeof announce>) => void announce(...args).catch((error) => console.error(error))
 
-  /** `/api/push/subscribe` and `/api/push/unsubscribe`: this browser's notifications, on or off. */
+  /**
+   * `/api/push/subscribe` and `/api/push/unsubscribe`: this browser's
+   * notifications, on or off; `/api/push/test`: one to each of your browsers.
+   */
   async function pushApi(request: Request, path: string): Promise<Response> {
     if (!config.push || !config.store || request.method !== 'POST') return text('Not found\n', 404)
     const login = await loginOf(request)
@@ -261,6 +264,23 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       if (!sub) return text('Bad request\n', 400)
       await config.store.addSubscription(sub)
       return json({ ok: true })
+    }
+    if (path === '/api/push/test') {
+      const subs = await config.store.subscriptionsFor([login])
+      const lang = typeof body.lang === 'string' ? body.lang : manifest.defaultLocale
+      const strings = pushStrings(lang)
+      let sent = 0
+      for (const sub of subs) {
+        const result = await config.push.send(sub, {
+          title: localizedText(manifest.title, sub.lang),
+          body: pushStrings(sub.lang).test,
+          url: localeRoot(sub.lang === manifest.defaultLocale ? null : sub.lang, manifest),
+          tag: 'test',
+        })
+        if (result === 'ok') sent++
+        if (result === 'gone') await config.store.removeSubscription(sub.endpoint)
+      }
+      return json({ sent, of: subs.length, message: strings.test })
     }
     if (typeof body.endpoint !== 'string') return text('Bad request\n', 400)
     await config.store.removeSubscription(body.endpoint)
@@ -523,7 +543,8 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path === '/api/logout')
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
-    if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') return plain(await pushApi(request, path))
+    if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe' || path === '/api/push/test')
+      return plain(await pushApi(request, path))
     if (path === '/api/notifications' || path === '/api/notifications/read' || path === '/api/notifications/unread')
       return plain(await notifications(request, path))
     const commentsApi = commentsRoute(path)

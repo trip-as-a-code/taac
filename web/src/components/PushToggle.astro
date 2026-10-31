@@ -8,21 +8,41 @@ interface Props {
 const { t } = useI18n(Astro.props.lang)
 ---
 
-{/* Browser notifications on this device, as a switch (scripts/notifications.ts); hidden where there are none. */}
-<div class="row push-toggle" data-push-toggle data-hint={t('push.hint')} data-denied={t('push.denied')} hidden>
-  <label class="label" for="push-switch">
-    <span>{t('push.device')}</span>
-    <span class="footnote secondary" data-push-status>
-      {t('push.hint')}
+{/* Browser notifications on this device (scripts/notifications.ts): a switch, or why there is none, and a test. */}
+<ul
+  class="list push-settings"
+  data-push-toggle
+  data-hint={t('push.hint')}
+  data-denied={t('push.denied')}
+  data-unsupported={t('push.unsupported')}
+  data-home-screen={t('push.homeScreen')}
+  data-sent={t('push.sent')}
+  data-failed={t('push.sendFailed')}
+>
+  <li class="row">
+    <label class="label" for="push-switch">
+      <span>{t('push.device')}</span>
+      <span class="footnote secondary" data-push-status>
+        {t('push.hint')}
+      </span>
+    </label>
+    <button id="push-switch" class="switch" type="button" role="switch" aria-checked="false" data-push-switch hidden>
+      <span class="knob"></span>
+    </button>
+  </li>
+  <li class="row" data-push-test-row hidden>
+    <span class="label">
+      <span>{t('push.test')}</span>
+      <span class="footnote secondary" data-push-test-status></span>
     </span>
-  </label>
-  <button id="push-switch" class="switch" type="button" role="switch" aria-checked="false" data-push-switch>
-    <span class="knob"></span>
-  </button>
-</div>
+    <button class="button" type="button" data-push-test>
+      {t('push.send')}
+    </button>
+  </li>
+</ul>
 
 <style>
-  .push-toggle[hidden] {
+  .push-settings [hidden] {
     display: none;
   }
 
@@ -30,6 +50,9 @@ const { t } = useI18n(Astro.props.lang)
     display: grid;
     flex: 1;
     min-width: 0;
+  }
+
+  label.label {
     cursor: pointer;
   }
 

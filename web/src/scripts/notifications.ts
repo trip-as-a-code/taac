@@ -4,7 +4,7 @@
 // unread, and "mark all as read" reads everything. Also this device's switch
 // for browser notifications, on the full page.
 
-import { pushState, turnOff, turnOn } from '@/scripts/push'
+import { pushState, testPush, turnOff, turnOn } from '@/scripts/push'
 import { me, type Me } from '@/scripts/session'
 
 interface Notification {
@@ -174,28 +174,45 @@ async function renderItem(n: Notification, ctx: Context, withToggle: boolean): P
   return item
 }
 
-/** A `[data-push-toggle]`: this device's browser notifications, as a switch. */
+/** A `[data-push-toggle]`: this device's browser notifications: a switch, or why there is none; and a test. */
 async function setupToggle(toggle: HTMLElement, session: Me) {
   const publicKey = session.push
-  const state = publicKey ? await pushState() : 'unsupported'
-  toggle.hidden = state === 'unsupported'
-  // The page's settings section has nothing else in it.
   const section = toggle.closest<HTMLElement>('[data-push-section]')
-  if (section) section.hidden = toggle.hidden
-  if (toggle.hidden) return
+  // Without the server's key there are no browser notifications at all.
+  if (section) section.hidden = !publicKey
+  if (!publicKey) return
   const status = toggle.querySelector<HTMLElement>('[data-push-status]')!
   const button = toggle.querySelector<HTMLButtonElement>('[data-push-switch]')!
+  const testRow = toggle.querySelector<HTMLElement>('[data-push-test-row]')!
+  const test = toggle.querySelector<HTMLButtonElement>('[data-push-test]')!
+  const testStatus = toggle.querySelector<HTMLElement>('[data-push-test-status]')!
+  const d = toggle.dataset
   const show = (now: Awaited<ReturnType<typeof pushState>>) => {
+    button.hidden = now === 'unsupported' || now === 'home-screen'
     button.setAttribute('aria-checked', String(now === 'on'))
     button.disabled = now === 'denied'
-    status.textContent = now === 'denied' ? toggle.dataset.denied! : toggle.dataset.hint!
+    status.textContent =
+      now === 'denied'
+        ? d.denied!
+        : now === 'unsupported'
+          ? d.unsupported!
+          : now === 'home-screen'
+            ? d.homeScreen!
+            : d.hint!
+    testRow.hidden = now !== 'on'
   }
-  show(state)
+  show(await pushState().catch(() => 'unsupported' as const))
   button.onclick = async () => {
     button.disabled = true
     if (button.getAttribute('aria-checked') === 'true') await turnOff()
-    else await turnOn(publicKey!).catch(() => undefined)
-    show(await pushState())
+    else await turnOn(publicKey).catch(() => undefined)
+    show(await pushState().catch(() => 'unsupported' as const))
+  }
+  test.onclick = async () => {
+    test.disabled = true
+    const result = await testPush()
+    test.disabled = false
+    testStatus.textContent = result && result.sent > 0 ? d.sent! : d.failed!
   }
 }
 
