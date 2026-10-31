@@ -1,0 +1,36 @@
+# taac with Postgres on http://localhost:8080. The image serves the demo; for your trips set TAAC_IMAGE to an image
+# built from Dockerfile.site. Signing in (an `access: github` site) needs, in .env or the environment:
+# SESSION_SECRET, GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET of a GitHub App whose callback URL is
+# http://localhost:8080/api/auth/callback.
+name: taac
+
+services:
+  taac:
+    image: ${TAAC_IMAGE:-ghcr.io/trip-as-a-code/taac:latest}
+    ports:
+      - 127.0.0.1:${TAAC_PORT:-8080}:8080
+    environment:
+      DATABASE_URL: postgres://taac:taac@postgres:5432/taac
+      TAAC_PUBLIC_URL: http://localhost:8080
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: taac
+      POSTGRES_PASSWORD: taac
+      POSTGRES_DB: taac
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD, pg_isready, -U, taac]
+      interval: 2s
+      retries: 30
+
+volumes:
+  postgres: {}

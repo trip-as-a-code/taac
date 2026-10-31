@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+#
+# The recipe for a taac instance: put this next to your site.yaml as `Dockerfile`, then
+#   docker build --secret id=github_token,env=GITHUB_TOKEN -t my-trips .
+# The image serves your trips on :8080 (see the README for its environment).
+# Keep .git in the build context (no `.git` in .dockerignore) for "Recent changes".
+
+ARG TAAC=ghcr.io/trip-as-a-code/taac
+ARG TAAC_VERSION=latest
+
+FROM ${TAAC}-builder:${TAAC_VERSION} AS site
+COPY . /site
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN taac-site /site/site.yaml /out
+
+FROM ${TAAC}:${TAAC_VERSION}
+COPY --from=site /out /srv/site

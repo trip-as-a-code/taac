@@ -183,24 +183,31 @@ cargo run -p taac-cli -- schema --out schema           # regenerate the JSON Sch
 
 ## Deploy your own
 
-1. Build the site: `TAAC_SITE=$PWD/site.yaml task web:build`. Build from a git checkout with history (in CI,
-   `fetch-depth: 0`): the overview's "Recent changes" and the "changed since your last visit" dots replay the last 30
-   commits that touched each trip.
-2. Build the server: `task server:build` (`server/dist/main.mjs`, Node 22+, needs `server/node_modules` and
-   `server/migrations`).
-3. Run it: `TAAC_DIST=web/dist node server/dist/main.mjs`, behind a TLS-terminating proxy that sets
-   `X-Forwarded-Proto`.
+taac ships two images: `ghcr.io/trip-as-a-code/taac` (the server, serving the demo until you replace it) and
+`ghcr.io/trip-as-a-code/taac-builder` (builds a site). Your instance is an image of your own built from both:
 
-- `PORT`: default 8080.
-- `TAAC_DIST`: the built site, default `web/dist`.
+1. Copy [`deploy/Dockerfile.site`](deploy/Dockerfile.site) next to your `site.yaml` as `Dockerfile`.
+2. `docker build --secret id=github_token,env=GITHUB_TOKEN -t my-trips .` from a git checkout with history (in CI,
+   `fetch-depth: 0`, and no `.git` in `.dockerignore`): the overview's "Recent changes" and the "changed since your
+   last visit" dots replay the last 30 commits that touched each trip. The token only names commit authors in a
+   private repository.
+3. Run it anywhere:
+   - Docker: [`deploy/compose.yaml`](deploy/compose.yaml) with Postgres (`TAAC_IMAGE=my-trips docker compose up`).
+   - Kubernetes: the Helm chart in [`deploy/helm/taac`](deploy/helm/taac) (Ingress or Gateway API, an existing
+     Secret, optionally a CloudNativePG cluster).
+
+The server listens on `:8080` behind a TLS-terminating proxy that sets `X-Forwarded-Proto`. Its environment:
+
 - `TAAC_PUBLIC_URL`: e.g. `https://trips.example.com`; default from each request.
 - `SESSION_SECRET`: `openssl rand -hex 32`; signs sessions and calendar keys.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: a GitHub App (no permissions needed) whose callback URL is
   `<public URL>/api/auth/callback`.
 - `DATABASE_URL`: Postgres; migrations run at start. Without it the packing list is read-only.
 - `TAAC_NOINDEX`: `true` keeps search engines out of a public site.
+- `PORT`, `TAAC_DIST`: default `8080` and `/srv/site`.
 
-`/healthz` answers `ok` for probes.
+`/healthz` answers `ok` for probes. Without containers: `task web:build server:build`, then
+`TAAC_DIST=web/dist node server/dist/main.mjs` (Node 22+, with `server/node_modules` and `server/migrations`).
 
 ## How it fits together
 

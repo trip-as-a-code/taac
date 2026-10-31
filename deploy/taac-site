@@ -1,0 +1,10 @@
+#!/bin/sh
+# taac-site <site.yaml> [out]: builds the website of a site file into out (default /out).
+# Run it in a git checkout for "Recent changes"; GITHUB_TOKEN names commit authors in private repositories.
+set -eu
+site=$(realpath "$1")
+out=${2:-/out}
+cd /taac
+TAAC_SITE="$site" npm run --silent build -w @taac/web
+rm -rf "$out"
+cp -r web/dist "$out"
