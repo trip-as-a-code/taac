@@ -2,7 +2,8 @@
  * The taac server in front of the built site. It owns signing in with
  * GitHub, who may see what (from /_taac/access.json, emitted by the web build
  * from site.yaml), calendar feeds that work without cookies, the remembered
- * UI language, `/api/fx`, packing ticks, and the security headers.
+ * UI language, `/api/fx`, packing ticks, the people's GitHub pictures, and
+ * the security headers.
  */
 
 import {
@@ -33,6 +34,7 @@ import {
   stateCookie,
   verifySession,
 } from './auth'
+import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
 import { handleFx } from './fx'
 import { authorizeUrl, userFor, type GithubApp } from './github'
 import { robotsTxt, secureResponse } from './headers'
@@ -88,6 +90,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
   const origin = (request: Request) => config.publicUrl?.replace(/\/$/, '') ?? new URL(request.url).origin
   const secure = (request: Request) => origin(request).startsWith('https:')
   const ready = !isProtected(manifest) || (!!config.sessionSecret && !!config.github)
+  const avatarOf = avatarSource(config.store, config.fetcher ?? fetch)
 
   async function loginOf(request: Request): Promise<string | null> {
     if (!config.sessionSecret) return null
@@ -157,6 +160,17 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     return key === (await calendarKey(config.sessionSecret, slug))
   }
 
+  /** A trip person's GitHub picture, or 404 so the site keeps their initials. */
+  async function avatar(request: Request, login: string): Promise<Response> {
+    const none = () => new Response(null, { status: 404, headers: { 'Cache-Control': 'private, max-age=3600' } })
+    if (!mayShowAvatar(login, await loginOf(request), manifest)) return none()
+    const found = await avatarOf(login, config.now?.() ?? Date.now())
+    if (!found?.image || !found.type) return none()
+    return new Response(found.image, {
+      headers: { 'Content-Type': found.type, 'Cache-Control': 'private, max-age=86400' },
+    })
+  }
+
   async function packing(request: Request, slug: string): Promise<Response> {
     if (!config.store || !manifest.slugs.includes(slug)) return text('Not found\n', 404)
     if (request.method === 'POST') {
@@ -194,6 +208,8 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path === '/api/logout')
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
+    const pictured = avatarLogin(path)
+    if (pictured) return plain(await avatar(request, pictured))
 
     const { locale, rest } = splitLocale(path, manifest)
     if (rest === '/login') {

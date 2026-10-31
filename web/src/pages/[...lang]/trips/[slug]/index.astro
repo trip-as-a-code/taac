@@ -1,4 +1,5 @@
 ---
+import Avatar from '@/components/Avatar.astro'
 import Avatars from '@/components/Avatars.astro'
 import Changes from '@/components/Changes.astro'
 import Icon, { type IconName } from '@/components/Icon.astro'
@@ -11,7 +12,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { isLabelled } from '@/lib/facts'
 import { sourceHref, sourceLabel } from '@/lib/source'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { bookable, groupLabel, homeOffset, initials, memberHue } from '@/lib/trip'
+import { bookable, groupLabel, homeOffset } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -286,9 +287,7 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
           const groups = trip.groups.filter((g) => g.members.includes(member.id))
           return (
             <li class="row">
-              <span class="avatar" style={`--hue:${memberHue(member.id)}`}>
-                {initials(member)}
-              </span>
+              <Avatar member={member} />
               <div class="person">
                 <span class="headline">{member.name}</span>
                 {groups.length > 0 && (

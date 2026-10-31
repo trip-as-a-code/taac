@@ -1,5 +1,6 @@
 // Per-navigation setup shared by every page (runs on `astro:page-load`).
 
+import { setupAvatars } from '@/scripts/avatars'
 import { revealTarget } from '@/scripts/filters'
 import { fitAll } from '@/scripts/fit'
 import { onMoney, renderMoney } from '@/scripts/money'
@@ -29,6 +30,7 @@ export function setupPage() {
   showByDate()
   renderMoney()
   fitAll()
+  setupAvatars()
   void applySession()
   setupPickers()
   setupTooltips()

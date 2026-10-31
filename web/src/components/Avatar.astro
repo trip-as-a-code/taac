@@ -1,0 +1,28 @@
+---
+import type { Member } from '@taac/core'
+
+import { initials, memberHue } from '@/lib/trip'
+
+interface Props {
+  member: Member
+  title?: string
+  hidden?: boolean
+}
+
+const { member, title, hidden = false } = Astro.props
+---
+
+<!-- Initials, covered by the member's GitHub picture once (and if) it loads. -->
+<span class="avatar" style={`--hue:${memberHue(member.id)}`} title={title} aria-hidden={hidden ? 'true' : undefined}>
+  {initials(member)}
+  {member.github && (
+    <img
+      class="avatar-photo"
+      src={`/api/avatars/${member.github.toLowerCase()}`}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      data-avatar-photo
+    />
+  )}
+</span>

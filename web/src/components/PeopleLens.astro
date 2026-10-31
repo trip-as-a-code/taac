@@ -1,8 +1,9 @@
 ---
 import type { TripExport } from '@taac/core'
 
+import Avatar from '@/components/Avatar.astro'
 import type { I18n } from '@/i18n'
-import { groupLabel, initials, memberHue } from '@/lib/trip'
+import { groupLabel } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -31,9 +32,7 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
       </button>
       {trip.members.map((m) => (
         <button type="button" class="chip" data-lens-person={m.id} aria-pressed="false">
-          <span class="avatar" style={`--hue:${memberHue(m.id)}`} aria-hidden="true">
-            {initials(m)}
-          </span>
+          <Avatar member={m} hidden />
           <span>{m.name}</span>
         </button>
       ))}
@@ -174,7 +173,7 @@ const unassigned = plans ? trip.diagnostics.filter((d) => d.code === 'item.unass
     padding-left: 12px;
   }
 
-  .chip .avatar {
+  .chip :global(.avatar) {
     width: 22px;
     height: 22px;
     font-size: 10px;
