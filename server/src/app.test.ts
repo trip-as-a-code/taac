@@ -68,6 +68,7 @@ function memoryStore(): Store {
     return null
   }
   let seen = 0
+  const marks = new Map<string, boolean>()
   const subscriptions: PushSubscription[] = []
   return {
     addSubscription: async (sub) => void subscriptions.push(sub),
@@ -76,7 +77,14 @@ function memoryStore(): Store {
     },
     subscriptionsFor: async (logins) => subscriptions.filter((s) => logins.includes(s.login)),
     notificationsSeen: async () => seen,
-    markNotificationsSeen: async (_login, at) => void (seen = Math.max(seen, at)),
+    markNotificationsSeen: async (_login, at) => {
+      seen = Math.max(seen, at)
+      marks.clear()
+    },
+    notificationMarks: async () => new Map(marks),
+    markNotifications: async (_login, ids, read) => {
+      for (const id of ids) marks.set(id, read)
+    },
     threads: async (trip) => structuredClone(threads.filter((t) => t.trip === trip)),
     thread: async (id) => structuredClone(threads.find((t) => t.id === id) ?? null),
     createThread: async (thread) => void threads.push(structuredClone(thread)),
@@ -474,24 +482,37 @@ describe('notifications', () => {
     await post(viewer, theirs, `/threads/${id}/comments`, { body: 'Onsen!' })
     await post(viewer, theirs, `/threads/${id}`, { resolved: true }, 'PATCH')
 
-    const list = async () =>
+    type Listed = { unread: number; notifications: { id: string; kind: string; by: string; read: boolean }[] }
+    const list = async (query = '') =>
       (await (
-        await me(new Request('https://trips.example/api/notifications', { headers: { Cookie: mine } }))
-      ).json()) as {
-        seenAt: number
-        notifications: { kind: string; by: string; text: string }[]
-      }
+        await me(new Request(`https://trips.example/api/notifications${query}`, { headers: { Cookie: mine } }))
+      ).json()) as Listed
+    const mark = (path: string, body: unknown) =>
+      me(
+        new Request(`https://trips.example/api/notifications/${path}`, {
+          method: 'POST',
+          headers: { Cookie: mine },
+          body: JSON.stringify(body),
+        }),
+      )
     const before = await list()
-    expect(before.notifications.map((n) => [n.kind, n.by])).toEqual(
+    expect(before.notifications.map((n) => [n.kind, n.by, n.read])).toEqual(
       expect.arrayContaining([
-        ['reply', 'grandma'],
-        ['resolved', 'grandma'],
+        ['reply', 'grandma', false],
+        ['resolved', 'grandma', false],
       ]),
     )
-    expect(before.notifications).toHaveLength(2)
-    expect(before.seenAt).toBe(0)
-    await me(new Request('https://trips.example/api/notifications/seen', { method: 'POST', headers: { Cookie: mine } }))
-    expect((await list()).seenAt).toBeGreaterThan(0)
+    expect(before.unread).toBe(2)
+    const [first, second] = before.notifications
+    await mark('read', { ids: [first!.id] })
+    expect((await list()).unread).toBe(1)
+    expect((await list('?unread=1')).notifications.map((n) => n.id)).toEqual([second!.id])
+    await mark('read', { all: true })
+    expect((await list()).unread).toBe(0)
+    await mark('unread', { ids: [second!.id] })
+    expect((await list()).notifications.find((n) => n.id === second!.id)!.read).toBe(false)
+    await mark('read', { threads: [id] })
+    expect((await list()).unread).toBe(0)
     expect((await me(new Request('https://trips.example/api/notifications'))).status).toBe(401)
   })
 })

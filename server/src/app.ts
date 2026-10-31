@@ -43,7 +43,7 @@ import {
 } from './auth'
 import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
 import { parseSubscription, type PushSender } from './push'
-import { discussionEvents, NOTIFICATION_LIMIT, page } from './notifications'
+import { discussionEvents, isRead, NOTIFICATION_LIMIT, page } from './notifications'
 import { commentsRoute, MAX_THREADS, newComment, newId, validAnchor, validBody, type CommentsRoute } from './comments'
 import {
   describe,
@@ -387,7 +387,9 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
 
   /**
    * `/api/notifications`: what others did on your trips, newest first, a page
-   * at a time (`?before=<ms>&limit=<n>`); POST `/seen`: read up to now.
+   * at a time (`?before=<ms>&limit=<n>&unread=1`), each read or not, and how
+   * many are unread. POST `/read` with `{all}`, `{ids}` or `{threads}`, and
+   * POST `/unread` with `{ids}`, mark them.
    */
   async function notifications(request: Request, path: string): Promise<Response> {
     const store = config.store
@@ -395,22 +397,40 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     const login = await loginOf(request)
     if (!login) return text('Unauthorized\n', 401)
     const now = config.now?.() ?? Date.now()
-    if (path === '/api/notifications/seen' && request.method === 'POST') {
-      await store.markNotificationsSeen(login, now)
-      return json({ seenAt: await store.notificationsSeen(login) })
+    const trips = manifest.slugs.filter((slug) => mayComment(slug, login))
+    const events = (
+      await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login)))
+    ).flat()
+    const state = async () => {
+      const [seenAt, marks] = await Promise.all([store.notificationsSeen(login), store.notificationMarks(login)])
+      return { seenAt, marks, unread: events.filter((n) => !isRead(n, seenAt, marks)).length }
+    }
+    if (request.method === 'POST' && (path === '/api/notifications/read' || path === '/api/notifications/unread')) {
+      const body = (await request.json().catch(() => ({}))) as { all?: unknown; ids?: unknown; threads?: unknown }
+      const strings = (value: unknown) =>
+        Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string').slice(0, 500) : []
+      if (path === '/api/notifications/read' && body.all === true) await store.markNotificationsSeen(login, now)
+      else {
+        const threads = new Set(strings(body.threads))
+        const known = new Set(events.map((n) => n.id))
+        const ids = [
+          ...strings(body.ids).filter((id) => known.has(id)),
+          ...events.filter((n) => threads.has(n.thread)).map((n) => n.id),
+        ]
+        await store.markNotifications(login, ids, path === '/api/notifications/read')
+      }
+      return json({ unread: (await state()).unread })
     }
     if (path !== '/api/notifications' || request.method !== 'GET') return text('Not found\n', 404)
     const url = new URL(request.url)
     const before = Number(url.searchParams.get('before')) || undefined
     const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || NOTIFICATION_LIMIT, 1), NOTIFICATION_LIMIT)
-    const trips = manifest.slugs.filter((slug) => mayComment(slug, login))
-    const events = (
-      await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login)))
-    ).flat()
-    const items = page(events, limit + 1, before)
+    const { seenAt, marks, unread } = await state()
+    const wanted = url.searchParams.get('unread') === '1' ? events.filter((n) => !isRead(n, seenAt, marks)) : events
+    const items = page(wanted, limit + 1, before)
     return json({
-      seenAt: await store.notificationsSeen(login),
-      notifications: items.slice(0, limit),
+      unread,
+      notifications: items.slice(0, limit).map((n) => ({ ...n, read: isRead(n, seenAt, marks) })),
       more: items.length > limit,
     })
   }
@@ -504,7 +524,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') return plain(await pushApi(request, path))
-    if (path === '/api/notifications' || path === '/api/notifications/seen')
+    if (path === '/api/notifications' || path === '/api/notifications/read' || path === '/api/notifications/unread')
       return plain(await notifications(request, path))
     const commentsApi = commentsRoute(path)
     if (commentsApi) return plain(await discussions(request, commentsApi))

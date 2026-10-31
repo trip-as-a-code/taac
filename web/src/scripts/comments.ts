@@ -3,6 +3,7 @@
 // notification links here (`?thread=<anchor>`). Threads come from the server for the whole trip and are
 // fetched again when the page comes back into view.
 
+import { markNotifications } from '@/scripts/notifications'
 import { me } from '@/scripts/session'
 
 interface Comment {
@@ -293,6 +294,8 @@ function renderPanel(redraw = true) {
   panel.querySelector<HTMLElement>('[data-panel-new]')!.hidden = !state.writer
   panel.querySelector<HTMLElement>('[data-panel-read-only]')!.hidden = state.writer || threads.length === 0
   markSeen(threads)
+  // Its notifications are read now too.
+  if (state.login && threads.length) void markNotifications(true, { threads: threads.map((t) => t.id) })
 }
 
 export function openThreads(anchor: string, title: string) {

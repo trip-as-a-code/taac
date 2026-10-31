@@ -8,39 +8,69 @@ interface Props {
 const { t } = useI18n(Astro.props.lang)
 ---
 
-{/* Browser notifications on this device, on or off (scripts/notifications.ts); hidden where there are none. */}
-<div
-  class="push-toggle"
-  data-push-toggle
-  data-on={t('push.on')}
-  data-off={t('push.off')}
-  data-denied={t('push.denied')}
-  data-turn-on={t('push.turnOn')}
-  data-turn-off={t('push.turnOff')}
-  hidden
->
-  <span class="label">
-    <span class="subhead">{t('push.device')}</span>
-    <span class="footnote secondary" data-push-status></span>
-  </span>
-  <button class="button" type="button" data-push-switch></button>
+{/* Browser notifications on this device, as a switch (scripts/notifications.ts); hidden where there are none. */}
+<div class="row push-toggle" data-push-toggle data-hint={t('push.hint')} data-denied={t('push.denied')} hidden>
+  <label class="label" for="push-switch">
+    <span>{t('push.device')}</span>
+    <span class="footnote secondary" data-push-status>
+      {t('push.hint')}
+    </span>
+  </label>
+  <button id="push-switch" class="switch" type="button" role="switch" aria-checked="false" data-push-switch>
+    <span class="knob"></span>
+  </button>
 </div>
 
 <style>
-  .push-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: 8px;
-  }
-
-  .push-toggle[hidden],
-  .push-toggle button[hidden] {
+  .push-toggle[hidden] {
     display: none;
   }
 
   .label {
     display: grid;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+  }
+
+  /* The system switch: green when on. */
+  .switch {
+    position: relative;
+    flex: none;
+    width: 51px;
+    height: 31px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--fill-strong);
+    cursor: pointer;
+    transition: background var(--duration) var(--ease);
+  }
+
+  .switch[aria-checked='true'] {
+    background: var(--green);
+  }
+
+  .switch:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: white;
+    box-shadow:
+      0 3px 8px rgb(0 0 0 / 0.15),
+      0 1px 1px rgb(0 0 0 / 0.16);
+    transition: transform var(--duration) var(--ease);
+  }
+
+  .switch[aria-checked='true'] .knob {
+    transform: translateX(20px);
   }
 </style>
