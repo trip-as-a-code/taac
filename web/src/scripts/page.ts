@@ -8,6 +8,8 @@ import { setupPickers } from '@/scripts/picker'
 import { applySession } from '@/scripts/session'
 import { setupComments } from '@/scripts/comments'
 import { setupNotifications } from '@/scripts/notifications'
+import { offerPush } from '@/scripts/push'
+import { me } from '@/scripts/session'
 import { setupShare } from '@/scripts/share'
 import { setupTooltips } from '@/scripts/tooltip'
 
@@ -38,6 +40,7 @@ export function setupPage() {
   void setupShare()
   void setupComments()
   void setupNotifications()
+  void me().then(offerPush)
   setupPickers()
   setupTooltips()
   if (!once) {

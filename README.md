@@ -208,6 +208,8 @@ The server listens on `:8080` behind a TLS-terminating proxy that sets `X-Forwar
   `<public URL>/api/auth/callback`.
 - `DATABASE_URL`: Postgres; migrations run at start. Without it the packing list is read-only.
 - `TAAC_NOINDEX`: `true` keeps search engines out of a public site.
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`: browser notifications (`npx web-push generate-vapid-keys`). Without them
+  there are none; the bell still works.
 - `PORT`, `TAAC_DIST`: default `8080` and `/srv/site`.
 
 `/healthz` answers `ok` for probes. Without containers: `task web:build server:build`, then

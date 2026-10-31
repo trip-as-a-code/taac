@@ -6,6 +6,9 @@
  * the security headers.
  */
 
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
 import {
   calendarSlug,
   decide,
@@ -39,7 +42,8 @@ import {
   verifySession,
 } from './auth'
 import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
-import { discussionEvents, newestFirst } from './notifications'
+import { parseSubscription, type PushSender } from './push'
+import { discussionEvents, NOTIFICATION_LIMIT, page } from './notifications'
 import { commentsRoute, MAX_THREADS, newComment, newId, validAnchor, validBody, type CommentsRoute } from './comments'
 import {
   describe,
@@ -56,11 +60,19 @@ import {
 import { handleFx } from './fx'
 import { authorizeUrl, userFor, type GithubApp } from './github'
 import { robotsTxt, secureResponse } from './headers'
-import { languageRedirect, pageLanguage } from './i18n'
+import { languageRedirect, pageLanguage, pushStrings } from './i18n'
 import { renderForbiddenPage, renderLinkGonePage, renderLoginPage, type Theme } from './login-page'
 import { packingSlug } from './packing'
 import { serveStatic } from './static'
 import type { Store } from './store'
+
+/** What the build says about a trip for notifications (`trips/<slug>/threads.json`). */
+interface TripDescription {
+  title: string
+  targets: Record<string, { title: string; href: string }>
+  /** Member names by lowercase GitHub login. */
+  people: Record<string, string>
+}
 
 export interface Config {
   /** The built site (`web/dist`). */
@@ -72,6 +84,8 @@ export interface Config {
   /** Shared state; without it the packing list is read-only. */
   store?: Store
   noindex?: boolean
+  /** Browser notifications: the VAPID public key browsers subscribe with, and how to deliver. */
+  push?: { publicKey: string; send: PushSender }
   fetcher?: typeof fetch
   now?: () => number
 }
@@ -186,6 +200,73 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
   /** Who may make and revoke a trip's links: its `member`s, when there is somewhere to keep them. */
   const mayShare = (slug: string, login: string | null) => !!config.store && roleOf(slug, login, manifest) === 'member'
 
+  /** A trip's titles, anchors and people as the build wrote them for a language (`threads.json`). */
+  const described = new Map<string, Promise<TripDescription | null>>()
+  function describeTrip(slug: string, lang: string): Promise<TripDescription | null> {
+    const key = `${lang}/${slug}`
+    let found = described.get(key)
+    if (!found) {
+      const prefix = lang === manifest.defaultLocale ? '' : lang
+      found = readFile(join(config.dist, prefix, 'trips', slug, 'threads.json'), 'utf8')
+        .then((text) => JSON.parse(text) as TripDescription)
+        .catch(() => null)
+      described.set(key, found)
+    }
+    return found
+  }
+
+  /** Tells the trip's other members' browsers what `by` just did in a discussion. */
+  async function announce(
+    slug: string,
+    by: string,
+    kind: 'thread' | 'reply' | 'resolved',
+    thread: string,
+    anchor: string,
+    said: string,
+  ) {
+    const push = config.push
+    if (!push || !config.store) return
+    const others = Object.keys(manifest.trips[slug]?.roles ?? {}).filter((login) => login !== by)
+    for (const sub of await config.store.subscriptionsFor(others)) {
+      const trip = await describeTrip(slug, sub.lang)
+      const target = trip?.targets[anchor]
+      const what = pushStrings(sub.lang)[kind].replace('{name}', trip?.people[by] ?? `@${by}`)
+      const [page, hash] = (target?.href ?? `/trips/${slug}/`).split('#')
+      const result = await push.send(sub, {
+        title: target?.title ?? trip?.title ?? slug,
+        body: said ? `${what}: ${said.length > 180 ? `${said.slice(0, 179)}…` : said}` : what,
+        url: `${page}?thread=${encodeURIComponent(anchor)}${hash ? `#${hash}` : ''}`,
+        tag: `thread:${thread}`,
+      })
+      if (result === 'gone') await config.store.removeSubscription(sub.endpoint)
+    }
+  }
+
+  /** Fire and forget: a slow push service never holds up the answer. */
+  const tell = (...args: Parameters<typeof announce>) => void announce(...args).catch((error) => console.error(error))
+
+  /** `/api/push/subscribe` and `/api/push/unsubscribe`: this browser's notifications, on or off. */
+  async function pushApi(request: Request, path: string): Promise<Response> {
+    if (!config.push || !config.store || request.method !== 'POST') return text('Not found\n', 404)
+    const login = await loginOf(request)
+    if (!login) return text('Unauthorized\n', 401)
+    if (!manifest.slugs.some((slug) => mayComment(slug, login))) return text('Forbidden\n', 403)
+    const body = (await request.json().catch(() => ({}))) as {
+      subscription?: unknown
+      endpoint?: unknown
+      lang?: unknown
+    }
+    if (path === '/api/push/subscribe') {
+      const sub = parseSubscription(body.subscription, login, body.lang, config.now?.() ?? Date.now())
+      if (!sub) return text('Bad request\n', 400)
+      await config.store.addSubscription(sub)
+      return json({ ok: true })
+    }
+    if (typeof body.endpoint !== 'string') return text('Bad request\n', 400)
+    await config.store.removeSubscription(body.endpoint)
+    return json({ ok: true })
+  }
+
   /** Who may write in a trip's discussions: its members, whatever their role. */
   const mayComment = (slug: string, login: string | null) => !!config.store && roleOf(slug, login, manifest) !== null
 
@@ -209,6 +290,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       comments,
       calendars,
       link: link ? { trip: link.trip, label: link.label, expiresAt: link.expiresAt } : null,
+      push: config.push && config.store && login && comments.length ? config.push.publicKey : null,
     })
   }
 
@@ -257,8 +339,9 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       const textBody = validBody(body.body)
       if (!validAnchor(body.anchor) || !textBody) return bad()
       if ((await store.threads(route.slug)).length >= MAX_THREADS) return text('Too many threads\n', 409)
+      const id = newId()
       await store.createThread({
-        id: newId(),
+        id,
         trip: route.slug,
         anchor: body.anchor,
         createdBy: login,
@@ -267,6 +350,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
         resolvedBy: null,
         comments: [newComment(login, textBody, now)],
       })
+      tell(route.slug, login, 'thread', id, body.anchor, textBody)
       return all()
     }
     if (route.kind === 'replies' || route.kind === 'thread') {
@@ -276,11 +360,13 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
         const textBody = validBody(body.body)
         if (!textBody) return bad()
         await store.addComment(thread.id, newComment(login, textBody, now))
+        tell(route.slug, login, 'reply', thread.id, thread.anchor, textBody)
         return all()
       }
       if (route.kind === 'thread' && request.method === 'PATCH') {
         if (typeof body.resolved !== 'boolean') return bad()
         await store.resolveThread(thread.id, body.resolved ? login : null, now)
+        if (body.resolved) tell(route.slug, login, 'resolved', thread.id, thread.anchor, '')
         return all()
       }
     }
@@ -299,7 +385,10 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     return text('Method not allowed\n', 405)
   }
 
-  /** `/api/notifications`: what others did on your trips (GET), and having read up to now (POST `seen`). */
+  /**
+   * `/api/notifications`: what others did on your trips, newest first, a page
+   * at a time (`?before=<ms>&limit=<n>`); POST `/seen`: read up to now.
+   */
   async function notifications(request: Request, path: string): Promise<Response> {
     const store = config.store
     if (!store) return text('Not found\n', 404)
@@ -311,11 +400,19 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
       return json({ seenAt: await store.notificationsSeen(login) })
     }
     if (path !== '/api/notifications' || request.method !== 'GET') return text('Not found\n', 404)
+    const url = new URL(request.url)
+    const before = Number(url.searchParams.get('before')) || undefined
+    const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || NOTIFICATION_LIMIT, 1), NOTIFICATION_LIMIT)
     const trips = manifest.slugs.filter((slug) => mayComment(slug, login))
     const events = (
-      await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login, now)))
+      await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login)))
     ).flat()
-    return json({ seenAt: await store.notificationsSeen(login), notifications: newestFirst(events) })
+    const items = page(events, limit + 1, before)
+    return json({
+      seenAt: await store.notificationsSeen(login),
+      notifications: items.slice(0, limit),
+      more: items.length > limit,
+    })
   }
 
   /** `/api/trips/<slug>/links`: the trip's working links (GET), a new one (POST), revoking one (DELETE). */
@@ -406,6 +503,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path === '/api/logout')
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
+    if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe') return plain(await pushApi(request, path))
     if (path === '/api/notifications' || path === '/api/notifications/seen')
       return plain(await notifications(request, path))
     const commentsApi = commentsRoute(path)

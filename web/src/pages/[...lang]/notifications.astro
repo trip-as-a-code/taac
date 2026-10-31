@@ -1,0 +1,84 @@
+---
+import PushToggle from '@/components/PushToggle.astro'
+import { langParams, localeFromParam, useI18n } from '@/i18n'
+import BaseLayout from '@/layouts/BaseLayout.astro'
+
+export const getStaticPaths = () => langParams().map((params) => ({ params }))
+
+const lang = localeFromParam(Astro.params.lang)
+const { t, path } = useI18n(lang)
+---
+
+<BaseLayout lang={lang} title={t('notifications.allTitle')} back={{ href: path('/'), label: t('nav.allTrips') }}>
+  <div class="container page" data-notifications-page>
+    <h1 class="large-title">{t('notifications.allTitle')}</h1>
+    <div class="card">
+      <PushToggle lang={lang} />
+    </div>
+    <ul class="card list items" data-page-list></ul>
+    <p class="card card-pad secondary" data-page-none hidden>
+      {t('notifications.none')}
+    </p>
+    <button class="button more" type="button" data-page-more hidden>
+      {t('notifications.more')}
+    </button>
+  </div>
+</BaseLayout>
+
+<script>
+  import { setupNotificationsPage } from '@/scripts/notifications'
+
+  document.addEventListener('astro:page-load', () => void setupNotificationsPage())
+</script>
+
+<style>
+  .page {
+    display: grid;
+    gap: var(--space-4);
+    padding-block: var(--space-8);
+  }
+
+  h1 {
+    margin: 0;
+  }
+
+  .items:empty,
+  [hidden] {
+    display: none;
+  }
+
+  .more {
+    justify-self: center;
+  }
+
+  .items :global(a) {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 2px var(--space-3);
+    padding: 12px var(--space-4);
+    color: var(--label);
+    text-decoration: none;
+  }
+
+  .items :global(li + li) {
+    border-top: 1px solid var(--separator);
+  }
+
+  .items :global(a:hover) {
+    background: var(--fill);
+  }
+
+  .items :global(a[data-new] .what:first-of-type)::after {
+    content: '';
+  }
+
+  .items :global(a[data-new]) {
+    background: var(--tint-soft);
+  }
+
+  .items :global(.avatar) {
+    grid-row: span 3;
+    width: 36px;
+    height: 36px;
+  }
+</style>

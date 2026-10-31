@@ -436,6 +436,21 @@ export const en = {
   'notifications.resolved': '{name} resolved a discussion',
   'notifications.error': 'Couldn’t load notifications.',
 
+  'push.title': 'Turn on notifications?',
+  'push.lead': 'Hear about replies and new discussions on your trips, even when this site is closed.',
+  'push.allow': 'Turn on',
+  'push.later': 'Not now',
+  'push.never': 'Don’t ask again',
+  'push.device': 'Notifications on this device',
+  'push.on': 'On',
+  'push.off': 'Off',
+  'push.turnOn': 'Turn on',
+  'push.turnOff': 'Turn off',
+  'push.denied': 'Blocked in the browser’s settings for this site.',
+  'notifications.all': 'Show all',
+  'notifications.more': 'Show more',
+  'notifications.allTitle': 'Notifications',
+
   'a11y.skip': 'Skip to content',
   'a11y.openMenu': 'Open menu',
 }

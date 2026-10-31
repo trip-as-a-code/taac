@@ -1,7 +1,10 @@
 // The notification center: the bell's count of what others did since you last
-// looked, and the list, read from the server with the place each one links to.
+// looked, its list of the latest, and the full page with everything, read
+// from the server with the place each one links to. Also the switch for
+// browser notifications on this device.
 
-import { me } from '@/scripts/session'
+import { pushState, turnOff, turnOn } from '@/scripts/push'
+import { me, type Me } from '@/scripts/session'
 
 interface Notification {
   id: string
@@ -20,6 +23,14 @@ interface Person {
   hue: number
 }
 
+interface Context {
+  root: HTMLElement
+  lang: string
+  base: string
+  people: Record<string, Person>
+  strings: Record<string, string>
+}
+
 /** Trip titles and where each anchor is, fetched once per trip. */
 const targets = new Map<
   string,
@@ -28,6 +39,18 @@ const targets = new Map<
 let listening = false
 /** The current page's refresh, for the one visibility listener. */
 let refreshCurrent: (() => Promise<void>) | undefined
+
+function context(): Context | null {
+  const root = document.querySelector<HTMLElement>('[data-notifications]')
+  if (!root) return null
+  return {
+    root,
+    lang: root.dataset.lang!,
+    base: root.dataset.base!,
+    people: JSON.parse(root.dataset.people ?? '{}') as Record<string, Person>,
+    strings: JSON.parse(root.dataset.strings ?? '{}') as Record<string, string>,
+  }
+}
 
 function targetsOf(base: string, trip: string) {
   let found = targets.get(trip)
@@ -57,21 +80,98 @@ function linkTo(href: string, anchor: string): string {
   return `${page}?thread=${encodeURIComponent(anchor)}${hash ? `#${hash}` : ''}`
 }
 
+async function fetchPage(
+  limit: number,
+  before?: number,
+): Promise<{ notifications: Notification[]; seenAt: number; more: boolean }> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (before) params.set('before', String(before))
+  const response = await fetch(`/api/notifications?${params}`, { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(String(response.status))
+  return response.json()
+}
+
+async function renderItem(n: Notification, ctx: Context, fresh: boolean): Promise<HTMLLIElement> {
+  const trip = await targetsOf(ctx.base, n.trip)
+  const target = trip?.targets[n.anchor]
+  const link = document.createElement('a')
+  link.href = target ? linkTo(target.href, n.anchor) : `${ctx.base}trips/${encodeURIComponent(n.trip)}/`
+  link.toggleAttribute('data-new', fresh)
+  const person = ctx.people[n.by]
+  const avatar = document.createElement('span')
+  avatar.className = 'avatar'
+  avatar.style.setProperty('--hue', String(person?.hue ?? 210))
+  avatar.textContent = person?.initials ?? n.by.slice(0, 1).toUpperCase()
+  const img = document.createElement('img')
+  img.className = 'avatar-photo'
+  img.src = `/api/avatars/${n.by}`
+  img.alt = ''
+  img.dataset.avatarPhoto = ''
+  avatar.append(img)
+  const what = document.createElement('span')
+  what.className = 'subhead what'
+  what.textContent = ctx.strings[n.kind]!.replace('{name}', person?.name ?? `@${n.by}`)
+  const where = document.createElement('span')
+  where.className = 'footnote secondary what'
+  where.textContent = [
+    target?.title,
+    ctx.root.hasAttribute('data-several-trips') ? trip?.title : undefined,
+    when(n.at, ctx.lang),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  link.append(avatar, what, where)
+  if (n.text) {
+    const text = document.createElement('span')
+    text.className = 'footnote tertiary text'
+    text.textContent = n.text
+    link.append(text)
+  }
+  const item = document.createElement('li')
+  item.append(link)
+  return item
+}
+
+async function markSeen() {
+  await fetch('/api/notifications/seen', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined)
+}
+
+/** A `[data-push-toggle]`: this device's browser notifications, on or off. */
+async function setupToggle(toggle: HTMLElement, session: Me) {
+  const publicKey = session.push
+  const state = publicKey ? await pushState() : 'unsupported'
+  toggle.hidden = state === 'unsupported'
+  if (toggle.hidden) return
+  const status = toggle.querySelector<HTMLElement>('[data-push-status]')!
+  const button = toggle.querySelector<HTMLButtonElement>('[data-push-switch]')!
+  const d = toggle.dataset
+  const show = (now: Awaited<ReturnType<typeof pushState>>) => {
+    status.textContent = now === 'denied' ? d.denied! : now === 'on' ? d.on! : d.off!
+    button.hidden = now === 'denied'
+    button.textContent = now === 'on' ? d.turnOff! : d.turnOn!
+    button.toggleAttribute('data-on', now === 'on')
+  }
+  show(state)
+  button.onclick = async () => {
+    button.disabled = true
+    if (button.hasAttribute('data-on')) await turnOff()
+    else await turnOn(publicKey!).catch(() => undefined)
+    button.disabled = false
+    show(await pushState())
+  }
+}
+
 export async function setupNotifications() {
-  const found = document.querySelector<HTMLElement>('[data-notifications]')
-  if (!found) return
-  const root: HTMLElement = found
+  const ctx = context()
+  if (!ctx) return
   const session = await me()
   if (!session?.login || !session.comments.length) return
+  const { root } = ctx
   const open = root.querySelector<HTMLButtonElement>('[data-notifications-open]')!
   const panel = root.querySelector<HTMLDialogElement>('[data-notifications-panel]')!
   const list = root.querySelector<HTMLElement>('[data-notifications-list]')!
   const count = root.querySelector<HTMLElement>('[data-notifications-count]')!
   const error = root.querySelector<HTMLElement>('[data-notifications-error]')!
-  const lang = root.dataset.lang!
-  const base = root.dataset.base!
-  const people = JSON.parse(root.dataset.people ?? '{}') as Record<string, Person>
-  const s = JSON.parse(root.dataset.strings ?? '{}') as Record<string, string>
   open.hidden = false
 
   let items: Notification[] = []
@@ -81,12 +181,10 @@ export async function setupNotifications() {
 
   async function load() {
     try {
-      const response = await fetch('/api/notifications', { credentials: 'same-origin' })
-      if (!response.ok) throw new Error(String(response.status))
-      ;({ notifications: items, seenAt } = (await response.json()) as { notifications: Notification[]; seenAt: number })
+      ;({ notifications: items, seenAt } = await fetchPage(20))
       error.hidden = true
     } catch {
-      error.textContent = s.error!
+      error.textContent = ctx!.strings.error!
       error.hidden = false
     }
     const fresh = items.filter((n) => n.at > seenAt).length
@@ -95,50 +193,7 @@ export async function setupNotifications() {
   }
 
   async function render() {
-    const rows = await Promise.all(
-      items.map(async (n) => {
-        const trip = await targetsOf(base, n.trip)
-        const target = trip?.targets[n.anchor]
-        const link = document.createElement('a')
-        link.href = target ? linkTo(target.href, n.anchor) : `${base}trips/${encodeURIComponent(n.trip)}/`
-        link.toggleAttribute('data-new', n.at > shownSince)
-        const person = people[n.by]
-        const avatar = document.createElement('span')
-        avatar.className = 'avatar'
-        avatar.style.setProperty('--hue', String(person?.hue ?? 210))
-        avatar.textContent = person?.initials ?? n.by.slice(0, 1).toUpperCase()
-        const img = document.createElement('img')
-        img.className = 'avatar-photo'
-        img.src = `/api/avatars/${n.by}`
-        img.alt = ''
-        img.dataset.avatarPhoto = ''
-        avatar.append(img)
-        const what = document.createElement('span')
-        what.className = 'subhead what'
-        what.textContent = s[n.kind]!.replace('{name}', person?.name ?? `@${n.by}`)
-        const where = document.createElement('span')
-        where.className = 'footnote secondary what'
-        where.textContent = [
-          target?.title,
-          root.hasAttribute('data-several-trips') ? trip?.title : undefined,
-          when(n.at, lang),
-        ]
-          .filter(Boolean)
-          .join(' · ')
-        link.append(avatar, what, where)
-        if (n.text) {
-          const text = document.createElement('span')
-          text.className = 'footnote tertiary text'
-          text.textContent = n.text
-          link.append(text)
-        }
-        link.addEventListener('click', () => panel.close())
-        const item = document.createElement('li')
-        item.append(link)
-        return item
-      }),
-    )
-    list.replaceChildren(...rows)
+    list.replaceChildren(...(await Promise.all(items.map((n) => renderItem(n, ctx!, n.at > shownSince)))))
     root.querySelector<HTMLElement>('[data-notifications-none]')!.hidden = items.length > 0
   }
 
@@ -146,12 +201,16 @@ export async function setupNotifications() {
     shownSince = seenAt
     panel.showModal()
     await render()
+    void setupToggle(root.querySelector<HTMLElement>('[data-push-toggle]')!, session)
     // Opening the center reads it.
     if (items.some((n) => n.at > seenAt)) {
-      await fetch('/api/notifications/seen', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined)
+      await markSeen()
       seenAt = Date.now()
       count.textContent = ''
     }
+  })
+  list.addEventListener('click', (event) => {
+    if ((event.target as Element).closest('a')) panel.close()
   })
   root.querySelector('[data-notifications-close]')!.addEventListener('click', () => panel.close())
   panel.addEventListener('click', (event) => {
@@ -165,4 +224,34 @@ export async function setupNotifications() {
   }
   refreshCurrent = load
   await load()
+}
+
+/** The full page: everything, newest first, a page at a time. */
+export async function setupNotificationsPage() {
+  const page = document.querySelector<HTMLElement>('[data-notifications-page]')
+  const ctx = context()
+  if (!page || !ctx) return
+  const session = await me()
+  if (!session?.login) return
+  const list = page.querySelector<HTMLElement>('[data-page-list]')!
+  const more = page.querySelector<HTMLButtonElement>('[data-page-more]')!
+  const none = page.querySelector<HTMLElement>('[data-page-none]')!
+  void setupToggle(page.querySelector<HTMLElement>('[data-push-toggle]')!, session)
+  let before: number | undefined
+  let seenAt: number | undefined
+  const next = async () => {
+    more.disabled = true
+    const result = await fetchPage(50, before).catch(() => null)
+    more.disabled = false
+    if (!result) return
+    seenAt ??= result.seenAt
+    list.append(...(await Promise.all(result.notifications.map((n) => renderItem(n, ctx, n.at > seenAt!)))))
+    before = result.notifications.at(-1)?.at
+    more.hidden = !result.more
+    none.hidden = list.children.length > 0
+  }
+  more.onclick = () => void next()
+  await next()
+  await markSeen()
+  ctx.root.querySelector<HTMLElement>('[data-notifications-count]')!.textContent = ''
 }

@@ -7,6 +7,7 @@
  * - `SESSION_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: signing in
  * - `DATABASE_URL`: Postgres for shared state (packing ticks)
  * - `TAAC_NOINDEX=true`: keep search engines out of a public site
+ * - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`: browser notifications (`npx web-push generate-vapid-keys`)
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
@@ -16,6 +17,7 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 
 import { loadManifest } from './access'
 import { createHandler, type Config } from './app'
+import { vapidSender } from './push'
 import { openStore } from './store'
 
 const env = process.env
@@ -63,6 +65,17 @@ async function main(): Promise<void> {
         : undefined,
     store,
     noindex: env.TAAC_NOINDEX === 'true',
+    push:
+      env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY
+        ? {
+            publicKey: env.VAPID_PUBLIC_KEY,
+            send: vapidSender({
+              publicKey: env.VAPID_PUBLIC_KEY,
+              privateKey: env.VAPID_PRIVATE_KEY,
+              subject: env.TAAC_PUBLIC_URL || 'mailto:taac@localhost',
+            }),
+          }
+        : undefined,
   }
   const handle = createHandler(config, manifest)
   const server = createServer((req, res) => {
