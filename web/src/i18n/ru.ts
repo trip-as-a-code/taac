@@ -476,7 +476,6 @@ export const ru: Messages = {
   'notifications.filterUnread': 'Непрочитанные',
   'notifications.today': 'Сегодня',
   'notifications.yesterday': 'Вчера',
-  'notifications.device': 'Эти настройки действуют только на этом устройстве и в этом браузере.',
   'push.hint': 'Ответы и новые обсуждения, даже когда сайт закрыт.',
 
   'push.unsupported': 'Этот браузер не показывает уведомления от сайтов.',
