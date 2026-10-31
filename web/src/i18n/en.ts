@@ -354,6 +354,8 @@ export const en = {
   'packing.all': 'Everyone',
   'packing.packedBy': '{name}: packed',
   'packing.notPackedBy': '{name}: not packed yet',
+  'packing.tickedBy': 'Ticked by {by}',
+  'packing.tickedFor': '{name}: ticked by {by}',
   'packing.shared': 'Ticks are shared with everyone on the trip.',
   'packing.none': 'No packing list yet.',
   'packing.bought': 'Bought',

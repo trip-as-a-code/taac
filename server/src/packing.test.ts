@@ -20,6 +20,14 @@ describe('packing ticks', () => {
     expect(ticks['adapter|a']).toEqual({ packed: false, at: 30 })
   })
 
+  it('remembers who set a tick, and who set it last', () => {
+    const ticks: Ticks = {}
+    merge(ticks, [{ item: 'adapter', member: 'a', packed: true, at: 1 }], 100, 'sam')
+    expect(ticks['adapter|a']).toEqual({ packed: true, at: 1, by: 'sam' })
+    merge(ticks, [{ item: 'adapter', member: 'a', packed: false, at: 2, by: 'forged' }], 100, 'alex')
+    expect(ticks['adapter|a']).toEqual({ packed: false, at: 2, by: 'alex' })
+  })
+
   it('ignores malformed and far-future changes', () => {
     const ticks: Ticks = {}
     const now = Date.now()

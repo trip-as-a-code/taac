@@ -175,7 +175,7 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (!config.store || !manifest.slugs.includes(slug)) return text('Not found\n', 404)
     if (request.method === 'POST') {
       const body = (await request.json().catch(() => ({}))) as { changes?: unknown }
-      await config.store.apply(slug, body.changes, config.now?.() ?? Date.now())
+      await config.store.apply(slug, body.changes, config.now?.() ?? Date.now(), await loginOf(request))
     } else if (request.method !== 'GET') return text('Method not allowed\n', 405)
     return json({ ticks: await config.store.ticks(slug) })
   }

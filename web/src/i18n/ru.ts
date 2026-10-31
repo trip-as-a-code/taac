@@ -371,6 +371,8 @@ export const ru: Messages = {
   'packing.all': 'Все',
   'packing.packedBy': '{name}: собрано',
   'packing.notPackedBy': '{name}: ещё не собрано',
+  'packing.tickedBy': 'Отметка: {by}',
+  'packing.tickedFor': '{name} — отметка: {by}',
   'packing.shared': 'Отметки видят все участники поездки.',
   'packing.none': 'Списка вещей пока нет.',
   'packing.bought': 'Куплено',
