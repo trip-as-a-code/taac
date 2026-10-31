@@ -47,9 +47,9 @@ function memoryStore(): Store {
     ticks: async (trip) => trips.get(trip) ?? {},
     avatar: async () => null,
     putAvatar: async () => undefined,
-    apply: async (trip, changes, now) => {
+    apply: async (trip, changes, now, by) => {
       const ticks = trips.get(trip) ?? {}
-      merge(ticks, changes, now)
+      merge(ticks, changes, now, by)
       trips.set(trip, ticks)
     },
     close: async () => undefined,
@@ -164,7 +164,7 @@ describe('the rest', () => {
     const changes = [{ item: 'adapter', member: 'alex', packed: true, at: 1 }]
     await handle(new Request(url, { method: 'POST', headers: { Cookie: cookies }, body: JSON.stringify({ changes }) }))
     const read = await handle(new Request(url, { headers: { Cookie: cookies } }))
-    expect(await read.json()).toEqual({ ticks: { 'adapter|alex': { packed: true, at: 1 } } })
+    expect(await read.json()).toEqual({ ticks: { 'adapter|alex': { packed: true, at: 1, by: 'alex' } } })
     expect((await handle(new Request(url))).status).toBe(401)
   })
 

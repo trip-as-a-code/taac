@@ -33,8 +33,13 @@ const whose = (members: string[]) => {
       data-whose={t('packing.whose')}
       data-all={t('packing.all')}
       data-names={JSON.stringify(Object.fromEntries(trip.members.map((m) => [m.id, m.name])))}
+      data-logins={JSON.stringify(
+        Object.fromEntries(trip.members.filter((m) => m.github).map((m) => [m.github!.toLowerCase(), m.name])),
+      )}
       data-packed={t('packing.packedBy')}
       data-unpacked={t('packing.notPackedBy')}
+      data-ticked-by={t('packing.tickedBy')}
+      data-ticked-for={t('packing.tickedFor')}
     >
       <section class="head" data-packing-head>
         <div class="progress">
@@ -111,6 +116,7 @@ const whose = (members: string[]) => {
                           </span>
                         )}
                         <Debts trip={trip} id={item.id} i18n={i18n} />
+                        <span class="footnote tertiary" data-packing-by hidden />
                       </span>
                     </label>
                     {/* Shared things: who has packed it, and a tap to tick for anyone. */}
@@ -151,6 +157,7 @@ const whose = (members: string[]) => {
   import { revealTarget, setupFilters } from '@/scripts/filters'
   import { getLens } from '@/scripts/lens'
   import { PackingStore } from '@/scripts/packing'
+  import { me } from '@/scripts/session'
 
   let stop: (() => void) | undefined
 
@@ -164,6 +171,9 @@ const whose = (members: string[]) => {
     const root = document.querySelector<HTMLElement>('[data-packing]')
     if (!root) return
     const names = JSON.parse(root.dataset.names ?? '{}') as Record<string, string>
+    const logins = JSON.parse(root.dataset.logins ?? '{}') as Record<string, string>
+    // The member a GitHub login belongs to, else the login itself.
+    const ticker = (login: string) => logins[login] ?? `@${login}`
     const rows = [...root.querySelectorAll<HTMLElement>('[data-packing-row]')]
     const packersOf = (row: HTMLElement) => row.dataset.packers!.split(' ')
     const store = new PackingStore(root.dataset.packing!, () => render())
@@ -199,8 +209,22 @@ const whose = (members: string[]) => {
             (packed ? root!.dataset.packed! : root!.dataset.unpacked!).replace('{name}', names[m] ?? m),
           )
         }
-        if (row.hidden) continue
         const counted = one ? packers.filter((m) => m === one) : packers
+        // Who ticked each packed one: "Ticked by X", or per person on a shared thing.
+        const by = row.querySelector<HTMLElement>('[data-packing-by]')!
+        const ticks = counted.flatMap((m) => {
+          const login = store.packedBy(id, m)
+          return login ? [{ m, by: ticker(login) }] : []
+        })
+        by.textContent = ticks
+          .map((tick) =>
+            counted.length === 1
+              ? root!.dataset.tickedBy!.replace('{by}', tick.by)
+              : root!.dataset.tickedFor!.replace('{name}', names[tick.m] ?? tick.m).replace('{by}', tick.by),
+          )
+          .join(' · ')
+        by.hidden = !ticks.length
+        if (row.hidden) continue
         total += counted.length
         done += counted.filter((m) => store.packed(id, m)).length
       }
@@ -247,6 +271,7 @@ const whose = (members: string[]) => {
       clearInterval(timer)
     }
     setupFilters(render)
+    void me().then((session) => (store.login = session?.login ?? null))
     void store.sync()
     revealTarget()
   }

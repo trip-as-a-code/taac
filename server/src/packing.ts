@@ -6,12 +6,14 @@ export interface Tick {
   packed: boolean
   /** Epoch milliseconds when it was set, on the device that set it. */
   at: number
+  /** The GitHub login that set it, from the session; absent on a public site or for older ticks. */
+  by?: string
 }
 
 /** `item|member` → tick. */
 export type Ticks = Record<string, Tick>
 
-export interface Change extends Tick {
+export interface Change extends Omit<Tick, 'by'> {
   item: string
   member: string
 }
@@ -33,14 +35,14 @@ export function validChanges(changes: unknown, now: number): Change[] {
   return valid
 }
 
-/** Applies valid changes newer than what is stored; returns how many applied. */
-export function merge(ticks: Ticks, changes: unknown, now: number): number {
+/** Applies valid changes newer than what is stored, as set by `by`; returns how many applied. */
+export function merge(ticks: Ticks, changes: unknown, now: number, by: string | null = null): number {
   let applied = 0
   for (const c of validChanges(changes, now)) {
     const key = `${c.item}|${c.member}`
     if (!(key in ticks) && Object.keys(ticks).length >= MAX_TICKS) continue
     if ((ticks[key]?.at ?? -1) >= c.at) continue
-    ticks[key] = { packed: c.packed, at: c.at }
+    ticks[key] = { packed: c.packed, at: c.at, ...(by ? { by } : {}) }
     applied++
   }
   return applied

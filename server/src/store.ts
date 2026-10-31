@@ -12,8 +12,8 @@ import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
 export interface Store extends AvatarStore {
   ticks(trip: string): Promise<Ticks>
-  /** Stores the valid changes newer than what is there. */
-  apply(trip: string, changes: unknown, now: number): Promise<void>
+  /** Stores the valid changes newer than what is there, as set by `by`. */
+  apply(trip: string, changes: unknown, now: number, by: string | null): Promise<void>
   close(): Promise<void>
 }
 
@@ -57,13 +57,21 @@ export async function openStore(connectionString: string): Promise<Store> {
   await migrate(pool)
   return {
     async ticks(trip) {
-      const { rows } = await pool.query<{ item: string; member: string; packed: boolean; at: string }>(
-        'select item, member, packed, at from packing_ticks where trip = $1',
-        [trip],
+      const { rows } = await pool.query<{
+        item: string
+        member: string
+        packed: boolean
+        at: string
+        by_login: string | null
+      }>('select item, member, packed, at, by_login from packing_ticks where trip = $1', [trip])
+      return Object.fromEntries(
+        rows.map((r) => [
+          `${r.item}|${r.member}`,
+          { packed: r.packed, at: Number(r.at), ...(r.by_login ? { by: r.by_login } : {}) },
+        ]),
       )
-      return Object.fromEntries(rows.map((r) => [`${r.item}|${r.member}`, { packed: r.packed, at: Number(r.at) }]))
     },
-    async apply(trip, changes, now) {
+    async apply(trip, changes, now, by) {
       const valid = validChanges(changes, now)
       if (!valid.length) return
       const client = await pool.connect()
@@ -76,13 +84,14 @@ export async function openStore(connectionString: string): Promise<Store> {
         for (const c of valid) {
           // A new row only while there is room; an existing one only for a newer stamp.
           const result = await client.query<{ inserted: boolean }>(
-            `insert into packing_ticks (trip, item, member, packed, at)
-             select $1, $2, $3, $4, $5 where $6 or exists (
+            `insert into packing_ticks (trip, item, member, packed, at, by_login)
+             select $1, $2, $3, $4, $5, $7 where $6 or exists (
                select 1 from packing_ticks where trip = $1 and item = $2 and member = $3)
-             on conflict (trip, item, member) do update set packed = excluded.packed, at = excluded.at
+             on conflict (trip, item, member) do update
+               set packed = excluded.packed, at = excluded.at, by_login = excluded.by_login
                where packing_ticks.at < excluded.at
              returning (xmax = 0) as inserted`,
-            [trip, c.item, c.member, c.packed, c.at, count < MAX_TICKS],
+            [trip, c.item, c.member, c.packed, c.at, count < MAX_TICKS, by],
           )
           if (result.rows[0]?.inserted) count++
         }

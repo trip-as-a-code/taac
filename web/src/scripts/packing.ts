@@ -1,17 +1,19 @@
-// Packing ticks, shared by everyone on the trip through the worker
+// Packing ticks, shared by everyone on the trip through the server
 // (`/trips/<slug>/_packing`). Each tick is one person and one item with the
-// time it was set; the latest wins. This device keeps a copy and a queue, so
+// time it was set and the GitHub login that set it; the latest wins. This device keeps a copy and a queue, so
 // ticks made offline go up when it is back.
 
 export interface Tick {
   packed: boolean
   at: number
+  /** Who set it: their GitHub login, stamped by the server. */
+  by?: string
 }
 
 /** `item|member` → tick. */
 export type Ticks = Record<string, Tick>
 
-interface Change extends Tick {
+interface Change extends Omit<Tick, 'by'> {
   item: string
   member: string
 }
@@ -63,13 +65,22 @@ export class PackingStore {
     }
   }
 
+  /** Who this device ticks as, until the server confirms it. */
+  login: string | null = null
+
   private record(item: string, member: string, packed: boolean, at: number) {
-    this.ticks[`${item}|${member}`] = { packed, at }
+    this.ticks[`${item}|${member}`] = { packed, at, ...(this.login ? { by: this.login } : {}) }
     this.pending = [...this.pending.filter((c) => c.item !== item || c.member !== member), { item, member, packed, at }]
   }
 
   packed(item: string, member: string): boolean {
     return Boolean(this.ticks[`${item}|${member}`]?.packed)
+  }
+
+  /** Who ticked it as packed, when it is and that is known. */
+  packedBy(item: string, member: string): string | undefined {
+    const tick = this.ticks[`${item}|${member}`]
+    return tick?.packed ? tick.by : undefined
   }
 
   set(item: string, member: string, packed: boolean) {
