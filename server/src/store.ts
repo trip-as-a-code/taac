@@ -1,5 +1,5 @@
 /**
- * Shared state in Postgres: packing ticks for now. Migrations are plain SQL
+ * Shared state in Postgres: packing ticks and kept GitHub pictures. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -7,9 +7,10 @@ import { readdir, readFile } from 'node:fs/promises'
 
 import pg from 'pg'
 
+import type { Avatar, AvatarStore } from './avatars'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
-export interface Store {
+export interface Store extends AvatarStore {
   ticks(trip: string): Promise<Ticks>
   /** Stores the valid changes newer than what is there. */
   apply(trip: string, changes: unknown, now: number): Promise<void>
@@ -92,6 +93,21 @@ export async function openStore(connectionString: string): Promise<Store> {
       } finally {
         client.release()
       }
+    },
+    async avatar(login) {
+      const { rows } = await pool.query<{ type: string | null; image: Buffer | null; fetched_at: string }>(
+        'select type, image, fetched_at from avatars where login = $1',
+        [login],
+      )
+      const row = rows[0]
+      return row ? { type: row.type, image: row.image, fetchedAt: Number(row.fetched_at) } : null
+    },
+    async putAvatar(login, avatar: Avatar) {
+      await pool.query(
+        `insert into avatars (login, type, image, fetched_at) values ($1, $2, $3, $4)
+         on conflict (login) do update set type = excluded.type, image = excluded.image, fetched_at = excluded.fetched_at`,
+        [login, avatar.type, avatar.image ? Buffer.from(avatar.image) : null, avatar.fetchedAt],
+      )
     },
     close: () => pool.end(),
   }

@@ -337,6 +337,22 @@ p {
   color: white;
   background: linear-gradient(160deg, hsl(var(--hue) 70% 62%), hsl(var(--hue) 62% 46%));
   box-shadow: 0 0 0 2px var(--bg-grouped);
+  position: relative;
+  overflow: hidden;
+}
+
+.avatar-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.avatar-photo[data-loaded] {
+  opacity: 1;
 }
 
 .avatars {

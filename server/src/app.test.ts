@@ -35,6 +35,8 @@ function github(who: string): typeof fetch {
     const url = String(input)
     if (url.endsWith('/access_token')) return Response.json({ access_token: 'token' })
     if (url.endsWith('/user')) return Response.json({ login: who })
+    if (url.startsWith('https://github.com/alex.png'))
+      return new Response(new Uint8Array([0xff, 0xd8, 0xff]), { headers: { 'Content-Type': 'image/jpeg' } })
     return new Response('nope', { status: 404 })
   }) as typeof fetch
 }
@@ -43,6 +45,8 @@ function memoryStore(): Store {
   const trips = new Map<string, Ticks>()
   return {
     ticks: async (trip) => trips.get(trip) ?? {},
+    avatar: async () => null,
+    putAvatar: async () => undefined,
     apply: async (trip, changes, now) => {
       const ticks = trips.get(trip) ?? {}
       merge(ticks, changes, now)
@@ -175,6 +179,22 @@ describe('the rest', () => {
     expect(await missing.text()).toBe('<h1>nope</h1>')
     expect((await get('/%2e%2e/%2e%2e/etc/passwd')).status).toBe(404)
     expect((await handle(new Request('https://trips.example/healthz'))).status).toBe(200)
+  })
+
+  it('shows the trip’s people’s pictures to those who see the trip', async () => {
+    const handle = handler()
+    const anonymous = await handle(new Request('https://trips.example/api/avatars/Alex'))
+    expect(anonymous.status).toBe(404)
+    const cookies = await signIn(handle)
+    const picture = await handle(
+      new Request('https://trips.example/api/avatars/Alex', { headers: { Cookie: cookies } }),
+    )
+    expect(picture.status).toBe(200)
+    expect(picture.headers.get('Content-Type')).toBe('image/jpeg')
+    const stranger = await handle(
+      new Request('https://trips.example/api/avatars/torvalds', { headers: { Cookie: cookies } }),
+    )
+    expect(stranger.status).toBe(404)
   })
 
   it('sets the security headers everywhere', async () => {

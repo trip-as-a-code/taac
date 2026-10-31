@@ -1,9 +1,10 @@
 ---
+import Avatar from '@/components/Avatar.astro'
 import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { initials, itemById, kindIcon, kindTint, memberHue, memberName, people, type CostKind } from '@/lib/trip'
+import { itemById, kindIcon, kindTint, memberName, people, type CostKind } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -84,9 +85,7 @@ const dash = '—'
           {trip.members.map((member) => (
             <article class="person card card-pad" data-person={member.id}>
               <header>
-                <span class="avatar" style={`--hue:${memberHue(member.id)}`}>
-                  {initials(member)}
-                </span>
+                <Avatar member={member} />
                 <span class="headline">{member.name}</span>
               </header>
               <dl class="tabular">

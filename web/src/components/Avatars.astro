@@ -1,7 +1,7 @@
 ---
 import type { Member } from '@taac/core'
 
-import { initials, memberHue } from '@/lib/trip'
+import Avatar from '@/components/Avatar.astro'
 
 interface Props {
   members: Member[]
@@ -16,15 +16,13 @@ const rest = members.length - shown.length
 
 <span class="avatars" style={`--size:${size}px`}>
   {shown.map((m) => (
-    <span class="avatar" style={`--hue:${memberHue(m.id)}`} title={m.name}>
-      {initials(m)}
-    </span>
+    <Avatar member={m} title={m.name} />
   ))}
   {rest > 0 && <span class="avatar more">+{rest}</span>}
 </span>
 
 <style>
-  .avatars .avatar {
+  .avatars :global(.avatar) {
     width: var(--size);
     height: var(--size);
     font-size: calc(var(--size) * 0.42);
