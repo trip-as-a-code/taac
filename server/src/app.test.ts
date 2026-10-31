@@ -58,7 +58,10 @@ function memoryStore(): Store {
     for (const t of threads) for (const c of t.comments) if (c.id === id) return { thread: t, comment: c }
     return null
   }
+  let seen = 0
   return {
+    notificationsSeen: async () => seen,
+    markNotificationsSeen: async (_login, at) => void (seen = Math.max(seen, at)),
     threads: async (trip) => structuredClone(threads.filter((t) => t.trip === trip)),
     thread: async (id) => structuredClone(threads.find((t) => t.id === id) ?? null),
     createThread: async (thread) => void threads.push(structuredClone(thread)),
@@ -424,5 +427,49 @@ describe('discussions', () => {
     const cookie = opened.headers.getSetCookie()[0]!.split(';')[0]!
     expect(await threadsOf(await send(visitor, cookie, '/threads', 'GET'))).toHaveLength(1)
     expect((await send(visitor, cookie, '/threads', 'POST', { anchor: 'trip', body: 'x' })).status).toBe(403)
+  })
+})
+
+describe('notifications', () => {
+  it('tells each member what the others said and settled, and remembers how far they read', async () => {
+    const store = memoryStore()
+    const me = handler('Alex', store)
+    const mine = await signIn(me)
+    const viewer = handler('grandma', store)
+    const theirs = await signIn(viewer)
+    const post = (handle: ReturnType<typeof handler>, cookies: string, path: string, body: unknown, method = 'POST') =>
+      handle(
+        new Request(`https://trips.example/api/trips/japan${path}`, {
+          method,
+          headers: { Cookie: cookies },
+          body: JSON.stringify(body),
+        }),
+      )
+    const threads = (await (await post(me, mine, '/threads', { anchor: 'trip', body: 'Ideas?' })).json()) as {
+      threads: Thread[]
+    }
+    const id = threads.threads[0]!.id
+    await post(viewer, theirs, `/threads/${id}/comments`, { body: 'Onsen!' })
+    await post(viewer, theirs, `/threads/${id}`, { resolved: true }, 'PATCH')
+
+    const list = async () =>
+      (await (
+        await me(new Request('https://trips.example/api/notifications', { headers: { Cookie: mine } }))
+      ).json()) as {
+        seenAt: number
+        notifications: { kind: string; by: string; text: string }[]
+      }
+    const before = await list()
+    expect(before.notifications.map((n) => [n.kind, n.by])).toEqual(
+      expect.arrayContaining([
+        ['reply', 'grandma'],
+        ['resolved', 'grandma'],
+      ]),
+    )
+    expect(before.notifications).toHaveLength(2)
+    expect(before.seenAt).toBe(0)
+    await me(new Request('https://trips.example/api/notifications/seen', { method: 'POST', headers: { Cookie: mine } }))
+    expect((await list()).seenAt).toBeGreaterThan(0)
+    expect((await me(new Request('https://trips.example/api/notifications'))).status).toBe(401)
   })
 })

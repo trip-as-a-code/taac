@@ -7,6 +7,7 @@ import { onMoney, renderMoney } from '@/scripts/money'
 import { setupPickers } from '@/scripts/picker'
 import { applySession } from '@/scripts/session'
 import { setupComments } from '@/scripts/comments'
+import { setupNotifications } from '@/scripts/notifications'
 import { setupShare } from '@/scripts/share'
 import { setupTooltips } from '@/scripts/tooltip'
 
@@ -36,6 +37,7 @@ export function setupPage() {
   void applySession()
   void setupShare()
   void setupComments()
+  void setupNotifications()
   setupPickers()
   setupTooltips()
   if (!once) {

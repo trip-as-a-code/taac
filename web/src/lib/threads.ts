@@ -15,7 +15,7 @@ export interface ThreadTarget {
 export function threadTargets(trip: TripExport, i18n: I18n): Record<string, ThreadTarget> {
   const { t, path, date } = i18n
   const page = (section: string) => path(`/trips/${trip.slug}/${section ? `${section}/` : ''}`)
-  const targets: Record<string, ThreadTarget> = { trip: { title: t('comments.general'), href: page('discussions') } }
+  const targets: Record<string, ThreadTarget> = { trip: { title: t('comments.general'), href: page('') } }
   for (const day of trip.days)
     targets[`day:${day.date}`] = {
       title: date(day.date, { weekday: 'long', day: 'numeric', month: 'long' }),

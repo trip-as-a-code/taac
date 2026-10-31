@@ -1,5 +1,6 @@
 /**
- * Shared state in Postgres: packing ticks, kept GitHub pictures, view-only links and discussions. Migrations are plain SQL
+ * Shared state in Postgres: packing ticks, kept GitHub pictures, view-only links, discussions
+ * and how far each account has read its notifications. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -10,9 +11,10 @@ import pg from 'pg'
 import type { Avatar, AvatarStore } from './avatars'
 import type { Comment, CommentStore, Thread } from './comments'
 import type { LinkStore, ShareLink } from './links'
+import type { NotificationStore } from './notifications'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
-export interface Store extends AvatarStore, LinkStore, CommentStore {
+export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore {
   ticks(trip: string): Promise<Ticks>
   /** Stores the valid changes newer than what is there, as set by `by`. */
   apply(trip: string, changes: unknown, now: number, by: string | null): Promise<void>
@@ -216,6 +218,20 @@ export async function openStore(connectionString: string): Promise<Store> {
         [id],
       )
       return rows[0] ? { ...fromComment(rows[0]), trip: rows[0].trip } : null
+    },
+    async notificationsSeen(login) {
+      const { rows } = await pool.query<{ seen_at: string }>(
+        'select seen_at from notification_reads where login = $1',
+        [login],
+      )
+      return Number(rows[0]?.seen_at ?? 0)
+    },
+    async markNotificationsSeen(login, at) {
+      await pool.query(
+        `insert into notification_reads (login, seen_at) values ($1, $2)
+         on conflict (login) do update set seen_at = greatest(notification_reads.seen_at, excluded.seen_at)`,
+        [login, at],
+      )
     },
     close: () => pool.end(),
   }

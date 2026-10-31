@@ -39,6 +39,7 @@ import {
   verifySession,
 } from './auth'
 import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
+import { discussionEvents, newestFirst } from './notifications'
 import { commentsRoute, MAX_THREADS, newComment, newId, validAnchor, validBody, type CommentsRoute } from './comments'
 import {
   describe,
@@ -298,6 +299,25 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     return text('Method not allowed\n', 405)
   }
 
+  /** `/api/notifications`: what others did on your trips (GET), and having read up to now (POST `seen`). */
+  async function notifications(request: Request, path: string): Promise<Response> {
+    const store = config.store
+    if (!store) return text('Not found\n', 404)
+    const login = await loginOf(request)
+    if (!login) return text('Unauthorized\n', 401)
+    const now = config.now?.() ?? Date.now()
+    if (path === '/api/notifications/seen' && request.method === 'POST') {
+      await store.markNotificationsSeen(login, now)
+      return json({ seenAt: await store.notificationsSeen(login) })
+    }
+    if (path !== '/api/notifications' || request.method !== 'GET') return text('Not found\n', 404)
+    const trips = manifest.slugs.filter((slug) => mayComment(slug, login))
+    const events = (
+      await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login, now)))
+    ).flat()
+    return json({ seenAt: await store.notificationsSeen(login), notifications: newestFirst(events) })
+  }
+
   /** `/api/trips/<slug>/links`: the trip's working links (GET), a new one (POST), revoking one (DELETE). */
   async function links(request: Request, slug: string, id: string | null): Promise<Response> {
     const login = await loginOf(request)
@@ -386,6 +406,8 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     if (path === '/api/logout')
       return plain(request.method === 'POST' ? signOut(request) : text('Method not allowed\n', 405))
     if (path === '/api/me') return plain(await me(request))
+    if (path === '/api/notifications' || path === '/api/notifications/seen')
+      return plain(await notifications(request, path))
     const commentsApi = commentsRoute(path)
     if (commentsApi) return plain(await discussions(request, commentsApi))
     const linkApi = linksRoute(path)

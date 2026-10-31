@@ -1,6 +1,6 @@
 // Discussions on the page: shows each ThreadButton (with its open-thread
-// count and an unread dot), opens the thread panel, and fills the
-// Discussions tab. Threads come from the server for the whole trip and are
+// count and an unread dot) and opens the thread panel, also when a
+// notification links here (`?thread=<anchor>`). Threads come from the server for the whole trip and are
 // fetched again when the page comes back into view.
 
 import { me } from '@/scripts/session'
@@ -14,7 +14,7 @@ interface Comment {
   deletedAt: number | null
 }
 
-export interface Thread {
+interface Thread {
   id: string
   anchor: string
   createdBy: string
@@ -121,18 +121,7 @@ function refresh(redraw = true) {
       threads.some((t) => unread(t, seen)),
     )
   }
-  const tab = document.querySelector<HTMLElement>('[data-discussions-tab]')
-  if (tab) {
-    const open = state.threads.filter((t) => t.resolvedAt === null).length
-    tab.querySelector('[data-discussions-count]')!.textContent = open ? String(open) : ''
-    tab.toggleAttribute(
-      'data-unread',
-      state.threads.some((t) => unread(t, seen)),
-    )
-  }
   if (state.open) renderPanel(redraw)
-  const fresh = state.threads.filter((t) => unread(t, seen)).map((t) => t.id)
-  document.dispatchEvent(new CustomEvent('taac:threads', { detail: { threads: state.threads, unread: fresh } }))
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) {
@@ -185,7 +174,7 @@ function relative(ms: number, lang: string): string {
   return new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short' }).format(ms)
 }
 
-export function nameOf(login: string, people: Record<string, Person>): string {
+function nameOf(login: string, people: Record<string, Person>): string {
   return people[login]?.name ?? `@${login}`
 }
 
@@ -330,6 +319,16 @@ export async function setupComments() {
     state.slug = slug
     await api('/threads')
   } else refresh()
+
+  // Arrived from a notification: open that discussion, then forget the parameter.
+  const asked = new URL(location.href).searchParams.get('thread')
+  if (asked) {
+    const button = document.querySelector<HTMLElement>(`[data-thread="${CSS.escape(asked)}"]`)
+    openThreads(asked, button?.dataset.threadTitle ?? '')
+    const url = new URL(location.href)
+    url.searchParams.delete('thread')
+    history.replaceState(history.state, '', url)
+  }
 
   panel.addEventListener('close', () => {
     state.open = null
