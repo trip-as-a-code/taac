@@ -16,6 +16,8 @@ export interface TripAccess {
   public: boolean
   /** Lowercase GitHub usernames who may see it: its members' and its viewers. */
   logins: string[]
+  /** Lowercase GitHub usernames of its members: the ones who tick its packing list. */
+  members: string[]
 }
 
 export interface AccessManifest {
@@ -57,9 +59,8 @@ export function normalise(raw: unknown): AccessManifest {
     trips[slug] = {
       title: typeof trip?.title === 'string' ? trip.title : slug,
       public: trip?.public === true,
-      logins: Array.isArray(trip?.logins)
-        ? trip.logins.filter((l): l is string => typeof l === 'string').map((l) => l.toLowerCase())
-        : [],
+      logins: usernames(trip?.logins),
+      members: usernames(trip?.members),
     }
   }
   return {
@@ -70,6 +71,10 @@ export function normalise(raw: unknown): AccessManifest {
     locales,
     defaultLocale: typeof value.defaultLocale === 'string' ? value.defaultLocale : (locales[0] ?? 'en'),
   }
+}
+
+function usernames(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((l): l is string => typeof l === 'string').map((l) => l.toLowerCase()) : []
 }
 
 function isText(value: unknown): value is Text {
@@ -151,6 +156,12 @@ export function decide(path: string, login: string | null, manifest: AccessManif
 /** The trips `login` may see, for the page to show only those. */
 export function visibleTrips(login: string | null, manifest: AccessManifest): string[] {
   return manifest.slugs.filter((slug) => decide(`/trips/${slug}/`, login, manifest) === 'open')
+}
+
+/** Who may tick a trip's packing list: its members on a github site, anyone on a public one. */
+export function mayTick(slug: string, login: string | null, manifest: AccessManifest): boolean {
+  if (!isProtected(manifest)) return true
+  return login !== null && (manifest.trips[slug]?.members.includes(login) ?? false)
 }
 
 /** Same-origin absolute paths only; anything else falls back. */

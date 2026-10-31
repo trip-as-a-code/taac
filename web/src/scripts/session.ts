@@ -5,6 +5,8 @@
 export interface Me {
   login: string | null
   trips: string[]
+  /** Trips whose packing list they may tick. */
+  packing: string[]
   calendars: Record<string, string>
 }
 

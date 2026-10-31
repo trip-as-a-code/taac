@@ -13,6 +13,7 @@ import {
   localeRoot,
   localizedText,
   loginPath,
+  mayTick,
   sanitizeNext,
   splitLocale,
   tripOf,
@@ -142,14 +143,15 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
     ])
   }
 
-  /** Who is signed in, which trips they see, and their calendar keys. */
+  /** Who is signed in, which trips they see and tick, and their calendar keys. */
   async function me(request: Request): Promise<Response> {
     const login = await loginOf(request)
     const trips = visibleTrips(login, manifest)
     const calendars: Record<string, string> = {}
     if (config.sessionSecret && (login || !isProtected(manifest)))
       for (const slug of trips) calendars[slug] = await calendarKey(config.sessionSecret, slug)
-    return json({ login, trips, calendars })
+    const packing = manifest.slugs.filter((slug) => mayTick(slug, login, manifest))
+    return json({ login, trips, packing, calendars })
   }
 
   /** Unlocks the calendar feed for subscribers, who cannot sign in. */
@@ -174,8 +176,10 @@ export function createHandler(config: Config, manifest: AccessManifest): (reques
   async function packing(request: Request, slug: string): Promise<Response> {
     if (!config.store || !manifest.slugs.includes(slug)) return text('Not found\n', 404)
     if (request.method === 'POST') {
+      const login = await loginOf(request)
+      if (!mayTick(slug, login, manifest)) return text('Only the trip’s people tick\n', 403)
       const body = (await request.json().catch(() => ({}))) as { changes?: unknown }
-      await config.store.apply(slug, body.changes, config.now?.() ?? Date.now(), await loginOf(request))
+      await config.store.apply(slug, body.changes, config.now?.() ?? Date.now(), login)
     } else if (request.method !== 'GET') return text('Method not allowed\n', 405)
     return json({ ticks: await config.store.ticks(slug) })
   }
