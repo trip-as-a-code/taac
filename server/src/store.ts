@@ -233,6 +233,22 @@ export async function openStore(connectionString: string): Promise<Store> {
          on conflict (login) do update set seen_at = greatest(notification_reads.seen_at, excluded.seen_at)`,
         [login, at],
       )
+      await pool.query('delete from notification_marks where login = $1', [login])
+    },
+    async notificationMarks(login) {
+      const { rows } = await pool.query<{ id: string; read: boolean }>(
+        'select id, read from notification_marks where login = $1',
+        [login],
+      )
+      return new Map(rows.map((r) => [r.id, r.read]))
+    },
+    async markNotifications(login, ids, read) {
+      if (!ids.length) return
+      await pool.query(
+        `insert into notification_marks (login, id, read) select $1, unnest($2::text[]), $3
+         on conflict (login, id) do update set read = excluded.read`,
+        [login, ids, read],
+      )
     },
     async addSubscription(sub) {
       await pool.query(

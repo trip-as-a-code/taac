@@ -1,7 +1,9 @@
 /**
  * The notification center: what happened on the trips someone is on, by
  * others, newest first. Discussions are the first source: a thread started,
- * a reply, a thread resolved. Read state is one "seen up to" per account.
+ * a reply, a thread resolved. A notification is read when it is older than
+ * the account's "read up to" (mark all as read), unless marked otherwise one
+ * by one.
  */
 
 import type { Thread } from './comments'
@@ -9,7 +11,15 @@ import type { Thread } from './comments'
 export interface NotificationStore {
   /** Epoch milliseconds read up to, or 0. */
   notificationsSeen(login: string): Promise<number>
+  /** Everything up to `at` is read; marks one by one are forgotten. */
   markNotificationsSeen(login: string, at: number): Promise<void>
+  /** Notifications marked read (true) or unread (false) one by one. */
+  notificationMarks(login: string): Promise<Map<string, boolean>>
+  markNotifications(login: string, ids: string[], read: boolean): Promise<void>
+}
+
+export function isRead(n: Notification, seenAt: number, marks: Map<string, boolean>): boolean {
+  return marks.get(n.id) ?? n.at <= seenAt
 }
 
 export interface Notification {

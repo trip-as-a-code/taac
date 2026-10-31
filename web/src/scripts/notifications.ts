@@ -1,7 +1,8 @@
-// The notification center: the bell's count of what others did since you last
-// looked, its list of the latest, and the full page with everything, read
-// from the server with the place each one links to. Also the switch for
-// browser notifications on this device.
+// The notification center: the bell with its unread count and the latest
+// notifications, and the full page with all of them, by day, a page at a
+// time. Each is read or not: opening one reads it, any can be marked read or
+// unread, and "mark all as read" reads everything. Also this device's switch
+// for browser notifications, on the full page.
 
 import { pushState, turnOff, turnOn } from '@/scripts/push'
 import { me, type Me } from '@/scripts/session'
@@ -15,6 +16,7 @@ interface Notification {
   by: string
   text: string
   at: number
+  read: boolean
 }
 
 interface Person {
@@ -31,14 +33,17 @@ interface Context {
   strings: Record<string, string>
 }
 
+/** Anything read or unread anywhere on the page (the bell, the full page, a discussion). */
+const CHANGED = 'taac:notifications'
+
 /** Trip titles and where each anchor is, fetched once per trip. */
 const targets = new Map<
   string,
   Promise<{ title: string; targets: Record<string, { title: string; href: string }> } | null>
 >()
 let listening = false
-/** The current page's refresh, for the one visibility listener. */
-let refreshCurrent: (() => Promise<void>) | undefined
+/** The current page's refresh of the bell, for the one set of listeners. */
+let refreshBell: (() => Promise<void>) | undefined
 
 function context(): Context | null {
   const root = document.querySelector<HTMLElement>('[data-notifications]')
@@ -82,21 +87,37 @@ function linkTo(href: string, anchor: string): string {
 
 async function fetchPage(
   limit: number,
-  before?: number,
-): Promise<{ notifications: Notification[]; seenAt: number; more: boolean }> {
+  options: { before?: number; unread?: boolean } = {},
+): Promise<{ notifications: Notification[]; unread: number; more: boolean }> {
   const params = new URLSearchParams({ limit: String(limit) })
-  if (before) params.set('before', String(before))
+  if (options.before) params.set('before', String(options.before))
+  if (options.unread) params.set('unread', '1')
   const response = await fetch(`/api/notifications?${params}`, { credentials: 'same-origin' })
   if (!response.ok) throw new Error(String(response.status))
   return response.json()
 }
 
-async function renderItem(n: Notification, ctx: Context, fresh: boolean): Promise<HTMLLIElement> {
+/** Marks notifications (or everything, or a discussion's) and tells the rest of the page. */
+export async function markNotifications(read: boolean, which: { ids?: string[]; threads?: string[]; all?: boolean }) {
+  const response = await fetch(`/api/notifications/${read ? 'read' : 'unread'}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(which),
+    // A tap that leaves the page still counts.
+    keepalive: true,
+  }).catch(() => null)
+  if (response?.ok) document.dispatchEvent(new CustomEvent(CHANGED))
+}
+
+/** One notification: who did what, where and when, and what they said. */
+async function renderItem(n: Notification, ctx: Context, withToggle: boolean): Promise<HTMLLIElement> {
   const trip = await targetsOf(ctx.base, n.trip)
   const target = trip?.targets[n.anchor]
+  const item = document.createElement('li')
+  item.toggleAttribute('data-unread', !n.read)
   const link = document.createElement('a')
   link.href = target ? linkTo(target.href, n.anchor) : `${ctx.base}trips/${encodeURIComponent(n.trip)}/`
-  link.toggleAttribute('data-new', fresh)
   const person = ctx.people[n.by]
   const avatar = document.createElement('span')
   avatar.className = 'avatar'
@@ -109,10 +130,10 @@ async function renderItem(n: Notification, ctx: Context, fresh: boolean): Promis
   img.dataset.avatarPhoto = ''
   avatar.append(img)
   const what = document.createElement('span')
-  what.className = 'subhead what'
+  what.className = 'subhead title'
   what.textContent = ctx.strings[n.kind]!.replace('{name}', person?.name ?? `@${n.by}`)
   const where = document.createElement('span')
-  where.className = 'footnote secondary what'
+  where.className = 'footnote secondary meta'
   where.textContent = [
     target?.title,
     ctx.root.hasAttribute('data-several-trips') ? trip?.title : undefined,
@@ -123,40 +144,57 @@ async function renderItem(n: Notification, ctx: Context, fresh: boolean): Promis
   link.append(avatar, what, where)
   if (n.text) {
     const text = document.createElement('span')
-    text.className = 'footnote tertiary text'
+    text.className = 'subhead secondary text'
     text.textContent = n.text
     link.append(text)
   }
-  const item = document.createElement('li')
+  link.addEventListener('click', () => {
+    if (!n.read) void markNotifications(true, { ids: [n.id] })
+  })
   item.append(link)
+  if (withToggle) {
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = 'mark'
+    const show = () => {
+      const label = n.read ? ctx.strings.markUnread! : ctx.strings.markRead!
+      toggle.title = label
+      toggle.setAttribute('aria-label', label)
+      toggle.toggleAttribute('data-read', n.read)
+      item.toggleAttribute('data-unread', !n.read)
+    }
+    show()
+    toggle.addEventListener('click', () => {
+      n.read = !n.read
+      show()
+      void markNotifications(n.read, { ids: [n.id] })
+    })
+    item.append(toggle)
+  }
   return item
 }
 
-async function markSeen() {
-  await fetch('/api/notifications/seen', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined)
-}
-
-/** A `[data-push-toggle]`: this device's browser notifications, on or off. */
+/** A `[data-push-toggle]`: this device's browser notifications, as a switch. */
 async function setupToggle(toggle: HTMLElement, session: Me) {
   const publicKey = session.push
   const state = publicKey ? await pushState() : 'unsupported'
   toggle.hidden = state === 'unsupported'
+  // The page's settings section has nothing else in it.
+  const section = toggle.closest<HTMLElement>('[data-push-section]')
+  if (section) section.hidden = toggle.hidden
   if (toggle.hidden) return
   const status = toggle.querySelector<HTMLElement>('[data-push-status]')!
   const button = toggle.querySelector<HTMLButtonElement>('[data-push-switch]')!
-  const d = toggle.dataset
   const show = (now: Awaited<ReturnType<typeof pushState>>) => {
-    status.textContent = now === 'denied' ? d.denied! : now === 'on' ? d.on! : d.off!
-    button.hidden = now === 'denied'
-    button.textContent = now === 'on' ? d.turnOff! : d.turnOn!
-    button.toggleAttribute('data-on', now === 'on')
+    button.setAttribute('aria-checked', String(now === 'on'))
+    button.disabled = now === 'denied'
+    status.textContent = now === 'denied' ? toggle.dataset.denied! : toggle.dataset.hint!
   }
   show(state)
   button.onclick = async () => {
     button.disabled = true
-    if (button.hasAttribute('data-on')) await turnOff()
+    if (button.getAttribute('aria-checked') === 'true') await turnOff()
     else await turnOn(publicKey!).catch(() => undefined)
-    button.disabled = false
     show(await pushState())
   }
 }
@@ -172,43 +210,35 @@ export async function setupNotifications() {
   const list = root.querySelector<HTMLElement>('[data-notifications-list]')!
   const count = root.querySelector<HTMLElement>('[data-notifications-count]')!
   const error = root.querySelector<HTMLElement>('[data-notifications-error]')!
+  const readAll = root.querySelector<HTMLButtonElement>('[data-notifications-read-all]')!
   open.hidden = false
 
   let items: Notification[] = []
-  let seenAt = 0
-  /** What was new when the panel opened: it stays marked while it is open. */
-  let shownSince = 0
+  let unread = 0
 
   async function load() {
     try {
-      ;({ notifications: items, seenAt } = await fetchPage(20))
+      ;({ notifications: items, unread } = await fetchPage(20))
       error.hidden = true
     } catch {
       error.textContent = ctx!.strings.error!
       error.hidden = false
     }
-    const fresh = items.filter((n) => n.at > seenAt).length
-    count.textContent = fresh ? String(fresh > 99 ? '99+' : fresh) : ''
+    count.textContent = unread ? String(unread > 99 ? '99+' : unread) : ''
+    readAll.hidden = unread === 0
     if (panel.open) await render()
   }
 
   async function render() {
-    list.replaceChildren(...(await Promise.all(items.map((n) => renderItem(n, ctx!, n.at > shownSince)))))
+    list.replaceChildren(...(await Promise.all(items.map((n) => renderItem(n, ctx!, false)))))
     root.querySelector<HTMLElement>('[data-notifications-none]')!.hidden = items.length > 0
   }
 
   open.addEventListener('click', async () => {
-    shownSince = seenAt
     panel.showModal()
     await render()
-    void setupToggle(root.querySelector<HTMLElement>('[data-push-toggle]')!, session)
-    // Opening the center reads it.
-    if (items.some((n) => n.at > seenAt)) {
-      await markSeen()
-      seenAt = Date.now()
-      count.textContent = ''
-    }
   })
+  readAll.addEventListener('click', () => void markNotifications(true, { all: true }))
   list.addEventListener('click', (event) => {
     if ((event.target as Element).closest('a')) panel.close()
   })
@@ -219,39 +249,92 @@ export async function setupNotifications() {
   if (!listening) {
     listening = true
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') void refreshCurrent?.()
+      if (document.visibilityState === 'visible') void refreshBell?.()
     })
+    document.addEventListener(CHANGED, () => void refreshBell?.())
   }
-  refreshCurrent = load
+  refreshBell = load
   await load()
 }
 
-/** The full page: everything, newest first, a page at a time. */
+/** The full page: all notifications by day, all or only unread, a page at a time. */
 export async function setupNotificationsPage() {
   const page = document.querySelector<HTMLElement>('[data-notifications-page]')
   const ctx = context()
   if (!page || !ctx) return
   const session = await me()
   if (!session?.login) return
-  const list = page.querySelector<HTMLElement>('[data-page-list]')!
+  const days = page.querySelector<HTMLElement>('[data-page-days]')!
   const more = page.querySelector<HTMLButtonElement>('[data-page-more]')!
   const none = page.querySelector<HTMLElement>('[data-page-none]')!
+  const readAll = page.querySelector<HTMLButtonElement>('[data-page-read-all]')!
   void setupToggle(page.querySelector<HTMLElement>('[data-push-toggle]')!, session)
+
+  let unreadOnly = false
   let before: number | undefined
-  let seenAt: number | undefined
-  const next = async () => {
+  const dayKey = (ms: number) => new Date(ms).toDateString()
+  const dayTitle = (ms: number) => {
+    const today = new Date()
+    const yesterday = new Date(today.getTime() - 86_400_000)
+    if (dayKey(ms) === today.toDateString()) return ctx.strings.today!
+    if (dayKey(ms) === yesterday.toDateString()) return ctx.strings.yesterday!
+    const name = new Intl.DateTimeFormat(ctx.lang, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: new Date(ms).getFullYear() === today.getFullYear() ? undefined : 'numeric',
+    }).format(ms)
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  }
+
+  /** The day's list, made when its first notification arrives. */
+  function listFor(ms: number): HTMLElement {
+    const key = dayKey(ms)
+    let section = days.querySelector<HTMLElement>(`[data-day="${CSS.escape(key)}"]`)
+    if (!section) {
+      section = document.createElement('section')
+      section.className = 'day'
+      section.dataset.day = key
+      const title = document.createElement('h2')
+      title.className = 'title-3 day-title'
+      title.textContent = dayTitle(ms)
+      const list = document.createElement('ul')
+      list.className = 'card list items'
+      section.append(title, list)
+      days.append(section)
+    }
+    return section.querySelector('ul')!
+  }
+
+  async function next() {
     more.disabled = true
-    const result = await fetchPage(50, before).catch(() => null)
+    const result = await fetchPage(50, { before, unread: unreadOnly }).catch(() => null)
     more.disabled = false
     if (!result) return
-    seenAt ??= result.seenAt
-    list.append(...(await Promise.all(result.notifications.map((n) => renderItem(n, ctx, n.at > seenAt!)))))
+    for (const n of result.notifications) listFor(n.at).append(await renderItem(n, ctx!, true))
     before = result.notifications.at(-1)?.at
     more.hidden = !result.more
-    none.hidden = list.children.length > 0
+    none.hidden = days.children.length > 0
+    readAll.hidden = result.unread === 0
   }
+
+  async function restart() {
+    before = undefined
+    days.replaceChildren()
+    await next()
+  }
+
+  for (const button of page.querySelectorAll<HTMLButtonElement>('[data-filter]'))
+    button.addEventListener('click', () => {
+      unreadOnly = button.dataset.filter === 'unread'
+      for (const other of page.querySelectorAll('[data-filter]'))
+        other.setAttribute('aria-pressed', String(other === button))
+      void restart()
+    })
+  readAll.addEventListener('click', async () => {
+    await markNotifications(true, { all: true })
+    await restart()
+  })
   more.onclick = () => void next()
   await next()
-  await markSeen()
-  ctx.root.querySelector<HTMLElement>('[data-notifications-count]')!.textContent = ''
 }
