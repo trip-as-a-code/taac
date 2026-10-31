@@ -13,7 +13,14 @@ import type { Store } from './store'
 const manifest = normalise({
   title: 'Trips',
   auth: 'github',
-  trips: { japan: { title: 'Japan', public: false, logins: ['alex', 'grandma'], members: ['alex'] } },
+  trips: {
+    japan: {
+      title: 'Japan',
+      public: false,
+      logins: ['alex', 'grandma'],
+      roles: { alex: 'member', grandma: 'viewer' },
+    },
+  },
   slugs: ['japan'],
   locales: ['en', 'ru'],
   defaultLocale: 'en',

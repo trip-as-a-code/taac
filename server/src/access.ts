@@ -14,11 +14,14 @@ export interface TripAccess {
   title: string
   /** Open to everyone, signed in or not. */
   public: boolean
-  /** Lowercase GitHub usernames who may see it: its members' and its viewers. */
+  /** Lowercase GitHub usernames who may see it: its members'. */
   logins: string[]
-  /** Lowercase GitHub usernames of its members: the ones who tick its packing list. */
-  members: string[]
+  /** Each of those usernames' role: what they may do beyond looking. */
+  roles: Record<string, Role>
 }
+
+/** `member`: everything; `viewer`: looks and comments. */
+export type Role = 'member' | 'viewer'
 
 export interface AccessManifest {
   title: Text
@@ -60,7 +63,7 @@ export function normalise(raw: unknown): AccessManifest {
       title: typeof trip?.title === 'string' ? trip.title : slug,
       public: trip?.public === true,
       logins: usernames(trip?.logins),
-      members: usernames(trip?.members),
+      roles: roles(trip?.roles),
     }
   }
   return {
@@ -71,6 +74,14 @@ export function normalise(raw: unknown): AccessManifest {
     locales,
     defaultLocale: typeof value.defaultLocale === 'string' ? value.defaultLocale : (locales[0] ?? 'en'),
   }
+}
+
+function roles(value: unknown): Record<string, Role> {
+  const out: Record<string, Role> = {}
+  if (value && typeof value === 'object')
+    for (const [login, role] of Object.entries(value))
+      if (role === 'member' || role === 'viewer') out[login.toLowerCase()] = role
+  return out
 }
 
 function usernames(value: unknown): string[] {
@@ -158,10 +169,14 @@ export function visibleTrips(login: string | null, manifest: AccessManifest): st
   return manifest.slugs.filter((slug) => decide(`/trips/${slug}/`, login, manifest) === 'open')
 }
 
-/** Who may tick a trip's packing list: its members on a github site, anyone on a public one. */
+/** A signed-in person's role on a trip, or null when they aren't one of its members. */
+export function roleOf(slug: string, login: string | null, manifest: AccessManifest): Role | null {
+  return login === null ? null : (manifest.trips[slug]?.roles[login] ?? null)
+}
+
+/** Who may tick a trip's packing list: its `member`s on a github site, anyone on a public one. */
 export function mayTick(slug: string, login: string | null, manifest: AccessManifest): boolean {
-  if (!isProtected(manifest)) return true
-  return login !== null && (manifest.trips[slug]?.members.includes(login) ?? false)
+  return !isProtected(manifest) || roleOf(slug, login, manifest) === 'member'
 }
 
 /** Same-origin absolute paths only; anything else falls back. */

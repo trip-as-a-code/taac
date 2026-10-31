@@ -48,8 +48,6 @@ pub struct Trip {
     pub overlays: Vec<LoadedOverlay>,
     /// On a `github` site: open to everyone.
     pub public: bool,
-    /// On a `github` site: GitHub usernames who may see it besides its members.
-    pub viewers: Vec<String>,
 }
 
 /// A set of people doing something together: everyone, a declared group, or
@@ -328,7 +326,6 @@ pub fn load_site(files: &Files, site_path: &str) -> (Option<Site>, Vec<Diagnosti
         let path = join(site_dir, &entry.path);
         if let Some(mut trip) = load_trip(files, &path, &mut diagnostics) {
             trip.public = entry.public;
-            trip.viewers.clone_from(&entry.viewers);
             trips.push(trip);
         }
     }
@@ -445,7 +442,6 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         packing: Vec::new(),
         overlays: Vec::new(),
         public: false,
-        viewers: Vec::new(),
     };
 
     for (file, mut doc) in std::iter::once((main_path, root)).chain(parts) {
@@ -900,6 +896,7 @@ fn github_username(link: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::Role;
 
     const TRIP: &str = r"
 apiVersion: taac/v1alpha4
@@ -1011,7 +1008,7 @@ apiVersion: taac/v1alpha4
 kind: Site
 metadata: { title: S }
 access: github
-trips: [{ path: trip.yaml, viewers: [friend] }]
+trips: [{ path: trip.yaml }]
 ";
         let trip_yaml = r"
 apiVersion: taac/v1alpha4
@@ -1019,7 +1016,7 @@ kind: Trip
 metadata: { title: T, timezone: UTC }
 members:
   - { name: A, links: [https://github.com/Alex-1/] }
-  - { name: B, github: bee }
+  - { name: B, github: bee, role: viewer }
   - { name: C, links: [https://github.com/someone/repo] }
 ";
         let fs = files(&[("site.yaml", site_yaml), ("trip.yaml", trip_yaml)]);
@@ -1033,7 +1030,8 @@ members:
             .collect();
         // A repository link isn't a profile.
         assert_eq!(github, [Some("Alex-1"), Some("bee"), None]);
-        assert_eq!(site.trips[0].viewers, ["friend"]);
+        let roles: Vec<_> = site.trips[0].members.iter().map(|m| m.role).collect();
+        assert_eq!(roles, [Role::Member, Role::Viewer, Role::Member]);
         let warnings = crate::validate::validate_site(&site);
         let unnamed: Vec<_> = warnings
             .iter()

@@ -52,8 +52,8 @@ pub struct TripExport {
     pub tags: Vec<String>,
     /// On a `github` site: open to everyone.
     pub public: bool,
-    /// On a `github` site: the GitHub usernames who may see it — its members'
-    /// and its `viewers`.
+    /// On a `github` site: the GitHub usernames who may see it, its members'
+    /// (each member's `role` says what they may do).
     pub logins: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<NaiveDate>,
@@ -687,9 +687,8 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
             let mut logins: Vec<String> = trip
                 .members
                 .iter()
-                .filter_map(|m| m.github.clone())
-                .chain(trip.viewers.iter().cloned())
-                .map(|l| l.to_lowercase())
+                .filter_map(|m| m.github.as_deref())
+                .map(str::to_lowercase)
                 .collect();
             logins.sort();
             logins.dedup();

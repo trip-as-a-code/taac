@@ -245,6 +245,11 @@
           ],
           "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"
         },
+        "role": {
+          "description": "What they may do on the site once signed in. Either way they are a\nperson of the trip: in plans, groups, costs.",
+          "$ref": "#/$defs/Role",
+          "default": "member"
+        },
         "currency": {
           "description": "ISO 4217 code of the money this person pays with; defaults to the\ntrip's base currency.",
           "type": [
@@ -257,6 +262,20 @@
       "additionalProperties": false,
       "required": [
         "name"
+      ]
+    },
+    "Role": {
+      "oneOf": [
+        {
+          "description": "Sees the trip, ticks the packing list, comments, makes and revokes\nview-only links.",
+          "type": "string",
+          "const": "member"
+        },
+        {
+          "description": "Sees the trip and comments.",
+          "type": "string",
+          "const": "viewer"
+        }
       ]
     },
     "Group": {

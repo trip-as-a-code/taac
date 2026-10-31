@@ -130,11 +130,26 @@ pub struct Member {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(regex(pattern = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"))]
     pub github: Option<String>,
+    /// What they may do on the site once signed in. Either way they are a
+    /// person of the trip: in plans, groups, costs.
+    #[serde(default)]
+    pub role: Role,
     /// ISO 4217 code of the money this person pays with; defaults to the
     /// trip's base currency.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
     pub currency: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum Role {
+    /// Sees the trip, ticks the packing list, comments, makes and revokes
+    /// view-only links.
+    #[default]
+    Member,
+    /// Sees the trip and comments.
+    Viewer,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -1283,10 +1298,6 @@ pub struct SiteTrip {
     /// On a `github` site: open to everyone, signed in or not.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub public: bool,
-    /// On a `github` site: GitHub usernames who may see the trip besides its
-    /// members.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub viewers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
@@ -1296,6 +1307,6 @@ pub enum SiteAccess {
     #[default]
     Public,
     /// Signing in with GitHub is required; a trip shows to its members (by
-    /// their `github`), its `viewers`, or everyone when `public`.
+    /// their `github`), to its view-only links, or to everyone when `public`.
     Github,
 }

@@ -102,13 +102,6 @@
         "public": {
           "description": "On a `github` site: open to everyone, signed in or not.",
           "type": "boolean"
-        },
-        "viewers": {
-          "description": "On a `github` site: GitHub usernames who may see the trip besides its\nmembers.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "additionalProperties": false,
@@ -124,7 +117,7 @@
           "const": "public"
         },
         {
-          "description": "Signing in with GitHub is required; a trip shows to its members (by\ntheir `github`), its `viewers`, or everyone when `public`.",
+          "description": "Signing in with GitHub is required; a trip shows to its members (by\ntheir `github`), to its view-only links, or to everyone when `public`.",
           "type": "string",
           "const": "github"
         }

@@ -58,6 +58,8 @@ export interface Member {
   links?: string[]
   /** GitHub username: who signs in as this member; their picture stands for them. */
   github?: string
+  /** What they may do on the site once signed in: `member` everything, `viewer` look and comment. */
+  role: 'member' | 'viewer'
   /** ISO 4217 code this person pays with. */
   currency?: string
 }
@@ -334,7 +336,7 @@ export interface TripExport {
   tags: string[]
   /** On a `github` site: open to everyone. */
   public: boolean
-  /** On a `github` site: lowercase GitHub usernames who may see it — its members' and viewers. */
+  /** On a `github` site: lowercase GitHub usernames who may see it, its members'. */
   logins: string[]
   startDate?: ISODate
   endDate?: ISODate

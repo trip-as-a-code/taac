@@ -136,7 +136,9 @@ export function taac(): AstroIntegration {
                 title: t.title,
                 public: t.public,
                 logins: t.logins,
-                members: t.members.flatMap((m) => (m.github ? [m.github.toLowerCase()] : [])),
+                roles: Object.fromEntries(
+                  t.members.flatMap((m) => (m.github ? [[m.github.toLowerCase(), m.role]] : [])),
+                ),
               },
             ]),
           ),
