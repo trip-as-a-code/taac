@@ -2,12 +2,14 @@
  * The notification center: what happened on the trips someone is on, by
  * others, newest first: in discussions (a thread started, a reply, a thread
  * resolved) and in the plan itself (a change set, as "Recent changes" shows
- * it). Each kind can be turned off per account. A notification is read when it is older than
+ * it); and what is due for them (a task, a booking, a payment), once per
+ * thing, as of its latest reminder. Each kind can be turned off per account. A notification is read when it is older than
  * the account's "read up to" (mark all as read), unless marked otherwise one
  * by one.
  */
 
 import type { Thread } from './comments'
+import { currentReminder, type DeadlineFile, type Reader } from './reminders'
 
 export interface NotificationStore {
   /** Epoch milliseconds read up to, or 0. */
@@ -23,7 +25,7 @@ export function isRead(n: Notification, seenAt: number, marks: Map<string, boole
   return marks.get(n.id) ?? n.at <= seenAt
 }
 
-export const KINDS = ['thread', 'reply', 'resolved', 'change'] as const
+export const KINDS = ['thread', 'reply', 'resolved', 'change', 'booking', 'payment', 'task'] as const
 export type Kind = (typeof KINDS)[number]
 
 export interface Notification {
@@ -40,6 +42,10 @@ export interface Notification {
   /** The comment's text, if it was one. */
   text: string
   at: number
+  /** What is due: its date. */
+  due?: string
+  /** Days from the deadline of its latest reminder: before it (positive) or after (negative). */
+  rung?: number
 }
 
 export const NOTIFICATION_LIMIT = 50
@@ -101,6 +107,38 @@ export function changeEvents(trip: string, sets: ChangeSet[], login: string): No
       text: set.summary,
       at: set.at,
     }))
+}
+
+/**
+ * What is due for someone: each thing once, from its first reminder on, as of
+ * its latest one, which makes it unread again.
+ */
+export function deadlineEvents(
+  trip: string,
+  file: DeadlineFile,
+  login: string,
+  now: number,
+  reader: Reader,
+): Notification[] {
+  return file.deadlines.flatMap((d) => {
+    if (!d.logins.includes(login)) return []
+    const reminder = currentReminder(d, now, file.timezone, reader)
+    if (!reminder) return []
+    return [
+      {
+        id: `due:${d.key}:${d.date}:${reminder.rung}`,
+        trip,
+        kind: d.kind,
+        anchor: d.anchor,
+        thread: '',
+        by: '',
+        text: '',
+        at: reminder.at,
+        due: d.date,
+        rung: reminder.rung,
+      },
+    ]
+  })
 }
 
 /** A page of them, newest first: `limit` from before `before` (epoch ms), if given. */

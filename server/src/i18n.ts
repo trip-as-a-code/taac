@@ -98,6 +98,12 @@ export interface PushStrings {
   change: string
   /** A change GitHub couldn't put a name to. */
   changeAnon: string
+  /** What is due, `{rel}` being when (“tomorrow”, “in 3 days”). */
+  due: Record<'booking' | 'payment' | 'task', string>
+  /** What is past due, `{date}` being the deadline. */
+  overdue: Record<'booking' | 'payment' | 'task', string>
+  /** The rest of a push's list. */
+  more: string
 }
 
 const PUSH: Record<string, PushStrings> = {
@@ -108,6 +114,13 @@ const PUSH: Record<string, PushStrings> = {
     test: 'Notifications work on this device.',
     change: '{name} changed the plan',
     changeAnon: 'The plan changed',
+    due: { booking: 'Booking due {rel}', payment: 'Payment due {rel}', task: 'Task due {rel}' },
+    overdue: {
+      booking: 'Booking overdue since {date}',
+      payment: 'Charged {date}? Add the amount',
+      task: 'Task overdue since {date}',
+    },
+    more: '+{n} more',
   },
   ru: {
     thread: '{name}: новое обсуждение',
@@ -116,6 +129,13 @@ const PUSH: Record<string, PushStrings> = {
     test: 'Уведомления на этом устройстве работают.',
     change: '{name}: изменения в плане',
     changeAnon: 'Изменения в плане',
+    due: { booking: 'Срок бронирования — {rel}', payment: 'Оплата — {rel}', task: 'Срок задачи — {rel}' },
+    overdue: {
+      booking: 'Бронирование просрочено с {date}',
+      payment: 'Списано {date}? Укажите сумму',
+      task: 'Задача просрочена с {date}',
+    },
+    more: 'и ещё {n}',
   },
 }
 

@@ -3,7 +3,7 @@
  * GitHub, who may see what (from /_taac/access.json, emitted by the web build
  * from site.yaml), calendar feeds that work without cookies, the remembered
  * UI language, `/api/fx`, packing ticks, the people's GitHub pictures, and
- * the security headers.
+ * the security headers; and reminders of what is due.
  */
 
 import { readFile } from 'node:fs/promises'
@@ -46,6 +46,7 @@ import { photoRoute, photoSource, type PhotoEntry, type PhotoSize } from './phot
 import { parseSubscription, type PushMessage, type PushSender } from './push'
 import {
   changeEvents,
+  deadlineEvents,
   discussionEvents,
   isRead,
   KINDS,
@@ -54,6 +55,17 @@ import {
   type ChangeSet,
   type Kind,
 } from './notifications'
+import {
+  currentReminder,
+  dayIn,
+  DEFAULT_REMIND_AT,
+  stillTimely,
+  validRemindAt,
+  validTimeZone,
+  type Deadline,
+  type DeadlineFile,
+  type Reader,
+} from './reminders'
 import { commentsRoute, MAX_THREADS, newComment, newId, validAnchor, validBody, type CommentsRoute } from './comments'
 import {
   describe,
@@ -131,6 +143,8 @@ function themeOf(request: Request): Theme {
 export type Handler = ((request: Request) => Promise<Response>) & {
   /** Pushes the plan's changes members haven't heard of; for once the server has started. */
   announceChanges: () => Promise<void>
+  /** Pushes the reminders that are due now; for every few minutes. */
+  remind: () => Promise<void>
 }
 
 export function createHandler(config: Config, manifest: AccessManifest): Handler {
@@ -245,6 +259,13 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
   const describeTrip = (slug: string, lang: string) => readBuilt<TripDescription>(slug, lang, 'threads.json')
   const changesOf = async (slug: string, lang: string) =>
     (await readBuilt<{ sets: ChangeSet[] }>(slug, lang, 'changes.json'))?.sets ?? []
+  const deadlinesOf = (slug: string) => readBuilt<DeadlineFile>(slug, manifest.defaultLocale, 'deadlines.json')
+
+  /** Where someone is and when they want reminders; where the trip is until a browser of theirs says. */
+  async function readerOf(login: string, fallbackZone: string): Promise<Reader & { known: boolean }> {
+    const { timeZone, remindAt } = (await config.store?.userReminders(login)) ?? { timeZone: null, remindAt: null }
+    return { timeZone: timeZone ?? fallbackZone, remindAt: remindAt ?? DEFAULT_REMIND_AT, known: !!timeZone }
+  }
 
   /**
    * Sends `kind` to the trip's other members' browsers, worded per browser by
@@ -328,6 +349,93 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
           }
         })
     }
+  }
+
+  /** One push for what is due for someone on a trip: the thing itself, or a few of them and the rest in the bell. */
+  async function dueMessage(
+    slug: string,
+    due: Deadline[],
+    lang: string,
+    now: number,
+    reader: Reader,
+  ): Promise<PushMessage> {
+    const trip = await describeTrip(slug, lang)
+    const strings = pushStrings(lang)
+    const today = dayIn(now, reader.timeZone)
+    const phrase = (d: Deadline) => {
+      const days = Math.round((Date.parse(d.date) - Date.parse(today)) / 86_400_000)
+      const date = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
+        Date.parse(d.date),
+      )
+      const rel = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(days, 'day')
+      return (days < 0 ? strings.overdue : strings.due)[d.kind].replace('{rel}', rel).replace('{date}', date)
+    }
+    const first = due[0]!
+    if (due.length === 1) {
+      const target = trip?.targets[first.anchor]
+      return {
+        title: target?.title ?? trip?.title ?? slug,
+        body: phrase(first),
+        url: target?.href ?? `/trips/${slug}/`,
+        tag: `due:${slug}`,
+      }
+    }
+    const lines = due.slice(0, 3).map((d) => `${trip?.targets[d.anchor]?.title ?? d.anchor}: ${phrase(d)}`)
+    if (due.length > 3) lines.push(strings.more.replace('{n}', String(due.length - 3)))
+    return {
+      title: trip?.title ?? slug,
+      body: lines.join('\n'),
+      url: `${localeRoot(lang === manifest.defaultLocale ? null : lang, manifest)}notifications/`,
+      tag: `due:${slug}`,
+    }
+  }
+
+  /**
+   * Reminds each trip person of what is due now, by its ladder, at their time
+   * where they are: one push per trip, never the same reminder twice. Someone
+   * whose browsers haven't said where they are waits until one does.
+   */
+  async function remind(): Promise<void> {
+    const { push, store } = config
+    if (!push || !store) return
+    const now = config.now?.() ?? Date.now()
+    for (const slug of manifest.slugs) {
+      const file = await deadlinesOf(slug)
+      if (!file?.deadlines.length) continue
+      for (const login of Object.keys(manifest.trips[slug]?.roles ?? {})) {
+        const theirs = file.deadlines.filter((d) => d.logins.includes(login))
+        if (!theirs.length) continue
+        const reader = await readerOf(login, file.timezone)
+        if (!reader.known) continue
+        const muted = await store.userMuted(login)
+        const due: Deadline[] = []
+        for (const d of theirs) {
+          if (muted.includes(d.kind)) continue
+          const reminder = currentReminder(d, now, file.timezone, reader)
+          if (!reminder || !stillTimely(reminder, now)) continue
+          if (await store.claimReminder(login, `${slug}/${d.key}`, d.date, reminder.rung, now)) due.push(d)
+        }
+        if (!due.length) continue
+        const lang = await store.userLang(login)
+        for (const sub of await store.subscriptionsFor([login])) {
+          const result = await push.send(sub, await dueMessage(slug, due, lang ?? sub.lang, now, reader))
+          if (result === 'gone') await store.removeSubscription(sub.endpoint)
+        }
+      }
+    }
+  }
+
+  /** `POST /api/me/reminders`: where the account is (`timeZone`, from its browser) and when it wants reminders (`remindAt`). */
+  async function setReminders(request: Request): Promise<Response> {
+    if (!config.store || request.method !== 'POST') return text('Not found\n', 404)
+    const login = await loginOf(request)
+    if (!login) return text('Unauthorized\n', 401)
+    const body = (await request.json().catch(() => ({}))) as { timeZone?: unknown; remindAt?: unknown }
+    const { timeZone, remindAt } = body
+    if ((timeZone !== undefined && !validTimeZone(timeZone)) || (remindAt !== undefined && !validRemindAt(remindAt)))
+      return text('Bad request\n', 400)
+    await config.store.setUserReminders(login, { timeZone, remindAt })
+    return json(await config.store.userReminders(login))
   }
 
   /** `POST /api/me/notifications`: the notification kinds the account turned off (`{muted}`). */
@@ -427,6 +535,9 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
       push: config.push && config.store && login && comments.length ? config.push.publicKey : null,
       lang,
       muted: login && config.store ? await config.store.userMuted(login).catch(() => []) : [],
+      ...(login && config.store
+        ? await config.store.userReminders(login).catch(() => ({ timeZone: null, remindAt: null }))
+        : { timeZone: null, remindAt: null }),
     })
   }
 
@@ -537,10 +648,16 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     const muted = new Set<string>(await store.userMuted(login))
     const events = (
       await Promise.all(
-        trips.map(async (slug) => [
-          ...discussionEvents(slug, await store.threads(slug), login),
-          ...changeEvents(slug, await changesOf(slug, manifest.defaultLocale), login),
-        ]),
+        trips.map(async (slug) => {
+          const deadlines = await deadlinesOf(slug)
+          return [
+            ...discussionEvents(slug, await store.threads(slug), login),
+            ...changeEvents(slug, await changesOf(slug, manifest.defaultLocale), login),
+            ...(deadlines
+              ? deadlineEvents(slug, deadlines, login, now, await readerOf(login, deadlines.timezone))
+              : []),
+          ]
+        }),
       )
     )
       .flat()
@@ -684,6 +801,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     if (path === '/api/me') return plain(await me(request))
     if (path === '/api/me/lang') return plain(await setLang(request))
     if (path === '/api/me/notifications') return plain(await setMuted(request))
+    if (path === '/api/me/reminders') return plain(await setReminders(request))
     if (path === '/api/push/subscribe' || path === '/api/push/unsubscribe' || path === '/api/push/test')
       return plain(await pushApi(request, path))
     if (path === '/api/notifications' || path === '/api/notifications/read' || path === '/api/notifications/unread')
@@ -778,5 +896,5 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
       underProtection,
     })
   }
-  return Object.assign(handle, { announceChanges })
+  return Object.assign(handle, { announceChanges, remind })
 }

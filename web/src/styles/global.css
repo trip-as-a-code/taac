@@ -355,6 +355,30 @@ p {
   opacity: 1;
 }
 
+/* A deadline in the notifications: a calendar for a face, blue while there's
+   time, orange in the last days, red once past, and its words to match. */
+.avatar.due {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--due) 80%, white), var(--due));
+}
+
+.avatar.due,
+.due-phrase {
+  --due: var(--blue);
+}
+
+:is(.avatar.due, .due-phrase)[data-due='soon'] {
+  --due: var(--orange);
+}
+
+:is(.avatar.due, .due-phrase)[data-due='past'] {
+  --due: var(--red);
+}
+
+.due-phrase:not([data-due='later']) {
+  font-weight: 600;
+  color: var(--due);
+}
+
 .avatars {
   display: inline-flex;
 }

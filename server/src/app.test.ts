@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -54,7 +54,11 @@ beforeAll(async () => {
     join(dist, 'trips/japan/threads.json'),
     JSON.stringify({
       title: 'Japan',
-      targets: { 'day:2026-12-12': { title: 'Saturday', href: '/trips/japan/itinerary/#2026-12-12' } },
+      targets: {
+        'day:2026-12-12': { title: 'Saturday', href: '/trips/japan/itinerary/#2026-12-12' },
+        'item:tower': { title: 'Tokyo Tower', href: '/trips/japan/itinerary/#item-tower' },
+        'task:vjw': { title: 'Entry form', href: '/trips/japan/tasks/#task-vjw' },
+      },
       people: { alex: 'Alex', grandma: 'Grandma' },
     }),
   )
@@ -103,7 +107,20 @@ function memoryStore(): Store {
   const mutes = new Map<string, string[]>()
   const announced = new Map<string, Set<string>>()
   const pictures = new Map<string, StoredPhoto>()
+  const reminders = new Map<string, { timeZone: string | null; remindAt: string | null }>()
+  const claimed = new Map<string, { date: string; rung: number }>()
   return {
+    userReminders: async (login) => reminders.get(login) ?? { timeZone: null, remindAt: null },
+    setUserReminders: async (login, { timeZone, remindAt }) => {
+      const was = reminders.get(login)
+      reminders.set(login, { timeZone: timeZone ?? was?.timeZone ?? null, remindAt: remindAt ?? was?.remindAt ?? null })
+    },
+    claimReminder: async (login, key, date, rung) => {
+      const was = claimed.get(`${login}|${key}`)
+      if (was && was.date === date && was.rung <= rung) return false
+      claimed.set(`${login}|${key}`, { date, rung })
+      return true
+    },
     photo: async (id, size) => pictures.get(`${id}/${size}`) ?? null,
     putPhoto: async (id, size, photo) => void pictures.set(`${id}/${size}`, photo),
     userMuted: async (login) => mutes.get(login) ?? [],
@@ -242,6 +259,8 @@ describe('signing in', () => {
       push: null,
       lang: null,
       muted: [],
+      timeZone: null,
+      remindAt: null,
       calendars: { japan: await calendarKey('secret', 'japan') },
     })
   })
@@ -717,6 +736,120 @@ describe('change notifications', () => {
       ],
     ])
     changes([{ id: 'c1', login: 'grandma', author: 'Grandma', at: Date.now() - 1000, summary: 'Moved: Walk' }])
+  })
+})
+
+describe('deadline reminders', () => {
+  it('reminds each person at their time where they are, once a rung, one push per trip, and lists it in the bell', async () => {
+    writeFileSync(
+      join(dist, 'trips/japan/deadlines.json'),
+      JSON.stringify({
+        timezone: 'Asia/Tokyo',
+        deadlines: [
+          {
+            key: 'booking:item:tower',
+            kind: 'booking',
+            anchor: 'item:tower',
+            date: '2026-11-25',
+            logins: ['alex'],
+            until: '2026-12-20',
+            ladder: 'full',
+          },
+          {
+            key: 'task:vjw',
+            kind: 'task',
+            anchor: 'task:vjw',
+            date: '2026-11-24',
+            logins: ['alex'],
+            until: '2026-12-10',
+            ladder: 'full',
+          },
+        ],
+      }),
+    )
+    try {
+      const store = memoryStore()
+      const sent: [string, PushMessage][] = []
+      const push = {
+        publicKey: 'key',
+        send: async (sub: PushSubscription, message: PushMessage) => {
+          sent.push([sub.login, message])
+          return 'ok' as const
+        },
+      }
+      // Tuesday 24 November, 10:00 in Helsinki.
+      let now = Date.parse('2026-11-24T08:00:00Z')
+      const member = handler('Alex', store, () => now, push)
+      const cookies = await signIn(member)
+      const post = (path: string, body: unknown) =>
+        member(
+          new Request(`https://trips.example${path}`, {
+            method: 'POST',
+            headers: { Cookie: cookies },
+            body: JSON.stringify(body),
+          }),
+        )
+      await post('/api/push/subscribe', {
+        subscription: { endpoint: 'https://push.example/s', keys: { p256dh: 'p', auth: 'a' } },
+      })
+
+      // Until a browser says where they are, no push: it could come at night.
+      await member.remind()
+      expect(sent).toEqual([])
+      expect((await post('/api/me/reminders', { timeZone: 'Mars/Olympus' })).status).toBe(400)
+      expect((await post('/api/me/reminders', { remindAt: '25:00' })).status).toBe(400)
+      expect(await (await post('/api/me/reminders', { timeZone: 'Europe/Helsinki' })).json()).toEqual({
+        timeZone: 'Europe/Helsinki',
+        remindAt: null,
+      })
+
+      await member.remind()
+      await member.remind()
+      expect(sent).toEqual([
+        [
+          'alex',
+          {
+            title: 'Japan',
+            body: 'Tokyo Tower: Booking due tomorrow\nEntry form: Task due today',
+            url: '/notifications/',
+            tag: 'due:japan',
+          },
+        ],
+      ])
+
+      const bell = async () =>
+        (await (
+          await member(new Request('https://trips.example/api/notifications', { headers: { Cookie: cookies } }))
+        ).json()) as {
+          notifications: { id: string; kind: string; due?: string; rung?: number; read: boolean }[]
+        }
+      expect((await bell()).notifications.filter((n) => n.due)).toMatchObject([
+        { id: 'due:booking:item:tower:2026-11-25:1', kind: 'booking', due: '2026-11-25', rung: 1, read: false },
+        { id: 'due:task:vjw:2026-11-24:0', kind: 'task', due: '2026-11-24', rung: 0, read: false },
+      ])
+
+      // Next morning: only the booking is new, as itself; the task is a day overdue.
+      now = Date.parse('2026-11-25T07:30:00Z')
+      await post('/api/me/notifications', { muted: ['task'] })
+      sent.length = 0
+      await member.remind()
+      expect(sent).toEqual([
+        [
+          'alex',
+          {
+            title: 'Tokyo Tower',
+            body: 'Booking due today',
+            url: '/trips/japan/itinerary/#item-tower',
+            tag: 'due:japan',
+          },
+        ],
+      ])
+      expect((await bell()).notifications.filter((n) => n.due).map((n) => n.id)).toEqual([
+        'due:booking:item:tower:2026-11-25:0',
+      ])
+    } finally {
+      rmSync(join(dist, 'trips/japan/deadlines.json'))
+    }
   })
 })
 

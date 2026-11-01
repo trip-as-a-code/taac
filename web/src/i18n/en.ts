@@ -467,11 +467,25 @@ export const en = {
 
   'notifications.change': '{name} changed the plan',
   'notifications.changeAnon': 'The plan changed',
-  'settings.kinds': 'Notify me about',
+  'settings.group.deadlines': 'Deadlines',
+  'settings.group.discussions': 'Discussions',
+  'settings.group.plan': 'Plan',
+  'settings.kind.booking': 'Bookings',
+  'settings.kind.payment': 'Payments',
+  'settings.kind.task': 'Tasks',
   'settings.kind.thread': 'New discussions',
   'settings.kind.reply': 'Replies',
   'settings.kind.resolved': 'Resolved discussions',
   'settings.kind.change': 'Changes to the plan',
+  'settings.remindAt': 'Remind me at',
+  'settings.remindAtNote':
+    'More often as a deadline nears: a month, two weeks and a week before, then 3, 2 and 1 day before and on the day. Missed, it keeps reminding for a while. At this time where you are ({zone}).',
+  'notifications.due.booking': 'Booking due {rel}',
+  'notifications.due.payment': 'Payment due {rel}',
+  'notifications.due.task': 'Task due {rel}',
+  'notifications.overdue.booking': 'Booking overdue since {date}',
+  'notifications.overdue.payment': 'Charged {date}? Add the amount',
+  'notifications.overdue.task': 'Task overdue since {date}',
   'settings.kindsNote':
     'For your account: in the bell and in browser notifications, in the language you chose at the top.',
 
