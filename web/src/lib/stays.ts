@@ -9,19 +9,15 @@ import type { TripExport } from '@taac/core'
 import { areasAround } from './geo'
 import { isTransport } from './presence'
 
-export type StayKind = 'base' | 'transit' | 'home'
-
 export interface DayStay {
   date: string
   /** Where each of its people spends that night. */
-  bases: { title: string; members: string[]; kind?: StayKind }[]
+  bases: { title: string; members: string[] }[]
 }
 
 export interface StayRun {
   /** The places, most people first; empty when nobody's place is known. */
   titles: string[]
-  /** Every place is a night on the way. */
-  transit: boolean
   dates: string[]
 }
 
@@ -50,19 +46,25 @@ export function nightsOf(trip: TripExport): DayStay[] {
       ]
     }),
   )
+  // Where each member spent the night before.
+  const previous = new Map<string, string>()
   return trip.days.map((day) => {
     const places: DayStay['bases'] = day.bases.map((b) => ({
       title: titles.get(b.id) ?? b.id,
       members: b.members,
-      kind: 'base',
     }))
-    const add = (title: string, member: string, kind: StayKind) => {
-      const entry = places.find((p) => p.title === title && p.kind === kind)
+    const add = (title: string, member: string) => {
+      const entry = places.find((p) => p.title === title)
       if (entry) entry.members.push(member)
-      else places.push({ title, members: [member], kind })
+      else places.push({ title, members: [member] })
+      previous.set(member, title)
     }
     for (const member of trip.members) {
-      if (day.bases.some((b) => b.members.includes(member.id))) continue
+      const base = places.find((p) => p.members.includes(member.id))
+      if (base) {
+        previous.set(member.id, base.title)
+        continue
+      }
       const journey = trip.items.find(
         (i) =>
           isTransport(i.kind) &&
@@ -71,43 +73,37 @@ export function nightsOf(trip: TripExport): DayStay[] {
           day.date < (i.local.endDate ?? i.local.date),
       )
       if (journey) {
-        add(`${placeName(trip, journey.places[0])} → ${placeName(trip, journey.places.at(-1))}`, member.id, 'transit')
+        // The day is spent where the journey starts: the town left, not its airport.
+        add(previous.get(member.id) ?? placeName(trip, journey.places[0]), member.id)
         continue
       }
       const home = member.home ?? trip.home
       const { first, last } = stays.get(member.id)!
-      if (home && ((first && day.date < first) || (last && day.date > last)))
-        add(placeName(trip, home), member.id, 'home')
+      if (home && ((first && day.date < first) || (last && day.date > last))) add(placeName(trip, home), member.id)
     }
     return { date: day.date, bases: places }
   })
 }
 
 /** The places `people` (everyone when empty) sleep in that night. */
-export function placesOf(day: DayStay, people: string[]): { title: string; kind: StayKind }[] {
-  const seen = new Map<string, { count: number; kind: StayKind }>()
+export function placesOf(day: DayStay, people: string[]): string[] {
+  const seen = new Map<string, number>()
   for (const base of day.bases) {
     const who = people.length ? base.members.filter((m) => people.includes(m)) : base.members
     if (!who.length) continue
-    const entry = seen.get(base.title) ?? { count: 0, kind: base.kind ?? 'base' }
-    entry.count += who.length
-    seen.set(base.title, entry)
+    seen.set(base.title, (seen.get(base.title) ?? 0) + who.length)
   }
-  return [...seen]
-    .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
-    .map(([title, { kind }]) => ({ title, kind }))
+  return [...seen].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([title]) => title)
 }
 
 /** Consecutive days with the same places, in order. */
 export function stayRuns(days: DayStay[], people: string[]): StayRun[] {
   const runs: StayRun[] = []
   for (const day of days) {
-    const places = placesOf(day, people)
-    const titles = places.map((p) => p.title)
+    const titles = placesOf(day, people)
     const last = runs.at(-1)
     if (last && last.titles.join('\u0000') === titles.join('\u0000')) last.dates.push(day.date)
-    else
-      runs.push({ titles, transit: places.length > 0 && places.every((p) => p.kind === 'transit'), dates: [day.date] })
+    else runs.push({ titles, dates: [day.date] })
   }
   return runs
 }

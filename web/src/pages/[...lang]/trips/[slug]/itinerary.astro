@@ -96,9 +96,9 @@ const span = (from: string, to: string) =>
       <div
         class="stay"
         data-stay
-        data-transit={run.transit || !run.titles.length ? '' : undefined}
-        data-split={run.titles.length > 1 && !run.transit ? '' : undefined}
-        style={run.titles.length === 1 && !run.transit ? `--place-hue:${placeHue(run.titles[0]!)}` : undefined}
+        data-transit={run.titles.length ? undefined : ''}
+        data-split={run.titles.length > 1 ? '' : undefined}
+        style={run.titles.length === 1 ? `--place-hue:${placeHue(run.titles[0]!)}` : undefined}
       >
         <div class="stay-days">
           {run.dates.map((day, i) => {
@@ -383,11 +383,6 @@ const span = (from: string, to: string) =>
     text-overflow: ellipsis;
     color: hsl(var(--place-hue) 70% 42%);
     text-decoration: none;
-  }
-
-  .day-strip :global(.stay[data-transit] .stay-label) {
-    color: var(--label-secondary);
-    font-weight: 500;
   }
 
   :global(:root[data-theme='dark']) .day-strip :global(.stay:not([data-transit], [data-split]) .stay-label) {

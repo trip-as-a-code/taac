@@ -8,7 +8,7 @@ function stayElement(run: StayRun): HTMLElement {
   const stay = document.createElement('div')
   stay.className = 'stay'
   stay.dataset.stay = ''
-  if (run.transit || !run.titles.length) stay.dataset.transit = ''
+  if (!run.titles.length) stay.dataset.transit = ''
   else if (run.titles.length === 1) stay.style.setProperty('--place-hue', String(placeHue(run.titles[0]!)))
   else stay.dataset.split = ''
   return stay
