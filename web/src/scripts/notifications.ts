@@ -155,7 +155,10 @@ async function renderItem(n: Notification, ctx: Context, withToggle: boolean): P
   if (n.by) avatar.append(avatarPhoto(n.by))
   const what = document.createElement('span')
   what.className = 'subhead title'
-  what.textContent = ctx.strings[n.kind]!.replace('{name}', person?.name ?? (n.by ? `@${n.by}` : (n.author ?? '')))
+  const who = person?.name ?? (n.by ? `@${n.by}` : n.author)
+  what.textContent = who
+    ? ctx.strings[n.kind]!.replace('{name}', who)
+    : (ctx.strings[`${n.kind}Anon`] ?? ctx.strings[n.kind]!.replace('{name}', ''))
   const where = document.createElement('span')
   where.className = 'footnote secondary meta'
   where.textContent = [

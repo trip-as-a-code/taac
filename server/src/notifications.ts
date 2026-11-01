@@ -97,7 +97,7 @@ export function changeEvents(trip: string, sets: ChangeSet[], login: string): No
       anchor: 'changes',
       thread: '',
       by: set.login ?? '',
-      author: set.login ? undefined : set.author,
+      author: set.login ? undefined : set.author || undefined,
       text: set.summary,
       at: set.at,
     }))
