@@ -269,8 +269,10 @@ function schedule() {
   frame = requestAnimationFrame(place)
 }
 
+/** One message field at a time: opening a thread puts away a new one being started. */
 function open(id: string) {
   expanded = id
+  draft = null
   const thread = options?.threads.find((t) => t.id === id)
   if (thread) options!.seen([thread])
   build()
@@ -297,8 +299,10 @@ export function showThreads(anchor: string, start = false): boolean {
   const host = button && hostOf(button)
   if (!host || (mode === 'peeks' && !host.matches(PEEKS))) return false
   const first = options.threads.find((t) => t.anchor === anchor && t.resolvedAt === null)
-  if (first && !start) expanded = first.id
-  else if (options.writer) {
+  if (first && !start) {
+    expanded = first.id
+    draft = null
+  } else if (options.writer) {
     draft = anchor
     expanded = null
   } else if (!options.threads.some((t) => t.anchor === anchor)) return false
