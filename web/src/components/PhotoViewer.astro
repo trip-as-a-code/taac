@@ -1,0 +1,95 @@
+---
+import Icon from '@/components/Icon.astro'
+import { useI18n, type Locale } from '@/i18n'
+
+interface Props {
+  lang: Locale
+}
+
+const { t } = useI18n(Astro.props.lang)
+---
+
+{/* A place's photo, large: opened by any `[data-photo]` button (scripts/photo.ts). */}
+<dialog class="viewer" data-photo-viewer aria-label={t('photo.open')}>
+  <figure>
+    <img data-photo-large alt="" />
+    <figcaption class="subhead" data-photo-caption></figcaption>
+  </figure>
+  <button class="close" type="button" data-photo-close title={t('share.close')}>
+    <Icon name="close" size={16} />
+    <span class="visually-hidden">{t('share.close')}</span>
+  </button>
+</dialog>
+
+<style>
+  .viewer {
+    max-width: none;
+    max-height: none;
+    margin: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .viewer::backdrop {
+    background: rgb(0 0 0 / 0.72);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+
+  .viewer[open] {
+    animation: rise var(--duration) var(--ease);
+  }
+
+  figure {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-3);
+    margin: 0;
+  }
+
+  /* Never larger than the photo itself, nor the screen. */
+  img {
+    display: block;
+    max-width: calc(100vw - 2 * var(--gutter));
+    max-height: calc(100dvh - 140px);
+    border-radius: 14px;
+    background: var(--fill);
+    box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+  }
+
+  figcaption {
+    max-width: calc(100vw - 2 * var(--gutter));
+    color: rgb(255 255 255 / 0.92);
+    text-align: center;
+  }
+
+  .close {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 14px);
+    right: 14px;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.18);
+    color: white;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+
+  .close:hover {
+    background: rgb(255 255 255 / 0.28);
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+</style>

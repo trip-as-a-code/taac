@@ -475,6 +475,8 @@ export const en = {
   'settings.kindsNote':
     'For your account: in the bell and in browser notifications, in the language you chose at the top.',
 
+  'photo.open': 'Open photo',
+
   'a11y.skip': 'Skip to content',
   'a11y.openMenu': 'Open menu',
 }

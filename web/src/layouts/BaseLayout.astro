@@ -1,6 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions'
 
+import PhotoViewer from '@/components/PhotoViewer.astro'
 import PushPrompt from '@/components/PushPrompt.astro'
 import NavBar from '@/components/NavBar.astro'
 import UpdateToast from '@/components/UpdateToast.astro'
@@ -150,50 +151,7 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
         }
       })()
     </script>
-    <style>
-      .photo-dialog {
-        padding: 0;
-        border: 0;
-        border-radius: 16px;
-        background: transparent;
-        max-width: min(92vw, 900px);
-      }
-
-      .photo-dialog::backdrop {
-        background: rgb(0 0 0 / 0.6);
-        -webkit-backdrop-filter: blur(8px);
-        backdrop-filter: blur(8px);
-      }
-
-      .photo-frame {
-        position: relative;
-        margin: 0;
-      }
-
-      .photo-large {
-        display: block;
-        width: 100%;
-        height: auto;
-        max-height: 86vh;
-        object-fit: contain;
-        border-radius: 16px;
-        background: var(--bg-elevated);
-      }
-
-      .photo-close {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        width: 32px;
-        height: 32px;
-        border: 0;
-        border-radius: 50%;
-        background: rgb(0 0 0 / 0.55);
-        color: #fff;
-        font-size: 15px;
-        cursor: pointer;
-      }
-    </style>
+    <PhotoViewer lang={lang} />
   </body>
 </html>
 

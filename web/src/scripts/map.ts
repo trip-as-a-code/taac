@@ -189,7 +189,7 @@ export async function setupMap() {
       .join('')
     popup?.remove()
     const photo = place.photo
-      ? `<img class="popup-photo" src="${escape(place.photo)}" alt="" loading="lazy" width="264" height="120" />`
+      ? `<img class="popup-photo" src="${escape(place.photo)}" alt="" width="300" height="120" data-photo-img data-photo-keep data-photo="${escape(place.photo.replace(/\/wide$/, '/large'))}" data-photo-title="${escape(place.name)}" />`
       : ''
     popup = new maplibregl.Popup({ offset: 20, maxWidth: '300px', focusAfterOpen: false })
       .setLngLat([place.geo[1], place.geo[0]])

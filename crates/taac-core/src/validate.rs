@@ -206,6 +206,15 @@ impl Validator<'_> {
     fn places(&mut self) {
         for (key, place) in &self.trip.places {
             self.geo(key, place.geo, None);
+            if let Some(photo) = &place.photo
+                && (!photo.starts_with("https://") || photo.contains(char::is_whitespace))
+            {
+                self.error(
+                    "place.photo",
+                    None,
+                    format!("`{key}` has a photo that isn't an https:// URL: {photo}"),
+                );
+            }
         }
     }
 
@@ -1947,5 +1956,21 @@ ideas:
                 .any(|d| d.code == "who.unknown" && d.item.as_deref() == Some("pass")),
             "{d:?}"
         );
+    }
+
+    #[test]
+    fn photos_are_https_urls() {
+        let d = check_with(
+            "  shrine: { geo: [35.67, 139.70], photo: 'https://example.org/meiji.jpg' }
+  tower: { geo: [35.66, 139.75], photo: 'http://example.org/tower.jpg' }",
+            "  - { kind: activity, title: x, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00 }",
+        );
+        let photos: Vec<_> = d
+            .iter()
+            .filter(|d| d.code == "place.photo")
+            .map(|d| d.message.as_str())
+            .collect();
+        assert_eq!(photos.len(), 1, "{d:?}");
+        assert!(photos[0].contains("`tower`"), "{d:?}");
     }
 }

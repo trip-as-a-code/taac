@@ -397,11 +397,12 @@
           ]
         },
         "photo": {
-          "description": "Small thumbnail URL shown in the itinerary and on the map (a\nWikimedia Commons thumbnail, not a hotlinked search result).\nUse only the allowed thumbnail widths (e.g. 330px, not 320px),\notherwise Commons answers 400 with \"Use thumbnail sizes listed on\n<https://w.wiki/GHai>\".",
+          "description": "A picture of the place: any `https://` image URL. The server fetches\nand resizes it, so browsers never load it from its host; the larger\nthe original, the sharper it opens.",
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "pattern": "^https://\\S+$"
         },
         "radius": {
           "description": "Makes the place an area (a city, a valley) of this many metres around\n`geo`: bases, passes and ideas' `area` need one. Without it the place\nis a single spot.",
