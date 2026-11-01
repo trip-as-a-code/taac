@@ -1118,7 +1118,7 @@ button.thread-card {
   color: var(--tint);
 }
 
-/* The row its threads talk about. */
+/* The row a hovered card talks about: a soft tint over it, no stripe. */
 [data-rail-lit]:not(.rail-group) {
-  box-shadow: inset 3px 0 0 var(--tint);
+  box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--tint) 9%, transparent);
 }

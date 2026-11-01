@@ -334,7 +334,8 @@ function hover(event: Event) {
   if (!host || !anchor) return
   lit = anchor
   for (const node of document.querySelectorAll('[data-rail-lit]')) node.removeAttribute('data-rail-lit')
-  host.setAttribute('data-rail-lit', '')
+  // The row is marked only from its card: from the row, the card lighting up is enough.
+  if (fromGroup) host.setAttribute('data-rail-lit', '')
   groups.get(anchor)?.setAttribute('data-rail-lit', '')
 }
 
