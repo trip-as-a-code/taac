@@ -8,6 +8,12 @@ export const getStaticPaths = () => langParams().map((params) => ({ params }))
 
 const lang = localeFromParam(Astro.params.lang)
 const { t, path } = useI18n(lang)
+// Groups in English alphabetical order, kept in every language.
+const groups = [
+  { name: 'deadlines', kinds: ['booking', 'payment', 'task'] },
+  { name: 'discussions', kinds: ['thread', 'reply', 'resolved'] },
+  { name: 'plan', kinds: ['change'] },
+] as const
 ---
 
 <BaseLayout
@@ -55,29 +61,42 @@ const { t, path } = useI18n(lang)
       </button>
     </div>
     <div class="view" data-view-panel="settings" hidden>
-      <section class="group">
-        <h2 class="title-3">{t('settings.kinds')}</h2>
-        <ul class="card list">
-          {(['thread', 'reply', 'resolved', 'change'] as const).map((kind) => (
-            <li class="row">
-              <span class="grow" id={`kind-${kind}`}>
-                {t(`settings.kind.${kind}`)}
-              </span>
-              <button
-                class="switch"
-                type="button"
-                role="switch"
-                aria-checked="true"
-                aria-labelledby={`kind-${kind}`}
-                data-kind-switch={kind}
-              >
-                <span class="knob" />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <p class="footnote secondary note">{t('settings.kindsNote')}</p>
-      </section>
+      {groups.map((group) => (
+        <section class="group">
+          <h2 class="title-3">{t(`settings.group.${group.name}`)}</h2>
+          <ul class="card list">
+            {group.kinds.map((kind) => (
+              <li class="row">
+                <span class="grow" id={`kind-${kind}`}>
+                  {t(`settings.kind.${kind}`)}
+                </span>
+                <button
+                  class="switch"
+                  type="button"
+                  role="switch"
+                  aria-checked="true"
+                  aria-labelledby={`kind-${kind}`}
+                  data-kind-switch={kind}
+                >
+                  <span class="knob" />
+                </button>
+              </li>
+            ))}
+            {group.name === 'deadlines' && (
+              <li class="row">
+                <label class="grow" for="remind-at">
+                  {t('settings.remindAt')}
+                </label>
+                <input class="time" id="remind-at" type="time" value="09:00" step="900" data-remind-at />
+              </li>
+            )}
+          </ul>
+          {group.name === 'deadlines' && (
+            <p class="footnote secondary note" data-remind-note data-template={t('settings.remindAtNote')} />
+          )}
+        </section>
+      ))}
+      <p class="footnote secondary note">{t('settings.kindsNote')}</p>
       <section class="group" data-push-section hidden>
         <h2 class="title-3">{t('settings.browser')}</h2>
         <div class="card">
@@ -174,6 +193,17 @@ const { t, path } = useI18n(lang)
   .grow {
     flex: 1;
     min-width: 0;
+  }
+
+  /* A time like the switches' rows: plain, tinted, no box until focused. */
+  .time {
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    color: var(--tint);
+    background: var(--fill);
   }
 
   .note {

@@ -38,6 +38,12 @@ const people = Object.fromEntries(
     markUnread: t('notifications.markUnread'),
     today: t('notifications.today'),
     yesterday: t('notifications.yesterday'),
+    ...Object.fromEntries(
+      (['booking', 'payment', 'task'] as const).flatMap((kind) => [
+        [`due.${kind}`, t(`notifications.due.${kind}`)],
+        [`overdue.${kind}`, t(`notifications.overdue.${kind}`)],
+      ]),
+    ),
   })}
   data-several-trips={site.trips.length > 1 ? '' : undefined}
 >
@@ -60,6 +66,10 @@ const people = Object.fromEntries(
       </button>
     </header>
     <ul class="list" data-notifications-list></ul>
+    {/* What stands for a deadline where a person's picture would be. */}
+    <template data-due-icon>
+      <Icon name="calendar" size={20} />
+    </template>
     <p class="footnote secondary" data-notifications-none hidden>
       {t('notifications.none')}
     </p>

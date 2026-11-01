@@ -1,8 +1,9 @@
 // The notification center: the bell with its unread count and the latest
 // notifications, and the full page with all of them, by day, a page at a
 // time. Each is read or not: opening one reads it, any can be marked read or
-// unread, and "mark all as read" reads everything. Also this device's switch
-// for browser notifications, on the full page.
+// unread, and "mark all as read" reads everything. Deadlines show the same
+// way, once per thing, with how long is left. Also this device's switch for
+// browser notifications, the kinds to get and when reminders come, on the full page.
 
 import { closeOnBackdrop } from '@/scripts/sheet'
 import { avatarPhoto } from '@/scripts/avatars'
@@ -12,7 +13,7 @@ import { me, type Me } from '@/scripts/session'
 interface Notification {
   id: string
   trip: string
-  kind: 'thread' | 'reply' | 'resolved' | 'change'
+  kind: 'thread' | 'reply' | 'resolved' | 'change' | 'booking' | 'payment' | 'task'
   anchor: string
   thread: string
   by: string
@@ -21,6 +22,9 @@ interface Notification {
   text: string
   at: number
   read: boolean
+  /** What is due: its date, and days from it of the latest reminder (negative once past). */
+  due?: string
+  rung?: number
 }
 
 interface Person {
@@ -129,10 +133,48 @@ export async function markNotifications(read: boolean, which: { ids?: string[]; 
   if (response?.ok) document.dispatchEvent(new CustomEvent(CHANGED))
 }
 
-/** One notification: who did what, where and when, and what they said. */
 /** How many the bell's panel shows. */
 const PANEL = 5
 
+/** `2026-11-25` → how many days from today here: 0 today, negative once past. */
+function daysUntil(date: string): number {
+  const now = new Date()
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((Date.parse(`${date}T00:00:00Z`) - today) / 86_400_000)
+}
+
+/** "Booking due tomorrow", "Task overdue since Oct 31". */
+function duePhrase(n: Notification, ctx: Context): string {
+  const days = daysUntil(n.due!)
+  const date = new Intl.DateTimeFormat(ctx.lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
+    Date.parse(n.due!),
+  )
+  const rel = new Intl.RelativeTimeFormat(ctx.lang, { numeric: 'auto' }).format(days, 'day')
+  return ctx.strings[`${days < 0 ? 'overdue' : 'due'}.${n.kind}`]!.replace('{rel}', rel).replace('{date}', date)
+}
+
+/** A deadline: the thing, how long is left (red once past), a calendar for a face. */
+function dueParts(n: Notification, ctx: Context, title: string | undefined, tripTitle: string | undefined) {
+  const days = daysUntil(n.due!)
+  const avatar = document.createElement('span')
+  avatar.className = 'avatar due'
+  avatar.dataset.due = days < 0 ? 'past' : days <= 3 ? 'soon' : 'later'
+  avatar.append(ctx.root.querySelector<HTMLTemplateElement>('[data-due-icon]')!.content.cloneNode(true))
+  const what = document.createElement('span')
+  what.className = 'subhead title'
+  what.textContent = title ?? tripTitle ?? n.trip
+  const where = document.createElement('span')
+  where.className = 'footnote secondary meta'
+  const phrase = document.createElement('span')
+  phrase.className = 'due-phrase'
+  phrase.dataset.due = avatar.dataset.due
+  phrase.textContent = duePhrase(n, ctx)
+  where.append(phrase)
+  if (ctx.root.hasAttribute('data-several-trips') && tripTitle) where.append(` · ${tripTitle}`)
+  return [avatar, what, where]
+}
+
+/** One notification: who did what, where and when, and what they said; or what is due. */
 async function renderItem(n: Notification, ctx: Context, withToggle: boolean): Promise<HTMLLIElement> {
   const trip = await targetsOf(ctx.base, n.trip)
   const target = trip?.targets[n.anchor]
@@ -142,39 +184,44 @@ async function renderItem(n: Notification, ctx: Context, withToggle: boolean): P
   const item = document.createElement('li')
   item.toggleAttribute('data-unread', !n.read)
   const link = document.createElement('a')
-  link.href = change
-    ? change.href
-    : target
-      ? linkTo(target.href, n.anchor)
-      : `${ctx.base}trips/${encodeURIComponent(n.trip)}/`
-  const person = ctx.people[n.by]
-  const avatar = document.createElement('span')
-  avatar.className = 'avatar'
-  avatar.style.setProperty('--hue', String(person?.hue ?? 210))
-  avatar.textContent = person?.initials ?? (n.by || n.author || '?').slice(0, 1).toUpperCase()
-  if (n.by) avatar.append(avatarPhoto(n.by))
-  const what = document.createElement('span')
-  what.className = 'subhead title'
-  const who = person?.name ?? (n.by ? `@${n.by}` : n.author)
-  what.textContent = who
-    ? ctx.strings[n.kind]!.replace('{name}', who)
-    : (ctx.strings[`${n.kind}Anon`] ?? ctx.strings[n.kind]!.replace('{name}', ''))
-  const where = document.createElement('span')
-  where.className = 'footnote secondary meta'
-  where.textContent = [
-    n.kind === 'change' ? trip?.title : target?.title,
-    ctx.root.hasAttribute('data-several-trips') && n.kind !== 'change' ? trip?.title : undefined,
-    when(n.at, ctx.lang),
-  ]
-    .filter(Boolean)
-    .join(' · ')
-  link.append(avatar, what, where)
-  const said = change?.summary ?? n.text
-  if (said) {
-    const text = document.createElement('span')
-    text.className = 'subhead secondary text'
-    text.textContent = said
-    link.append(text)
+  if (n.due) {
+    link.href = target?.href ?? `${ctx.base}trips/${encodeURIComponent(n.trip)}/`
+    link.append(...dueParts(n, ctx, target?.title, trip?.title))
+  } else {
+    link.href = change
+      ? change.href
+      : target
+        ? linkTo(target.href, n.anchor)
+        : `${ctx.base}trips/${encodeURIComponent(n.trip)}/`
+    const person = ctx.people[n.by]
+    const avatar = document.createElement('span')
+    avatar.className = 'avatar'
+    avatar.style.setProperty('--hue', String(person?.hue ?? 210))
+    avatar.textContent = person?.initials ?? (n.by || n.author || '?').slice(0, 1).toUpperCase()
+    if (n.by) avatar.append(avatarPhoto(n.by))
+    const what = document.createElement('span')
+    what.className = 'subhead title'
+    const who = person?.name ?? (n.by ? `@${n.by}` : n.author)
+    what.textContent = who
+      ? ctx.strings[n.kind]!.replace('{name}', who)
+      : (ctx.strings[`${n.kind}Anon`] ?? ctx.strings[n.kind]!.replace('{name}', ''))
+    const where = document.createElement('span')
+    where.className = 'footnote secondary meta'
+    where.textContent = [
+      n.kind === 'change' ? trip?.title : target?.title,
+      ctx.root.hasAttribute('data-several-trips') && n.kind !== 'change' ? trip?.title : undefined,
+      when(n.at, ctx.lang),
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    link.append(avatar, what, where)
+    const said = change?.summary ?? n.text
+    if (said) {
+      const text = document.createElement('span')
+      text.className = 'subhead secondary text'
+      text.textContent = said
+      link.append(text)
+    }
   }
   link.addEventListener('click', () => {
     if (!n.read) void markNotifications(true, { ids: [n.id] })
@@ -244,6 +291,39 @@ async function setupToggle(toggle: HTMLElement, session: Me) {
   }
 }
 
+/** Tells the server where this browser is, for reminders at the right hour, when it moved. */
+function sayWhere(session: Me) {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (!timeZone || timeZone === session.timeZone) return
+  session.timeZone = timeZone
+  void fetch('/api/me/reminders', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timeZone }),
+  }).catch(() => null)
+}
+
+/** `[data-remind-at]`: when deadline reminders come, kept on the server; and where that is. */
+function setupRemindAt(page: HTMLElement, session: Me) {
+  const input = page.querySelector<HTMLInputElement>('[data-remind-at]')
+  const note = page.querySelector<HTMLElement>('[data-remind-note]')
+  if (!input) return
+  input.value = session.remindAt ?? '09:00'
+  if (note)
+    note.textContent = note.dataset.template!.replace('{zone}', Intl.DateTimeFormat().resolvedOptions().timeZone)
+  input.onchange = () => {
+    if (!/^\d{2}:\d{2}$/.test(input.value)) return
+    session.remindAt = input.value
+    void fetch('/api/me/reminders', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remindAt: input.value }),
+    }).catch(() => null)
+  }
+}
+
 /** `[data-kind-switch]`es: the notification kinds this account gets, kept on the server. */
 function setupKinds(page: HTMLElement, session: Me, changed: () => void) {
   const muted = new Set(session.muted)
@@ -273,6 +353,7 @@ export async function setupNotifications() {
   if (!ctx) return
   const session = await me()
   if (!session?.login || !session.comments.length) return
+  sayWhere(session)
   const { root } = ctx
   const open = root.querySelector<HTMLButtonElement>('[data-notifications-open]')!
   const panel = root.querySelector<HTMLDialogElement>('[data-notifications-panel]')!
@@ -340,6 +421,7 @@ export async function setupNotificationsPage() {
   const readAll = page.querySelector<HTMLButtonElement>('[data-page-read-all]')!
   void setupToggle(page.querySelector<HTMLElement>('[data-push-toggle]')!, session)
   setupKinds(page, session, () => void restart())
+  setupRemindAt(page, session)
 
   let unreadOnly = false
   let before: number | undefined

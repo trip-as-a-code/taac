@@ -13,6 +13,9 @@ export interface Me {
   share: string[]
   /** The notification kinds the account turned off. */
   muted: string[]
+  /** Where the account's browsers last said it is, and when it wants reminders (`HH:MM`); null until known or chosen. */
+  timeZone: string | null
+  remindAt: string | null
   /** The language the account chose, kept on the server; null until it chose one. */
   lang: string | null
   /** The VAPID public key to subscribe to browser notifications with, when they can be had. */

@@ -1,7 +1,8 @@
 /**
  * Shared state in Postgres: packing ticks, kept GitHub pictures, view-only links, discussions
  * how far each account has read its notifications, the browsers to push them to, and each
- * account's language, and places' photos. Migrations are plain SQL
+ * account's language, where it is and when it wants reminders, the latest reminder each person got
+ * of each thing due, and places' photos. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -24,6 +25,14 @@ export interface Store extends AvatarStore, LinkStore, CommentStore, Notificatio
   /** The notification kinds an account turned off. */
   userMuted(login: string): Promise<string[]>
   setUserMuted(login: string, muted: string[]): Promise<void>
+  /** Where the account was last seen and the time it wants reminders at (`HH:MM`), or null for each. */
+  userReminders(login: string): Promise<{ timeZone: string | null; remindAt: string | null }>
+  setUserReminders(login: string, settings: { timeZone?: string; remindAt?: string }): Promise<void>
+  /**
+   * Takes note of a reminder about to go out: true unless the person already
+   * got this rung, or a later one, for the same date.
+   */
+  claimReminder(login: string, key: string, date: string, rung: number, now: number): Promise<boolean>
   /** Of these change ids, the ones not announced yet; all of them are announced after. */
   unannounced(trip: string, ids: string[]): Promise<{ fresh: string[]; first: boolean }>
   ticks(trip: string): Promise<Ticks>
@@ -306,6 +315,30 @@ export async function openStore(connectionString: string): Promise<Store> {
          on conflict (login) do update set muted = excluded.muted`,
         [login, muted],
       )
+    },
+    async userReminders(login) {
+      const { rows } = await pool.query<{ time_zone: string | null; remind_at: string | null }>(
+        'select time_zone, remind_at from user_settings where login = $1',
+        [login],
+      )
+      return { timeZone: rows[0]?.time_zone ?? null, remindAt: rows[0]?.remind_at ?? null }
+    },
+    async setUserReminders(login, { timeZone, remindAt }) {
+      await pool.query(
+        `insert into user_settings (login, time_zone, remind_at) values ($1, $2, $3)
+         on conflict (login) do update set time_zone = coalesce(excluded.time_zone, user_settings.time_zone),
+           remind_at = coalesce(excluded.remind_at, user_settings.remind_at)`,
+        [login, timeZone ?? null, remindAt ?? null],
+      )
+    },
+    async claimReminder(login, key, date, rung, now) {
+      const { rowCount } = await pool.query(
+        `insert into deadline_reminders (login, key, date, rung, sent_at) values ($1, $2, $3, $4, $5)
+         on conflict (login, key) do update set date = excluded.date, rung = excluded.rung, sent_at = excluded.sent_at
+           where deadline_reminders.date <> excluded.date or deadline_reminders.rung > excluded.rung`,
+        [login, key, date, rung, now],
+      )
+      return (rowCount ?? 0) > 0
     },
     async unannounced(trip, ids) {
       const { rows } = await pool.query<{ id: string }>('select id from announced_changes where trip = $1', [trip])
