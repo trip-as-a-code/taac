@@ -8,6 +8,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { itemFacts } from '@/lib/facts'
 import { nextDay, spans } from '@/lib/presence'
 import { tripPage, tripPaths } from '@/lib/paths'
+import { placeHue, stayRuns, type DayStay } from '@/lib/stays'
 import { homeOffset, kindIcon, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
@@ -61,6 +62,21 @@ trip.days.forEach((day, index) => {
   if (last && prev && quiet(day) && quiet(prev) && signature(day) === signature(prev)) last.days.push(day)
   else blocks.push({ days: [day], index })
 })
+// Where everyone sleeps each night, for the strip's groups (lib/stays); the page regroups for the lens.
+const baseTitles = new Map(trip.bases.map((b) => [b.id, b.title]))
+const nights: DayStay[] = trip.days.map((day) => ({
+  date: day.date,
+  bases: day.bases.map((b) => ({ title: baseTitles.get(b.id) ?? b.id, members: b.members })),
+}))
+const runs = stayRuns(nights, [])
+const basesOf = (date: string) => JSON.stringify(nights.find((n) => n.date === date)?.bases ?? [])
+const dayIndex = new Map(trip.days.map((d, i) => [d.date, i]))
+// Where a month starts (and at the first day): 31 → 1 reads as a new month, not a typo.
+const startsMonth = (date: string) => {
+  const i = dayIndex.get(date)!
+  return i === 0 || date.slice(5, 7) !== trip.days[i - 1]!.date.slice(5, 7)
+}
+
 // A bed is news the night you check in; after that the base chip says where you are.
 // Short, without the year: a run never spans more than a few weeks.
 const span = (from: string, to: string) =>
@@ -78,21 +94,43 @@ const span = (from: string, to: string) =>
     />
   </div>
 
-  <nav class="day-strip" aria-label={t('filter.day')}>
-    {trip.days.map((day, index) => (
-      <>
-        {/* Where a month starts (and at the first day): 31 → 1 reads as a new month, not a typo. */}
-        {(index === 0 || day.date.slice(5, 7) !== trip.days[index - 1]!.date.slice(5, 7)) && (
-          <span class="month footnote" aria-hidden="true">
-            {date(day.date, { month: 'short' })}
-          </span>
+  {/* Days grouped by where the night is spent, each place's name jumping to its first day (scripts/stays). */}
+  <nav class="day-strip" aria-label={t('filter.day')} data-day-strip data-jump={t('stay.jump')}>
+    {runs.map((run) => (
+      <div
+        class="stay"
+        data-stay
+        data-transit={run.titles.length ? undefined : ''}
+        data-split={run.titles.length > 1 ? '' : undefined}
+        style={run.titles.length === 1 ? `--place-hue:${placeHue(run.titles[0]!)}` : undefined}
+      >
+        {run.titles.length > 0 && (
+          <a
+            class="stay-label"
+            href={`#${run.dates[0]}`}
+            title={t('stay.jump', { place: run.titles.join(' · ') })}
+            lang={trip.locale}
+          >
+            {run.titles.join(' · ')}
+          </a>
         )}
-        <a href={`#${day.date}`} class="day-chip" data-day-link={day.date}>
-          <span class="dow">{date(day.date, { weekday: 'short' })}</span>
-          <span class="dom tabular">{date(day.date, { day: 'numeric' })}</span>
-          <span class="visually-hidden">{t('trip.dayN', { n: index + 1 })}</span>
-        </a>
-      </>
+        <div class="stay-days">
+          {run.dates.map((day) => (
+            <>
+              {startsMonth(day) && (
+                <span class="month footnote" aria-hidden="true" data-month={day}>
+                  {date(day, { month: 'short' })}
+                </span>
+              )}
+              <a href={`#${day}`} class="day-chip" data-day-link={day} data-bases={basesOf(day)}>
+                <span class="dow">{date(day, { weekday: 'short' })}</span>
+                <span class="dom tabular">{date(day, { day: 'numeric' })}</span>
+                <span class="visually-hidden">{t('trip.dayN', { n: dayIndex.get(day)! + 1 })}</span>
+              </a>
+            </>
+          ))}
+        </div>
+      </div>
     ))}
   </nav>
 
@@ -221,9 +259,22 @@ const span = (from: string, to: string) =>
 
 <script>
   import { revealTarget, setupFilters } from '@/scripts/filters'
+  import { getLens, onLens } from '@/scripts/lens'
   import { onPage, todayUTC } from '@/scripts/page'
+  import { groupStrip, hideEmptyStays } from '@/scripts/stays'
+
+  let stopLens: (() => void) | undefined
 
   onPage('itinerary', () => {
+    // The strip's groups follow the lens: where its people sleep.
+    const strip = document.querySelector<HTMLElement>('[data-day-strip]')!
+    const regroup = () => {
+      groupStrip(strip, getLens().people)
+      hideEmptyStays(strip)
+    }
+    if (getLens().people.length) regroup()
+    stopLens?.()
+    stopLens = onLens(regroup)
     // Days the filters emptied drop out of the strip too; so do group
     // sections with nothing left in them.
     setupFilters(() => {
@@ -242,6 +293,7 @@ const span = (from: string, to: string) =>
         }
         month.hidden = !any
       }
+      hideEmptyStays(strip)
     })
     revealTarget()
     // Dim past days and bring today into view while the trip is underway.
@@ -262,7 +314,8 @@ const span = (from: string, to: string) =>
        without a positioned ancestor, they'd widen the whole page. */
     position: relative;
     display: flex;
-    gap: 6px;
+    align-items: flex-end;
+    gap: 8px;
     margin: 0 calc(-1 * var(--gutter)) var(--space-6);
     padding: 2px var(--gutter) var(--space-2);
     overflow-x: auto;
@@ -281,12 +334,81 @@ const span = (from: string, to: string) =>
   @media (min-width: 761px) {
     .day-strip {
       flex-wrap: wrap;
+      row-gap: var(--space-3);
       margin-inline: 0;
       padding-inline: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
+
+    .day-strip :global(.stay) {
+      max-width: 100%;
+    }
+
+    .day-strip :global(.stay-days) {
+      flex-wrap: wrap;
+    }
+  }
+
+  /* A place's run of days: tinted in its colour, its name on top. */
+  .day-strip :global(.stay) {
+    --place-hue: 210;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 20px;
+    background: hsl(var(--place-hue) 70% 55% / 0.12);
+  }
+
+  .day-strip :global(.stay[data-split]) {
+    background: var(--fill);
+  }
+
+  /* Nights in transit: no place, no tint. */
+  .day-strip :global(.stay[data-transit]) {
+    padding-inline: 0;
+    background: none;
+  }
+
+  .day-strip :global(.stay[hidden]) {
+    display: none;
+  }
+
+  /* Stays in view while a long stay scrolls past. */
+  .day-strip :global(.stay-label) {
+    position: sticky;
+    left: 6px;
+    align-self: flex-start;
+    /* A short stay doesn't widen to fit a long name: the rest is in the tooltip. */
+    max-width: max(100%, 168px);
+    padding: 0 6px;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: hsl(var(--place-hue) 70% 42%);
+    text-decoration: none;
+  }
+
+  :global(:root[data-theme='dark']) .day-strip :global(.stay-label) {
+    color: hsl(var(--place-hue) 80% 72%);
+  }
+
+  .day-strip :global(.stay[data-split] .stay-label) {
+    color: var(--label-secondary);
+  }
+
+  .day-strip :global(.stay-label:hover) {
+    text-decoration: underline;
+  }
+
+  .day-strip :global(.stay-days) {
+    display: flex;
+    gap: 6px;
   }
 
   .month {

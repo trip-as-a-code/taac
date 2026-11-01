@@ -498,6 +498,10 @@ export const ru: Messages = {
 
   'photo.open': 'Открыть фото',
 
+  'stay.jump': 'Перейти к {place}',
+
+  'filter.area': '{name} и окрестности',
+
   'a11y.skip': 'Перейти к содержимому',
   'a11y.openMenu': 'Открыть меню',
 }

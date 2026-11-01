@@ -4,6 +4,8 @@
 
 import type { Diagnostic, Idea, Item, TripExport } from '@taac/core'
 
+import { areasAround } from '@/lib/geo'
+
 export interface Facts {
   kind: string
   /** Booking status; an idea's is at most `required`. */
@@ -127,7 +129,8 @@ export function itemFacts(trip: TripExport, item: Item): Facts {
     priced: item.costs.some((c) => c.amount > 0),
     toPay: item.costs.some((c) => c.amount > 0 && c.unpaid),
     payers: payers(item.costs),
-    places: item.places,
+    // Its own places, and the cities around them: a filter by "Tokyo" finds what happens in Tokyo.
+    places: [...new Set([...item.places, ...areasAround(trip, item.places)])],
     tags: item.tags,
     issues: issuesOf(trip, item.id).map((d) => d.code),
     unassigned: issuesOf(trip, item.id).some((d) => d.code === 'item.unassigned'),
@@ -152,7 +155,7 @@ export function ideaFacts(trip: TripExport, idea: Idea): Facts {
     // Possible spend: nothing to pay until it becomes a plan.
     toPay: false,
     payers: [],
-    places,
+    places: [...new Set([...places, ...areasAround(trip, places)])],
     tags: idea.tags,
     issues: issuesOf(trip, idea.id).map((d) => d.code),
     unassigned: issuesOf(trip, idea.id).some((d) => d.code === 'item.unassigned'),
