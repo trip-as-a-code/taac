@@ -1,8 +1,8 @@
 // Discussions next to what they discuss, opened in place like comments in a
 // document. Wide screens: a rail in the margin right of the centred page, each
-// thing's threads level with it; hovering a row offers "+" to start another.
-// Narrower screens and phones: the same threads inside the row, and the row's
-// own chat button starts one. A thread opens to the whole conversation, with
+// thing's threads level with it. Narrower screens and phones: the same threads
+// inside the row. Either way the row's own chat button starts one, so the
+// pointer never has to cross the page (or the next column) to reach it. A thread opens to the whole conversation, with
 // replies, edits and resolving right there; one at a time.
 
 import { avatarPhoto } from '@/scripts/avatars'
@@ -117,14 +117,17 @@ function unfolded(thread: RailThread): HTMLElement {
   box.dataset.threadCard = thread.id
   box.dataset.expanded = ''
   box.toggleAttribute('data-resolved', thread.resolvedAt !== null)
-  const close = el('button', 'thread-close')
+  const close = el('button', 'icon-button')
   close.type = 'button'
   close.title = options!.strings.collapse!
   close.innerHTML =
     '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>'
   close.append(el('span', 'visually-hidden', close.title))
   close.addEventListener('click', () => collapse())
-  box.append(close, options!.render(thread))
+  const body = options!.render(thread)
+  // The fold button joins resolving at the top right.
+  ;(body.querySelector('.thread-tools') ?? body).append(close)
+  box.append(body)
   return box
 }
 
@@ -320,13 +323,11 @@ export function showThreads(anchor: string, start = false): boolean {
   return true
 }
 
-/** The row under the pointer and its threads light up together; "+" starts another. */
+/** The row under the pointer and its threads light up together. */
 function hover(event: Event) {
   if (mode !== 'rail') return
-  const rail = document.querySelector<HTMLElement>('[data-thread-rail]')!
   const target = event.target as Element
   const fromGroup = target.closest<HTMLElement>('[data-thread-group]')
-  if (target.closest('[data-rail-add]')) return
   let anchor = fromGroup?.dataset.threadGroup
   let host: HTMLElement | undefined
   if (fromGroup) {
@@ -346,24 +347,12 @@ function hover(event: Event) {
   for (const node of document.querySelectorAll('[data-rail-lit]')) node.removeAttribute('data-rail-lit')
   host.setAttribute('data-rail-lit', '')
   groups.get(anchor)?.setAttribute('data-rail-lit', '')
-  // A thing with threads offers another at the foot of its group; one without, "+" level with it.
-  const add = rail.querySelector<HTMLButtonElement>('[data-rail-add]')!
-  const free = options?.writer && !groups.has(anchor)
-  add.hidden = !free
-  if (!free) return
-  add.dataset.anchor = anchor
-  // Below any card already at that height.
-  let top = host.getBoundingClientRect().top - rail.parentElement!.getBoundingClientRect().top
-  for (const other of [...groups.values()].filter((o) => !o.hidden).sort((a, b) => a.offsetTop - b.offsetTop))
-    if (top + add.offsetHeight > other.offsetTop && top < other.offsetTop + other.offsetHeight)
-      top = other.offsetTop + other.offsetHeight + GAP
-  add.style.top = `${top}px`
 }
 
 /** A click elsewhere folds the open thread, unless something is being typed in it. */
 function away(event: Event) {
   const target = event.target as Element
-  if (target.closest('[data-thread-group], [data-rail-add], [data-thread], dialog')) return
+  if (target.closest('[data-thread-group], [data-thread], dialog')) return
   const card = document.querySelector('[data-thread-card][data-expanded]')
   if (card && !typing(card)) collapse()
 }
@@ -385,21 +374,6 @@ export function updateRail(next: RailOptions, force = true) {
     pending = null
   }
   if (expanded && !next.threads.some((t) => t.id === expanded)) expanded = null
-  if (!rail.querySelector('[data-rail-add]')) {
-    const add = el('button', 'rail-add')
-    add.type = 'button'
-    add.dataset.railAdd = ''
-    add.hidden = true
-    add.title = next.strings.new!
-    add.innerHTML =
-      '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>'
-    add.append(el('span', 'visually-hidden', add.title))
-    add.addEventListener('click', () => {
-      add.hidden = true
-      showThreads(add.dataset.anchor!, true)
-    })
-    rail.append(add)
-  }
   if (!observer) {
     // Rows move when days fold, filters hide things or photos load.
     observer = new ResizeObserver(schedule)
