@@ -49,8 +49,7 @@ const plan = anchor === 'item'
 const days = (periods: { from: string; to: string }[]) => periods.map((p) => i18n.dateRange(p.from, p.to)).join(' · ')
 const { t, money, date } = i18n
 const places = item.places.map((id) => trip.places[id]).filter(Boolean)
-const shownPhoto =
-  photo === undefined ? places.map((p) => p.photo).find(Boolean) : (photo ?? undefined)
+const shownPhoto = photo === undefined ? places.map((p) => p.photo).find(Boolean) : (photo ?? undefined)
 const everyone = item.members.length === trip.members.length
 const members = trip.members.filter((m) => item.members.includes(m.id))
 const party = partyLabel(trip, item.party, i18n.t('lens.everyone'), i18n.t('party.and'))

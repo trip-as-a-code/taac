@@ -11,7 +11,15 @@ import { getLens, inLens, setLens, type Lens } from '@/scripts/lens'
 import { currentTheme, onTheme } from '@/scripts/theme'
 
 interface MapData {
-  places: { id: string; name: string; geo: [number, number]; emoji: string; photo?: string; items: string[]; idea: boolean }[]
+  places: {
+    id: string
+    name: string
+    geo: [number, number]
+    emoji: string
+    photo?: string
+    items: string[]
+    idea: boolean
+  }[]
   routes: { item: string; flight: boolean; color: string; coords: [number, number][] }[]
   items: Record<
     string,
