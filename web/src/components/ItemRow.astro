@@ -39,14 +39,18 @@ interface Props {
   dueShown?: boolean
   /** In a section headed by exactly its people: no party pill or rail. */
   grouped?: boolean
+  /** Day lists compute this: the photo to show, or null to show none. */
+  photo?: string | null
 }
 
-const { trip, item, i18n, withDate, homeOffset, dueShown, grouped, anchor = 'item' } = Astro.props
+const { trip, item, i18n, withDate, homeOffset, dueShown, grouped, photo, anchor = 'item' } = Astro.props
 // A pass isn't on a day or at a point: no links into the itinerary or map.
 const plan = anchor === 'item'
 const days = (periods: { from: string; to: string }[]) => periods.map((p) => i18n.dateRange(p.from, p.to)).join(' · ')
 const { t, money, date } = i18n
 const places = item.places.map((id) => trip.places[id]).filter(Boolean)
+const shownPhoto =
+  photo === undefined ? places.map((p) => p.photo).find(Boolean) : (photo ?? undefined)
 const everyone = item.members.length === trip.members.length
 const members = trip.members.filter((m) => item.members.includes(m.id))
 const party = partyLabel(trip, item.party, i18n.t('lens.everyone'), i18n.t('party.and'))
@@ -108,9 +112,15 @@ const offsetLabel =
       </span>
     )}
   </div>
-  <div class="glyph" aria-hidden="true">
-    <Icon name={kindIcon[item.kind]} size={18} />
-  </div>
+  {shownPhoto ? (
+    <button type="button" class="photo-btn" data-photo-zoom={shownPhoto} aria-label={item.title}>
+      <img class="photo" src={shownPhoto} alt="" loading="lazy" width="112" height="112" />
+    </button>
+  ) : (
+    <div class="glyph" aria-hidden="true">
+      <Icon name={kindIcon[item.kind]} size={20} />
+    </div>
+  )}
   <details class="main" open={false} data-expandable={hasDetails ? '' : undefined}>
     <summary>
       <h3 class="headline" lang={trip.locale}>
@@ -370,7 +380,7 @@ const offsetLabel =
   .item {
     position: relative;
     display: grid;
-    grid-template-columns: 64px 36px minmax(0, 1fr);
+    grid-template-columns: 64px 56px minmax(0, 1fr);
     gap: 0 var(--space-3);
     padding: 14px var(--space-4);
     align-items: start;
@@ -427,9 +437,9 @@ const offsetLabel =
   .glyph {
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 11px;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
     color: var(--kind);
     background: color-mix(in srgb, var(--kind) 14%, transparent);
   }
@@ -456,6 +466,35 @@ const offsetLabel =
 
   /* The disclosure chevron sits in the corner, so it never wraps onto a
      line of its own after a long title. */
+  .photo {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 16px;
+    background: var(--fill);
+    border: 0;
+    padding: 0;
+    cursor: zoom-in;
+  }
+
+  button.photo-btn {
+    all: unset;
+    display: block;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    cursor: zoom-in;
+  }
+
+  button.photo-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  button.photo-btn .photo {
+    pointer-events: none;
+  }
+
   /* The title makes room for the copy-link button and, when the card
      opens, the chevron; the rows below keep the full width. */
   summary h3 {
@@ -495,7 +534,7 @@ const offsetLabel =
     right: calc(var(--space-4) + 22px);
   }
 
-  [data-expandable] > summary h3::after {
+  [data-expandable] > summary::after {
     content: '';
     position: absolute;
     top: 7px;
@@ -508,7 +547,7 @@ const offsetLabel =
     transition: transform var(--duration) var(--ease);
   }
 
-  [data-expandable][open] > summary h3::after {
+  [data-expandable][open] > summary::after {
     transform: translateY(0) rotate(-135deg);
   }
 

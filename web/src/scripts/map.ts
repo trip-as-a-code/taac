@@ -11,7 +11,7 @@ import { getLens, inLens, setLens, type Lens } from '@/scripts/lens'
 import { currentTheme, onTheme } from '@/scripts/theme'
 
 interface MapData {
-  places: { id: string; name: string; geo: [number, number]; emoji: string; items: string[]; idea: boolean }[]
+  places: { id: string; name: string; geo: [number, number]; emoji: string; photo?: string; items: string[]; idea: boolean }[]
   routes: { item: string; flight: boolean; color: string; coords: [number, number][] }[]
   items: Record<
     string,
@@ -180,9 +180,12 @@ export async function setupMap() {
       })
       .join('')
     popup?.remove()
+    const photo = place.photo
+      ? `<img class="popup-photo" src="${escape(place.photo)}" alt="" loading="lazy" width="264" height="120" />`
+      : ''
     popup = new maplibregl.Popup({ offset: 20, maxWidth: '300px', focusAfterOpen: false })
       .setLngLat([place.geo[1], place.geo[0]])
-      .setHTML(`<div class="popup"><h3>${escape(place.name)}</h3><ul>${list}</ul></div>`)
+      .setHTML(`<div class="popup">${photo}<h3>${escape(place.name)}</h3><ul>${list}</ul></div>`)
       .addTo(instance)
     for (const [key, button] of listButtons) button.setAttribute('aria-current', String(key === id))
     if (fly)

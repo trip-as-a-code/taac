@@ -191,6 +191,13 @@ pub struct Place {
     pub address: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// Small thumbnail URL shown in the itinerary and on the map (a
+    /// Wikimedia Commons thumbnail, not a hotlinked search result).
+    /// Use only the allowed thumbnail widths (e.g. 330px, not 320px),
+    /// otherwise Commons answers 400 with "Use thumbnail sizes listed on
+    /// <https://w.wiki/GHai>".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub photo: Option<String>,
     /// Makes the place an area (a city, a valley) of this many metres around
     /// `geo`: bases, passes and ideas' `area` need one. Without it the place
     /// is a single spot.

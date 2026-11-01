@@ -111,18 +111,28 @@ const arrival = (i: (typeof arrivals)[number]) => {
 {!baseSplit && <Whereabouts trip={trip} i18n={i18n} date={day.date} span={span} bases={day.bases} stays={day.stays} />}
 {shared(plans).length > 0 && (
   <div class="card list">
-    {shared(plans).map((item) => (
-      <div class="row-wrap">
-        {/* For exactly who is here (the rest have gone home): no need to say whose. */}
-        <ItemRow
-          trip={trip}
-          item={item}
-          i18n={i18n}
-          homeOffset={homeOffset}
-          grouped={item.party !== 'everyone' && present.length > 0 && same(item.members, present)}
-        />
-      </div>
-    ))}
+    {(() => {
+      const seen = new Set<string>()
+      return shared(plans).map((item) => {
+        const shown = item.places
+          .map((id) => trip.places[id]?.photo)
+          .find((u): u is string => Boolean(u) && u !== undefined && !seen.has(u))
+        if (shown) seen.add(shown)
+        return (
+          <div class="row-wrap">
+            {/* For exactly who is here (the rest have gone home): no need to say whose. */}
+            <ItemRow
+              trip={trip}
+              item={item}
+              i18n={i18n}
+              homeOffset={homeOffset}
+              grouped={item.party !== 'everyone' && present.length > 0 && same(item.members, present)}
+              photo={shown ?? null}
+            />
+          </div>
+        )
+      })
+    })()}
   </div>
 )}
 {shared(proposals).length > 0 && (
@@ -166,17 +176,27 @@ const arrival = (i: (typeof arrivals)[number]) => {
         ))}
         {mine(plans, g).length > 0 && (
           <div class="card list">
-            {mine(plans, g).map((item) => (
-              <div class="row-wrap">
-                <ItemRow
-                  trip={trip}
-                  item={item}
-                  i18n={i18n}
-                  homeOffset={homeOffset}
-                  grouped={same(item.members, g.members)}
-                />
-              </div>
-            ))}
+            {(() => {
+              const seen = new Set<string>()
+              return mine(plans, g).map((item) => {
+                const shown = item.places
+                  .map((id) => trip.places[id]?.photo)
+                  .find((u): u is string => Boolean(u) && u !== undefined && !seen.has(u))
+                if (shown) seen.add(shown)
+                return (
+                  <div class="row-wrap">
+                    <ItemRow
+                      trip={trip}
+                      item={item}
+                      i18n={i18n}
+                      homeOffset={homeOffset}
+                      grouped={same(item.members, g.members)}
+                      photo={shown ?? null}
+                    />
+                  </div>
+                )
+              })
+            })()}
           </div>
         )}
         {mine(proposals, g).length > 0 && (

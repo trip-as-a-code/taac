@@ -80,6 +80,8 @@ export interface Place {
   category?: string
   address?: string
   url?: string
+  /** Small thumbnail URL for the itinerary and map. */
+  photo?: string
   /** Metres; set on areas. */
   radius?: number
 }

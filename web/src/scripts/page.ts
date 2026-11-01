@@ -11,6 +11,7 @@ import { setupNotifications } from '@/scripts/notifications'
 import { offerPush } from '@/scripts/push'
 import { me } from '@/scripts/session'
 import { setupShare } from '@/scripts/share'
+import { setupPhotoZoom } from '@/scripts/photo'
 import { setupTooltips } from '@/scripts/tooltip'
 
 const LANG_COOKIE = 'taac_lang'
@@ -43,6 +44,7 @@ export function setupPage() {
   void me().then(offerPush)
   void adoptLanguage()
   setupPickers()
+  setupPhotoZoom()
   setupTooltips()
   if (!once) {
     once = true
