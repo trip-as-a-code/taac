@@ -86,9 +86,10 @@ async function withAccounts(
   }
   await Promise.all(
     sets.map(async (set) => {
-      const login = set.pr
-        ? await ask(`pulls/${set.pr}`, (b) => b.user?.login)
-        : await ask(`commits/${set.sha}`, (b) => b.author?.login)
+      // A PR's author, else (no PR, or no access to it) the commit's account.
+      const login =
+        (set.pr && (await ask(`pulls/${set.pr}`, (b) => b.user?.login))) ||
+        (await ask(`commits/${set.sha}`, (b) => b.author?.login))
       if (!login) return
       set.login = login.toLowerCase()
       set.author = members.find((m) => m.github?.toLowerCase() === login.toLowerCase())?.name ?? `@${login}`
