@@ -20,7 +20,6 @@ const byDeadline = (a: (typeof trip.items)[number], b: (typeof trip.items)[numbe
 const open = trip.items.filter((i) => i.booking.status === 'required').sort(byDeadline)
 const dueGroups = [...Map.groupBy(open, (i) => i.booking.deadline ?? '').entries()]
 const done = trip.items.filter((i) => i.booking.status === 'booked')
-const cancelled = trip.items.filter((i) => i.booking.status === 'cancelled')
 // Options that would need booking if chosen: decided before their deadline,
 // not counted in the progress.
 const options = trip.ideas
@@ -33,7 +32,7 @@ const passes = trip.passes.toSorted((a, b) => firstDay(a).localeCompare(firstDay
 const total = bookable(trip).length
 const ratio = total ? done.length / total : 1
 // Bookings the validator flagged: filter to them here, or read why in the list.
-const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.id).length > 0).length
+const flagged = [...open, ...done].filter((i) => issuesOf(trip, i.id).length > 0).length
 ---
 
 <TripLayout trip={trip} lang={lang} section="bookings">
@@ -63,7 +62,7 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
           i18n={i18n}
           trip={trip}
           facts={[
-            ...[...open, ...done, ...cancelled].map((item) => itemFacts(trip, item)),
+            ...[...open, ...done].map((item) => itemFacts(trip, item)),
             ...options.map((idea) => ideaFacts(trip, idea)),
             ...passes.map((pass) => itemFacts(trip, passItem(pass, '') as Item)),
           ]}
@@ -150,18 +149,6 @@ const flagged = [...open, ...done, ...cancelled].filter((i) => issuesOf(trip, i.
         </section>
       )}
 
-      {cancelled.length > 0 && (
-        <section class="section">
-          <div class="section-header">
-            <h2>{t('bookings.cancelled')}</h2>
-          </div>
-          <div class="card list">
-            {cancelled.map((item) => (
-              <ItemRow trip={trip} item={item} i18n={i18n} withDate homeOffset={offset} />
-            ))}
-          </div>
-        </section>
-      )}
       <p class="empty secondary" data-filter-empty hidden>
         {t('filter.empty')}
       </p>

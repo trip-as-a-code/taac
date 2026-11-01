@@ -46,7 +46,6 @@ export const statusTone: Record<BookingStatus, string | undefined> = {
   required: 'orange',
   booked: 'green',
   notRequired: undefined,
-  cancelled: 'red',
 }
 
 /** Category → emoji used on map markers. */
@@ -286,9 +285,7 @@ export function passItem(pass: Pass, until: string): RowItem {
     ? 'required'
     : statuses.includes('booked')
       ? 'booked'
-      : statuses.every((st) => st === 'cancelled')
-        ? 'cancelled'
-        : 'notRequired'
+      : 'notRequired'
   const deadline = pass.shares.flatMap((s) => (s.status === 'required' && s.deadline ? [s.deadline] : [])).sort()[0]
   const split = pass.shares.length > 1
   return {

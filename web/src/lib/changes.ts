@@ -5,17 +5,7 @@
 import type { Item, TripExport } from '@taac/core'
 
 export type ChangeKind =
-  | 'added'
-  | 'removed'
-  | 'renamed'
-  | 'moved'
-  | 'booked'
-  | 'cancelled'
-  | 'unbooked'
-  | 'price'
-  | 'who'
-  | 'ideaAdded'
-  | 'ideaRemoved'
+  'added' | 'removed' | 'renamed' | 'moved' | 'booked' | 'unbooked' | 'price' | 'who' | 'ideaAdded' | 'ideaRemoved'
 
 export interface ChangeEvent {
   kind: ChangeKind
@@ -72,9 +62,7 @@ export function diffTrips(before: TripExport, after: TripExport): ChangeEvent[] 
     if (renamedTo.has(item.id)) events.push({ ...base, kind: 'renamed', from: prev.title, to: item.title })
     if (when(prev) !== when(item)) events.push({ ...base, kind: 'moved', from: when(prev), to: when(item) })
     if (prev.booking.status !== item.booking.status) {
-      const kind =
-        item.booking.status === 'booked' ? 'booked' : item.booking.status === 'cancelled' ? 'cancelled' : 'unbooked'
-      events.push({ ...base, kind })
+      events.push({ ...base, kind: item.booking.status === 'booked' ? 'booked' : 'unbooked' })
     }
     if (price(prev) !== price(item)) events.push({ ...base, kind: 'price', from: price(prev), to: price(item) })
     if (!same(prev.members, item.members)) events.push({ ...base, kind: 'who' })
