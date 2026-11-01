@@ -130,40 +130,88 @@ const strings = Object.fromEntries(
     color: var(--red, #ff453a);
   }
 
-  /* Built by scripts/comments.ts. */
+  /* Built by scripts/comments.ts, in this panel and in the cards beside the page. */
   :global(:is(.thread-panel, .thread-card) .thread) {
+    position: relative;
     display: grid;
-    gap: var(--space-3);
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .thread-panel :global(.thread) {
     padding: var(--space-4);
     border-radius: 14px;
     background: var(--fill);
   }
 
-  :global(:is(.thread-panel, .thread-card) .thread[data-resolved]) {
-    opacity: 0.75;
+  /* Resolve (and, in a card, fold) at the top right, like a document's checkmark. */
+  :global(:is(.thread-panel, .thread-card) .thread-tools) {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    display: flex;
+    gap: 2px;
+  }
+
+  .thread-panel :global(.thread-tools) {
+    top: 10px;
+    right: 10px;
   }
 
   :global(:is(.thread-panel, .thread-card) .comment) {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr);
-    gap: 0 var(--space-3);
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 0 10px;
   }
 
   :global(:is(.thread-panel, .thread-card) .comment .avatar) {
-    grid-row: span 2;
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+    box-shadow: none;
   }
 
+  /* The first comment's line leaves room for the tools. */
+  :global(:is(.thread-panel, .thread-card) .thread-tools + .comment .comment-head) {
+    padding-right: 60px;
+  }
+
+  /* One line as tall as the avatar, name and time on one baseline: centred on it. */
   :global(:is(.thread-panel, .thread-card) .comment-head) {
     display: flex;
-    flex-wrap: wrap;
     align-items: baseline;
-    gap: 2px 8px;
+    gap: 6px;
+    min-height: 24px;
+    line-height: 24px;
+  }
+
+  :global(:is(.thread-panel, .thread-card) .comment-name) {
+    flex: 0 0 auto;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* The time gives way before the name does. */
+  :global(:is(.thread-panel, .thread-card) .comment-when) {
+    flex: 0 100 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--label-tertiary);
   }
 
   :global(:is(.thread-panel, .thread-card) .comment-body) {
-    margin: 2px 0 0;
+    margin: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+    color: var(--label);
   }
 
   :global(:is(.thread-panel, .thread-card) .comment-body.gone) {
@@ -171,40 +219,120 @@ const strings = Object.fromEntries(
     font-style: italic;
   }
 
-  :global(:is(.thread-panel, .thread-card) .comment-actions),
-  :global(:is(.thread-panel, .thread-card) .thread-actions) {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+  /* Change or take back your own words: quiet until the comment is under the pointer. */
+  :global(:is(.thread-panel, .thread-card) .comment-actions) {
+    display: none;
+    flex: none;
+    align-self: center;
+    margin-left: auto;
   }
 
-  :global(:is(.thread-panel, .thread-card) .thread-actions) {
-    justify-content: space-between;
-    align-items: center;
+  :global(:is(.thread-panel, .thread-card) .comment:hover .comment-actions),
+  :global(:is(.thread-panel, .thread-card) .comment-actions:focus-within) {
+    display: flex;
   }
 
-  :global(:is(.thread-panel, .thread-card) .reply) {
+  @media (hover: none) {
+    :global(:is(.thread-panel, .thread-card) .comment-actions) {
+      display: flex;
+    }
+  }
+
+  :global(:is(.thread-panel, .thread-card) .icon-button) {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: var(--label-secondary);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  :global(:is(.thread-panel, .thread-card) .icon-button:hover) {
+    color: var(--label);
+    background: var(--fill);
+  }
+
+  :global(:is(.thread-panel, .thread-card) .thread-tools .icon-button:first-child:hover) {
+    color: var(--green, #30d158);
+  }
+
+  :global(:is(.thread-panel, .thread-card) .comment-actions .icon-button) {
+    width: 24px;
+    height: 24px;
+    color: var(--label-tertiary);
+  }
+
+  :global(:is(.thread-panel, .thread-card) .icon-button.danger:hover),
+  :global(:is(.thread-panel, .thread-card) .icon-button.danger[data-armed]) {
+    color: var(--red, #ff453a);
+  }
+
+  /* A message field: its send button inside, round and blue once there is something to send. */
+  :global(:is(.thread-panel, .thread-card) .compose) {
     display: flex;
-    gap: var(--space-2);
     align-items: flex-end;
+    gap: 4px;
+    padding: 3px 3px 3px 12px;
+    border: 1px solid var(--separator);
+    border-radius: 18px;
+    background: var(--bg);
   }
 
-  :global(:is(.thread-panel, .thread-card) textarea) {
+  :global(:is(.thread-panel, .thread-card) .compose:focus-within) {
+    border-color: var(--tint);
+  }
+
+  :global(:is(.thread-panel, .thread-card) .compose textarea) {
     flex: 1;
-    width: 100%;
-    min-height: 38px;
-    padding: 8px 12px;
-    border: 1px solid var(--separator);
-    border-radius: 12px;
-    background: var(--bg-elevated);
+    min-width: 0;
+    max-height: 160px;
+    padding: 5px 0;
+    border: 0;
+    background: transparent;
     color: var(--label);
     font: inherit;
-    resize: vertical;
+    resize: none;
+    outline: none;
   }
 
-  :global(:is(.thread-panel, .thread-card) textarea:focus-visible) {
-    outline: 2px solid var(--tint);
-    outline-offset: 1px;
+  :global(:is(.thread-panel, .thread-card) .compose-send) {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--tint);
+    cursor: pointer;
+    transition: opacity var(--duration) var(--ease);
+  }
+
+  :global(:is(.thread-panel, .thread-card) .compose-send:disabled) {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  /* An edit in place: the field takes the comment's line. */
+  :global(:is(.thread-panel, .thread-card) .comment-main .compose) {
+    margin-top: 4px;
+  }
+
+  :global(:is(.thread-panel, .thread-card) .thread-note) {
+    margin: 0;
+    font-size: 12px;
+    color: var(--label-secondary);
+  }
+
+  :global(:is(.thread-panel, .thread-card) .thread[data-resolved] .comment) {
+    opacity: 0.75;
   }
 
   :global(:is(.thread-panel, .thread-card) .resolved-list summary) {
@@ -214,19 +342,5 @@ const strings = Object.fromEntries(
 
   :global(:is(.thread-panel, .thread-card) .resolved-list[open] summary) {
     margin-bottom: var(--space-3);
-  }
-
-  :global(:is(.thread-panel, .thread-card) .comment-actions .button) {
-    min-height: 24px;
-    padding: 0 6px;
-    font-size: 13px;
-  }
-
-  :global(:is(.thread-panel, .thread-card) .comment-actions) {
-    margin-left: -6px;
-  }
-
-  :global(:is(.thread-panel, .thread-card) .danger) {
-    color: var(--red, #ff453a);
   }
 </style>

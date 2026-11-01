@@ -939,10 +939,6 @@ html[data-filter-pending] .trip .content {
 /* Discussions next to what they discuss (scripts/rail): a rail right of the
    centred page when there is room for it (the script sets its width), else
    inside the row. Each thread folds to its first words and opens in place. */
-:root[data-rail] .thread-button {
-  visibility: hidden;
-}
-
 :root[data-rail] .trip {
   overflow-x: clip;
 }
@@ -955,8 +951,7 @@ html[data-filter-pending] .trip .content {
 }
 
 /* One thing's threads, stacked; the group sits level with the thing. */
-.rail-group,
-.rail-add {
+.rail-group {
   position: absolute;
   left: 0;
   pointer-events: auto;
@@ -1030,42 +1025,6 @@ button.thread-card {
 
 .thread-peeks .thread-card[data-expanded] {
   background: var(--bg-elevated);
-}
-
-.thread-card .thread {
-  padding: 0;
-  padding-right: 22px;
-  background: none;
-}
-
-.thread-card .reply {
-  flex-direction: column;
-  align-items: stretch;
-  margin-right: -22px;
-}
-
-.thread-card .reply .button {
-  align-self: flex-end;
-}
-
-.thread-close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  color: var(--label-secondary);
-  background: transparent;
-  cursor: pointer;
-}
-
-.thread-close:hover {
-  background: var(--fill);
 }
 
 .thread-card[data-resolved]:not([data-expanded]) {
@@ -1196,30 +1155,6 @@ button.thread-card {
   font-size: 12px;
   font-weight: 500;
   color: var(--tint);
-}
-
-/* In the rail with the cards, under the row's own threads. */
-.rail-add {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  color: var(--tint);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition: transform var(--duration) var(--ease);
-}
-
-.rail-add[hidden] {
-  display: none;
-}
-
-.rail-add:hover {
-  transform: scale(1.08);
 }
 
 /* The row its threads talk about. */

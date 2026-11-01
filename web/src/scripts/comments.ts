@@ -155,13 +155,6 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
   return node
 }
 
-function button(label: string, onClick: () => void, className = 'button button-plain') {
-  const b = el('button', className, label)
-  b.type = 'button'
-  b.addEventListener('click', onClick)
-  return b
-}
-
 /** A textarea that sends on Cmd/Ctrl+Enter. */
 function textarea(placeholder: string, value = '') {
   const area = el('textarea')
@@ -198,91 +191,135 @@ function nameOf(login: string, people: Record<string, Person>): string {
   return people[login]?.name ?? `@${login}`
 }
 
+const ICONS = {
+  check: 'M5 12.5 10 17.5 19 7',
+  reopen: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
+  pencil: 'M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3',
+  send: 'M12 19V5M5 12l7-7 7 7',
+} as const
+
+/** A small round button with just an icon; its name for screen readers and the tooltip. */
+function iconButton(icon: keyof typeof ICONS, label: string, onClick: () => void, className = 'icon-button') {
+  const b = el('button', className)
+  b.type = 'button'
+  b.title = label
+  b.setAttribute('aria-label', label)
+  b.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[icon]}"/></svg>`
+  b.addEventListener('click', onClick)
+  return b
+}
+
+/** A text field with its send button inside it, like a message field; it grows as you type. */
+function composeField(placeholder: string, value: string, submit: (body: string) => void, label: string) {
+  const form = el('form', 'compose')
+  const area = textarea(placeholder, value)
+  area.rows = 1
+  const grow = () => {
+    area.style.height = 'auto'
+    area.style.height = `${area.scrollHeight}px`
+  }
+  const sendButton = iconButton('send', label, () => form.requestSubmit(), 'compose-send')
+  sendButton.type = 'submit'
+  const sync = () => (sendButton.disabled = !area.value.trim() || area.value === value)
+  area.addEventListener('input', () => {
+    grow()
+    sync()
+  })
+  sync()
+  form.append(area, sendButton)
+  form.addEventListener('submit', (event) => {
+    event.preventDefault()
+    if (area.value.trim()) submit(area.value)
+  })
+  queueMicrotask(grow)
+  return { form, area }
+}
+
 function renderThread(thread: Thread, panel: HTMLElement): HTMLElement {
   const s = JSON.parse(panel.dataset.strings ?? '{}') as Record<string, string>
   const people = JSON.parse(panel.dataset.people ?? '{}') as Record<string, Person>
   const lang = panel.dataset.lang!
   const box = el('article', 'thread')
   box.toggleAttribute('data-resolved', thread.resolvedAt !== null)
+  // Resolving sits up top, like a document's checkmark; the card adds its fold button here.
+  const tools = el('div', 'thread-tools')
+  if (state.writer)
+    tools.append(
+      thread.resolvedAt === null
+        ? iconButton('check', s.resolve!, () => void send(`/threads/${thread.id}`, 'PATCH', { resolved: true }))
+        : iconButton('reopen', s.reopen!, () => void send(`/threads/${thread.id}`, 'PATCH', { resolved: false })),
+    )
+  box.append(tools)
   for (const comment of thread.comments) {
     const row = el('div', 'comment')
-    const body = el('div')
+    const body = el('div', 'comment-main')
     const head = el('div', 'comment-head')
-    head.append(el('strong', 'subhead', nameOf(comment.author, people)))
-    head.append(el('span', 'footnote tertiary', relative(comment.createdAt, lang)))
-    if (comment.editedAt && !comment.deletedAt) head.append(el('span', 'footnote tertiary', s.edited))
-    body.append(head)
+    head.append(el('strong', 'comment-name', nameOf(comment.author, people)))
+    head.append(el('span', 'comment-when', relative(comment.createdAt, lang)))
+    if (comment.editedAt && !comment.deletedAt) head.append(el('span', 'comment-when', s.edited))
     const text = comment.deletedAt ? el('p', 'comment-body gone', s.deleted) : el('p', 'comment-body', comment.body)
-    body.append(text)
+    // Your own words: quiet icons to change or take them back.
     if (state.writer && comment.author === state.login && !comment.deletedAt) {
-      const actions = el('div', 'comment-actions')
+      const actions = el('span', 'comment-actions')
       actions.append(
-        button(s.edit!, () => {
-          const form = el('form', 'reply')
-          const area = textarea('', comment.body)
-          form.append(
-            area,
-            button(s.cancel!, () => refresh()),
-            Object.assign(el('button', 'button button-primary', s.save), { type: 'submit' }),
+        iconButton('pencil', s.edit!, () => {
+          const { form, area } = composeField(
+            '',
+            comment.body,
+            (value) => {
+              void send(`/comments/${comment.id}`, 'PATCH', { body: value })
+            },
+            s.save!,
           )
-          form.addEventListener('submit', (event) => {
-            event.preventDefault()
-            void send(`/comments/${comment.id}`, 'PATCH', { body: area.value })
+          area.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              refresh()
+            }
           })
           text.replaceWith(form)
           actions.remove()
           area.focus()
+          area.setSelectionRange(area.value.length, area.value.length)
         }),
       )
-      const del = button(
+      const del = iconButton(
+        'trash',
         s.delete!,
         () => {
           // A second tap confirms.
           if (!('armed' in del.dataset)) {
             del.dataset.armed = ''
-            del.textContent = s.confirm!
+            del.title = s.confirm!
             setTimeout(() => {
               delete del.dataset.armed
-              del.textContent = s.delete!
+              del.title = s.delete!
             }, 3000)
             return
           }
           void send(`/comments/${comment.id}`, 'DELETE')
         },
-        'button button-plain danger',
+        'icon-button danger',
       )
       actions.append(del)
-      body.append(actions)
+      head.append(actions)
     }
+    body.append(head, text)
     row.append(avatar(comment.author, people), body)
     box.append(row)
   }
-  if (state.writer && thread.resolvedAt === null) {
-    const form = el('form', 'reply')
-    const area = textarea(s.replyPlaceholder!)
-    form.append(area, Object.assign(el('button', 'button button-primary', s.send), { type: 'submit' }))
-    form.addEventListener('submit', (event) => {
-      event.preventDefault()
-      if (area.value.trim()) void send(`/threads/${thread.id}/comments`, 'POST', { body: area.value })
-    })
-    box.append(form)
-  }
-  const actions = el('div', 'thread-actions')
-  actions.append(
-    el(
-      'span',
-      'footnote secondary',
-      thread.resolvedBy ? s.resolvedBy!.replace('{name}', nameOf(thread.resolvedBy, people)) : '',
-    ),
-  )
-  if (state.writer)
-    actions.append(
-      button(
-        thread.resolvedAt === null ? s.resolve! : s.reopen!,
-        () => void send(`/threads/${thread.id}`, 'PATCH', { resolved: thread.resolvedAt === null }),
-      ),
+  if (state.writer && thread.resolvedAt === null)
+    box.append(
+      composeField(
+        s.replyPlaceholder!,
+        '',
+        (value) => void send(`/threads/${thread.id}/comments`, 'POST', { body: value }),
+        s.send!,
+      ).form,
     )
-  box.append(actions)
+  if (thread.resolvedBy)
+    box.append(el('p', 'thread-note', s.resolvedBy!.replace('{name}', nameOf(thread.resolvedBy, people))))
   return box
 }
 
