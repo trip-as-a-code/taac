@@ -22,8 +22,10 @@ export interface RailOptions {
   open: (anchor: string, title: string) => void
 }
 
-/** Where the rail turns on: room for the page, the rail and the gutters around them. */
-const WIDE = '(min-width: 1200px) and (hover: hover)'
+/** The rail lives in the margin right of the centred page, only when that margin can hold it. */
+const POINTER = '(hover: hover)'
+const NARROWEST = 220
+const WIDEST = 300
 const GAP = 8
 /** What a thread is about: the row, card or heading its button sits in. */
 const HOST = '[data-item], article, li, .day-header, .heading'
@@ -125,7 +127,14 @@ function layout() {
   const page = rail?.parentElement
   const content = page?.querySelector<HTMLElement>('.content')
   if (!rail || !page || !content || !options) return
-  const on = matchMedia(WIDE).matches && (options.writer || options.threads.some((t) => t.resolvedAt === null))
+  // The margin right of the text, less a gutter at the window's edge.
+  const gutter = parseFloat(getComputedStyle(content).paddingRight) || 0
+  const room = document.documentElement.clientWidth - content.getBoundingClientRect().right - gutter
+  const on =
+    matchMedia(POINTER).matches &&
+    room >= NARROWEST &&
+    (options.writer || options.threads.some((t) => t.resolvedAt === null))
+  rail.style.width = `${Math.min(room, WIDEST)}px`
   document.documentElement.toggleAttribute('data-rail', on)
   rail.hidden = !on
   const byAnchor = Map.groupBy(
@@ -198,7 +207,14 @@ function hover(event: Event) {
     const button = host!.querySelector<HTMLElement>('[data-thread]')!
     add.dataset.anchor = anchor
     add.dataset.title = button.dataset.threadTitle ?? ''
-    add.style.top = `${host!.getBoundingClientRect().top - rail.parentElement!.getBoundingClientRect().top}px`
+    // In the rail, level with the row; below whichever card already sits there.
+    let top = host!.getBoundingClientRect().top - rail.parentElement!.getBoundingClientRect().top
+    for (const card of [...rail.querySelectorAll<HTMLElement>('[data-rail-anchor]')].sort(
+      (a, b) => a.offsetTop - b.offsetTop,
+    ))
+      if (top + add.offsetHeight > card.offsetTop && top < card.offsetTop + card.offsetHeight)
+        top = card.offsetTop + card.offsetHeight + GAP
+    add.style.top = `${top}px`
   }
 }
 
