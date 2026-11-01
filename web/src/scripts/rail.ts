@@ -6,6 +6,7 @@
 // replies, edits and resolving right there; one at a time.
 
 import { avatarPhoto } from '@/scripts/avatars'
+import { composeField } from '@/scripts/compose'
 
 export interface RailThread {
   id: string
@@ -131,42 +132,33 @@ function unfolded(thread: RailThread): HTMLElement {
   return box
 }
 
-/** A new thread being written, in place of the dialog. */
+/** A new thread being written where its row is, in the same field a reply takes. */
 function composer(anchor: string): HTMLElement {
-  const form = el('form', 'thread-card thread-new')
-  form.dataset.threadCard = 'new'
-  const area = el('textarea')
-  area.rows = 2
-  area.maxLength = 4000
-  area.placeholder = options!.strings.newPlaceholder!
-  area.required = true
+  const box = el('div', 'thread-card thread-new')
+  box.dataset.threadCard = 'new'
+  const { form, area } = composeField(
+    options!.strings.newPlaceholder!,
+    '',
+    async (body) => {
+      form.querySelector('button')!.disabled = true
+      pending = anchor
+      if (await options!.create(anchor, body)) {
+        draft = null
+        build()
+      } else pending = null
+    },
+    options!.strings.new!,
+  )
+  // Esc, or a click elsewhere while it's empty, puts it away.
   area.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) form.requestSubmit()
-    if (event.key === 'Escape') cancelDraft()
-  })
-  const actions = el('div', 'thread-new-actions')
-  const cancel = el('button', 'button button-plain', options!.strings.cancel)
-  cancel.type = 'button'
-  cancel.addEventListener('click', cancelDraft)
-  const submit = el('button', 'button button-primary', options!.strings.new)
-  submit.type = 'submit'
-  actions.append(cancel, submit)
-  form.append(area, actions)
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    if (!area.value.trim()) return
-    submit.disabled = true
-    pending = anchor
-    if (await options!.create(anchor, area.value)) {
-      draft = null
-      build()
-    } else {
-      pending = null
-      submit.disabled = false
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      cancelDraft()
     }
   })
+  box.append(form)
   queueMicrotask(() => area.focus({ preventScroll: true }))
-  return form
+  return box
 }
 
 /** One thing's threads: open ones, then a fold for the resolved, then a new one being written. */
@@ -195,13 +187,6 @@ function group(anchor: string, threads: RailThread[]): HTMLElement {
     if (shown) box.append(...resolved.map((t) => (t.id === expanded ? unfolded(t) : folded(t))))
   }
   if (draft === anchor) box.append(composer(anchor))
-  // Another thread on the same thing, from its own group (the row's button does it inside the page).
-  else if (mode === 'rail' && options!.writer && threads.length) {
-    const more = el('button', 'thread-more', `+ ${options!.strings.new}`)
-    more.type = 'button'
-    more.addEventListener('click', () => showThreads(anchor, true))
-    box.append(more)
-  }
   return box
 }
 
@@ -355,6 +340,8 @@ function away(event: Event) {
   if (target.closest('[data-thread-group], [data-thread], dialog')) return
   const card = document.querySelector('[data-thread-card][data-expanded]')
   if (card && !typing(card)) collapse()
+  const fresh = document.querySelector('[data-thread-card="new"]')
+  if (fresh && !typing(fresh)) cancelDraft()
 }
 
 /**

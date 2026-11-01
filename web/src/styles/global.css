@@ -1042,49 +1042,10 @@ button.thread-card {
   background: var(--tint);
 }
 
-/* A new thread being written, where its row is. */
-.thread-new textarea {
-  width: 100%;
-  min-height: 60px;
-  padding: 8px 10px;
-  border: 1px solid var(--separator);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--label);
-  font: inherit;
+/* A new thread: the reply's field, at the reply's size. */
+.thread-new {
   font-size: 14px;
-  resize: vertical;
-}
-
-.thread-new textarea:focus-visible {
-  outline: 2px solid var(--tint);
-  outline-offset: 1px;
-}
-
-.thread-new-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-/* Shown with its row or group under the pointer; its room is kept so nothing moves. */
-.thread-more {
-  justify-self: start;
-  padding: 2px 4px;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--tint);
-  cursor: pointer;
-  visibility: hidden;
-}
-
-.rail-group[data-rail-lit] .thread-more,
-.rail-group:hover .thread-more,
-.thread-more:focus-visible {
-  visibility: visible;
+  line-height: 1.4;
 }
 
 .thread-resolved-toggle {
