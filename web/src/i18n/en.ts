@@ -409,6 +409,8 @@ export const en = {
   'comments.general': 'The whole trip',
   'comments.title': 'Discussion',
   'comments.new': 'Start a discussion',
+  'comments.railReplies': '{n} more',
+  'comments.railThreads': '{n} discussions',
   'comments.newPlaceholder': 'What’s on your mind?',
   'comments.reply': 'Reply',
   'comments.replyPlaceholder': 'Reply…',

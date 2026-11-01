@@ -431,6 +431,8 @@ export const ru: Messages = {
   'comments.general': 'Поездка в целом',
   'comments.title': 'Обсуждение',
   'comments.new': 'Начать обсуждение',
+  'comments.railReplies': 'ещё {n}',
+  'comments.railThreads': 'обсуждений: {n}',
   'comments.newPlaceholder': 'О чём хотите поговорить?',
   'comments.reply': 'Ответить',
   'comments.replyPlaceholder': 'Ответ…',

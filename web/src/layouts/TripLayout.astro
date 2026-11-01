@@ -98,6 +98,8 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
     <div class:list={[bare ? 'bare' : 'container content']}>
       <slot />
     </div>
+    {/* Wide screens: open discussions in the margin (scripts/rail). */}
+    {!bare && <aside class="thread-rail" data-thread-rail aria-label={t('comments.title')} hidden />}
     <script
       type="application/json"
       data-changed-at={trip.slug}
@@ -128,6 +130,10 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
 </script>
 
 <style>
+  .trip {
+    position: relative;
+  }
+
   .trip-header {
     display: flex;
     align-items: flex-end;
