@@ -42,6 +42,8 @@ export interface TodayDay {
 
 export interface TodayData {
   timezone: string
+  /** Members' names by id, to say whose stay is whose when the group splits. */
+  names: Record<string, string>
   days: TodayDay[]
 }
 

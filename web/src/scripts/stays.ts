@@ -2,20 +2,23 @@
 // run of days in one place under its name, which jumps to the first of them.
 // Rebuilt from the day chips when the lens changes.
 
-import { placeHue, splitBar, stayRuns, stayTitle, type DayStay, type StayRun } from '@/lib/stays'
+import { splitBar, stayRuns, stayTitle, type DayStay, type StayRun } from '@/lib/stays'
 import { avatarPhoto } from '@/scripts/avatars'
 
 type People = Record<string, { name: string; initials: string; hue: number; github?: string }>
 
-function stayElement(run: StayRun): HTMLElement {
+type Hues = Record<string, number>
+
+function stayElement(run: StayRun, hues: Hues): HTMLElement {
   const stay = document.createElement('div')
   stay.className = 'stay'
   stay.dataset.stay = ''
   if (!run.titles.length) stay.dataset.transit = ''
-  else if (run.titles.length === 1) stay.style.setProperty('--place-hue', String(placeHue(run.titles[0]!)))
+  else if (run.titles.length === 1) stay.style.setProperty('--place-hue', String(hues[run.titles[0]!]))
   else {
     stay.dataset.split = ''
-    stay.style.setProperty('--split-bar', splitBar(run))
+    if (run.titles.length > 2) stay.dataset.many = ''
+    stay.style.setProperty('--split-bar', splitBar(run, hues))
   }
   return stay
 }
@@ -33,7 +36,7 @@ function avatar(id: string, people: People): HTMLElement {
 }
 
 /** The place's name, kept with its first day so it never ends a row alone. */
-function leadElement(run: StayRun, jump: string, people: People): HTMLElement {
+function leadElement(run: StayRun, jump: string, people: People, hues: Hues): HTMLElement {
   const lead = document.createElement('span')
   lead.className = 'stay-lead'
   lead.dataset.stayLead = ''
@@ -49,15 +52,16 @@ function leadElement(run: StayRun, jump: string, people: People): HTMLElement {
     run.titles.forEach((title, k) => {
       const place = document.createElement('span')
       place.className = 'stay-place'
-      place.style.setProperty('--place-hue', String(placeHue(title)))
+      place.style.setProperty('--place-hue', String(hues[title]))
       const avatars = document.createElement('span')
       avatars.className = 'avatars'
       const who = run.who[k]!
-      avatars.append(...who.slice(0, 3).map((id) => avatar(id, people)))
-      if (who.length > 3) {
+      const max = run.titles.length > 2 ? 2 : 3
+      avatars.append(...who.slice(0, max).map((id) => avatar(id, people)))
+      if (who.length > max) {
         const more = document.createElement('span')
         more.className = 'avatar more'
-        more.textContent = `+${who.length - 3}`
+        more.textContent = `+${who.length - max}`
         avatars.append(more)
       }
       const name = document.createElement('span')
@@ -83,15 +87,16 @@ export function groupStrip(strip: HTMLElement, people: string[]) {
   const byDate = new Map(chips.map((chip) => [chip.dataset.dayLink!, chip]))
   const jump = strip.dataset.jump ?? '{place}'
   const everyone = JSON.parse(strip.dataset.people ?? '{}') as People
+  const hues = JSON.parse(strip.dataset.hues ?? '{}') as Hues
   const groups = stayRuns(days, people).map((run) => {
-    const stay = stayElement(run)
+    const stay = stayElement(run, hues)
     const row = document.createElement('div')
     row.className = 'stay-days'
     run.dates.forEach((date, i) => {
       const month = months.get(date)
       // A place's name, or a month's marker, wraps with the day after it.
       let into: HTMLElement = row
-      if (i === 0 && run.titles.length) into = leadElement(run, jump, everyone)
+      if (i === 0 && run.titles.length) into = leadElement(run, jump, everyone, hues)
       else if (month) {
         into = document.createElement('span')
         into.className = 'stay-lead'
