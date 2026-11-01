@@ -2,10 +2,15 @@
 
 const PHOTO = 'img[data-avatar-photo]'
 
+/** Pictures this page has shown: drawn again (a card rebuilt, say), they appear at once, no fade. */
+const shown = new Set<string>()
+
 function settle(img: HTMLImageElement) {
   if (!img.complete) return
-  if (img.naturalWidth > 0) img.dataset.loaded = ''
-  else img.remove()
+  if (img.naturalWidth > 0) {
+    img.dataset.loaded = ''
+    shown.add(img.src)
+  } else img.remove()
 }
 
 let listening = false
@@ -40,5 +45,6 @@ export function avatarPhoto(login: string): HTMLImageElement {
   img.addEventListener('load', () => settle(img))
   img.addEventListener('error', () => settle(img))
   img.src = `/api/avatars/${login}`
+  if (shown.has(img.src)) img.dataset.loaded = ''
   return img
 }
