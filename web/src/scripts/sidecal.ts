@@ -112,12 +112,14 @@ export function setupSideCalendar() {
     place()
     spy()
   }
-  // Beside the page, below the sticky bars, only where the margin holds it.
+  // Beside the page, as far from its text as the discussions on the other
+  // side (the page's own padding), below the sticky bars, where the margin holds it.
   const place = () => {
     const left = content.getBoundingClientRect().left
-    const fits = matchMedia(POINTER).matches && left >= WIDTH + 2 * GAP
+    const gutter = parseFloat(getComputedStyle(content).paddingLeft) || 0
+    const fits = matchMedia(POINTER).matches && left >= WIDTH + gutter
     box.hidden = !fits || !stripGone || !days.length
-    box.style.left = `${left - WIDTH - GAP}px`
+    box.style.left = `${left - WIDTH}px`
     box.style.top = `${(tabs?.getBoundingClientRect().bottom ?? 0) + GAP}px`
   }
   // The day being read: the last one whose heading is in the top third of the view.
