@@ -936,20 +936,8 @@ html[data-filter-pending] .trip .content {
   transform: translateX(20px);
 }
 
-/* Discussions in the margin (scripts/rail): wide screens move the page left
-   to make room for them, the way a document leaves room for its comments. */
-:root {
-  --rail: 264px;
-}
-
-:root[data-rail] .trip .container,
-:root[data-rail] .nav-inner {
-  --page: min(var(--content), 100vw - var(--rail) - 4 * var(--gutter));
-  max-width: calc(var(--page) + 2 * var(--gutter));
-  margin-left: max(0px, calc((100vw - var(--page) - 3 * var(--gutter) - var(--rail)) / 2));
-  margin-right: auto;
-}
-
+/* Discussions in the margin (scripts/rail), right of the centred page when
+   there is room for them; the script sets the rail's width. */
 /* The rail has them: a card for each open one, "+" on the row under the pointer. */
 :root[data-rail] .thread-button {
   visibility: hidden;
@@ -963,7 +951,6 @@ html[data-filter-pending] .trip .content {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: var(--rail);
   pointer-events: none;
 }
 
@@ -1059,9 +1046,8 @@ html[data-filter-pending] .trip .content {
   color: var(--tint);
 }
 
-/* In the gap between the page and the rail, level with the row: never under a card. */
+/* In the rail with the cards, level with the row. */
 .rail-add {
-  left: calc(var(--gutter) / -2 - 14px);
   display: grid;
   place-items: center;
   width: 28px;
