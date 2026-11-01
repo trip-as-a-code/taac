@@ -2,8 +2,8 @@
 // branch that touched a trip's files (a merged PR is one), loaded as it was
 // and diffed against the version before. Without git or history (a shallow
 // clone, a tarball) there are simply no changes to show. Authors are GitHub
-// accounts (the trip member with that username, else `@username`), never the
-// name on a commit; one GitHub can't place is left unnamed.
+// accounts (the trip member with that username, else `@username`); the name on
+// the commit only when GitHub can't place it (a misconfigured git email, say).
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -131,12 +131,13 @@ export async function tripChanges(sitePath: string, site: SiteExport): Promise<R
         .split('\n')
         .filter(Boolean)
         .map((line) => {
-          const [sha, , , date, subject] = line.split('\x1f') as [string, string, string, string, string]
+          const [sha, parents, author, date, subject] = line.split('\x1f') as [string, string, string, string, string]
+          const merged = parents.split(' ')[1]
           return {
             sha,
             date,
-            // Named by its GitHub account below; the commit's own name is never shown.
-            author: '',
+            // Named by its GitHub account below; this is the fallback. A merged PR is its author's.
+            author: merged ? git(root, ['log', '-1', '--format=%an', merged]).trim() : author,
             pr: Number(/^Merge pull request #(\d+)/.exec(subject)?.[1]) || undefined,
           }
         })
