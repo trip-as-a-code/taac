@@ -204,6 +204,23 @@ impl Validator<'_> {
     }
 
     fn places(&mut self) {
+        let homes = self.trip.metadata.home.iter().map(|h| ("trip", h)).chain(
+            self.trip
+                .members
+                .iter()
+                .filter_map(|m| m.home.as_ref().map(|h| (m.id.as_str(), h))),
+        );
+        let unknown: Vec<_> = homes
+            .filter(|(_, home)| !self.trip.places.contains_key(home.as_str()))
+            .map(|(who, home)| format!("{who}: `{home}`"))
+            .collect();
+        for home in unknown {
+            self.error(
+                "home.place",
+                None,
+                format!("home is an unknown place: {home}"),
+            );
+        }
         for (key, place) in &self.trip.places {
             self.geo(key, place.geo, None);
             if let Some(photo) = &place.photo
@@ -1090,6 +1107,7 @@ impl Validator<'_> {
             return;
         }
         let bases = trip.bases();
+        let mut homeless = Vec::new();
         for member in &trip.members {
             let mine: Vec<_> = trip
                 .itinerary
@@ -1119,6 +1137,15 @@ impl Validator<'_> {
             let (Some(first), Some(last)) = (first, last) else {
                 continue;
             };
+            // Days before the first stay or after the last are spent at home: it needs naming.
+            let stays = bases.iter().filter(|b| b.members.contains(&member.id));
+            let first_stay = stays.clone().map(|b| b.from).min();
+            let last_night = stays.map(|b| b.to).max();
+            let outside = first_stay.is_some_and(|f| first < f)
+                || last_night.is_some_and(|l| l.succ_opt() < Some(last));
+            if outside && member.home.is_none() && trip.metadata.home.is_none() {
+                homeless.push(member.id.clone());
+            }
             let mut missing = Vec::new();
             let mut night = first;
             while night < last {
@@ -1148,6 +1175,16 @@ impl Validator<'_> {
                     ),
                 );
             }
+        }
+        if !homeless.is_empty() {
+            self.warn(
+                "trip.home",
+                None,
+                format!(
+                    "where the trip starts and ends isn't set for {}: add `home` to `metadata` (or to a member) so the first and last days have a place",
+                    homeless.join(", ")
+                ),
+            );
         }
     }
 
@@ -1972,5 +2009,39 @@ ideas:
             .collect();
         assert_eq!(photos.len(), 1, "{d:?}");
         assert!(photos[0].contains("`tower`"), "{d:?}");
+    }
+
+    #[test]
+    fn the_first_and_last_days_need_a_home() {
+        let trip = |home: &str| {
+            format!(
+                r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: {{ title: T, timezone: Asia/Tokyo{home} }}
+members: [{{ name: A }}]
+places:
+  home city: {{ geo: [60.17, 24.94], radius: 30000 }}
+  tokyo: {{ geo: [35.68, 139.76], radius: 25000 }}
+  hel: {{ geo: [60.31, 24.96], category: airport }}
+  hnd: {{ geo: [35.55, 139.78], category: airport }}
+bases:
+  - {{ title: Tokyo, place: tokyo, from: 2027-01-02, to: 2027-01-03 }}
+itinerary:
+  - {{ kind: flight, title: out, places: [hel, hnd], start: 2027-01-01T18:00:00+02:00, end: 2027-01-02T14:00:00+09:00 }}
+  - {{ kind: flight, title: back, places: [hnd, hel], start: 2027-01-04T10:00:00+09:00, end: 2027-01-04T15:00:00+02:00 }}
+"
+            )
+        };
+        let check = |yaml: String| {
+            let files: Files = [("trip.yaml".to_owned(), yaml)].into();
+            let (site, diagnostics) = load_standalone_trip(&files, "trip.yaml");
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+            validate_site(&site.unwrap())
+        };
+        assert!(codes(&check(trip(""))).contains(&"trip.home"));
+        let set = check(trip(", home: home city"));
+        assert!(!codes(&set).contains(&"trip.home"), "{set:?}");
+        assert!(codes(&check(trip(", home: nowhere"))).contains(&"home.place"));
     }
 }

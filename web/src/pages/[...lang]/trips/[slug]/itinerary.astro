@@ -8,7 +8,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { itemFacts } from '@/lib/facts'
 import { nextDay, spans } from '@/lib/presence'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { placeHue, stayRuns, type DayStay } from '@/lib/stays'
+import { nightsOf, placeHue, stayRuns } from '@/lib/stays'
 import { homeOffset, kindIcon, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
@@ -63,11 +63,7 @@ trip.days.forEach((day, index) => {
   else blocks.push({ days: [day], index })
 })
 // Where everyone sleeps each night, for the strip's groups (lib/stays); the page regroups for the lens.
-const baseTitles = new Map(trip.bases.map((b) => [b.id, b.title]))
-const nights: DayStay[] = trip.days.map((day) => ({
-  date: day.date,
-  bases: day.bases.map((b) => ({ title: baseTitles.get(b.id) ?? b.id, members: b.members })),
-}))
+const nights = nightsOf(trip)
 const runs = stayRuns(nights, [])
 const basesOf = (date: string) => JSON.stringify(nights.find((n) => n.date === date)?.bases ?? [])
 const dayIndex = new Map(trip.days.map((d, i) => [d.date, i]))
@@ -106,13 +102,13 @@ const span = (from: string, to: string) =>
       >
         <div class="stay-days">
           {run.dates.map((day, i) => {
+            const month = startsMonth(day) && (
+              <span class="month footnote" aria-hidden="true" data-month={day}>
+                {date(day, { month: 'short' })}
+              </span>
+            )
             const chip = (
               <>
-                {startsMonth(day) && (
-                  <span class="month footnote" aria-hidden="true" data-month={day}>
-                    {date(day, { month: 'short' })}
-                  </span>
-                )}
                 <a href={`#${day}`} class="day-chip" data-day-link={day} data-bases={basesOf(day)}>
                   <span class="dow">{date(day, { weekday: 'short' })}</span>
                   <span class="dom tabular">{date(day, { day: 'numeric' })}</span>
@@ -123,6 +119,7 @@ const span = (from: string, to: string) =>
             // A place's name, or a month's, wraps with the day after it: neither ends a row alone.
             return i === 0 && run.titles.length > 0 ? (
               <span class="stay-lead" data-stay-lead>
+                {month}
                 <a
                   class="stay-label"
                   href={`#${run.dates[0]}`}
@@ -134,7 +131,10 @@ const span = (from: string, to: string) =>
                 {chip}
               </span>
             ) : startsMonth(day) ? (
-              <span class="stay-lead">{chip}</span>
+              <span class="stay-lead">
+                {month}
+                {chip}
+              </span>
             ) : (
               chip
             )
@@ -385,7 +385,7 @@ const span = (from: string, to: string) =>
     text-decoration: none;
   }
 
-  :global(:root[data-theme='dark']) .day-strip :global(.stay-label) {
+  :global(:root[data-theme='dark']) .day-strip :global(.stay:not([data-transit], [data-split]) .stay-label) {
     color: hsl(var(--place-hue) 80% 72%);
   }
 
