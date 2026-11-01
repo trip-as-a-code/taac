@@ -6,7 +6,7 @@
 import { closeOnBackdrop } from '@/scripts/sheet'
 import { avatarPhoto } from '@/scripts/avatars'
 import { markNotifications } from '@/scripts/notifications'
-import { updateRail } from '@/scripts/rail'
+import { showThreads, updateRail } from '@/scripts/rail'
 import { me } from '@/scripts/session'
 
 interface Comment {
@@ -127,15 +127,24 @@ function refresh(redraw = true) {
   }
   const panel = document.querySelector<HTMLElement>('[data-thread-panel]')
   if (panel)
-    updateRail({
-      threads: state.threads,
-      writer: state.writer,
-      people: JSON.parse(panel.dataset.people ?? '{}') as Record<string, Person>,
-      strings: JSON.parse(panel.dataset.strings ?? '{}') as Record<string, string>,
-      lang: panel.dataset.lang!,
-      unread: (thread) => unread(thread as Thread, seen),
-      open: openThreads,
-    })
+    updateRail(
+      {
+        threads: state.threads,
+        login: state.login,
+        writer: state.writer,
+        people: JSON.parse(panel.dataset.people ?? '{}') as Record<string, Person>,
+        strings: JSON.parse(panel.dataset.strings ?? '{}') as Record<string, string>,
+        lang: panel.dataset.lang!,
+        unread: (thread) => unread(thread as Thread, seen),
+        render: (thread) => renderThread(thread as Thread, panel),
+        create: (anchor, body) => send('/threads', 'POST', { anchor, body }),
+        seen: (threads) => {
+          markSeen(threads as Thread[])
+          if (state.login) void markNotifications(true, { threads: threads.map((t) => t.id) })
+        },
+      },
+      redraw,
+    )
   if (state.open) renderPanel(redraw)
 }
 
@@ -213,7 +222,7 @@ function renderThread(thread: Thread, panel: HTMLElement): HTMLElement {
           const area = textarea('', comment.body)
           form.append(
             area,
-            button(s.cancel!, () => renderPanel()),
+            button(s.cancel!, () => refresh()),
             Object.assign(el('button', 'button button-primary', s.save), { type: 'submit' }),
           )
           form.addEventListener('submit', (event) => {
@@ -308,7 +317,9 @@ function renderPanel(redraw = true) {
   if (state.login && threads.length) void markNotifications(true, { threads: threads.map((t) => t.id) })
 }
 
-export function openThreads(anchor: string, title: string) {
+/** Opens `anchor`'s discussion in place on the page, or in the panel where the page has no room for it. */
+export function openThreads(anchor: string, title: string, start = false) {
+  if (showThreads(anchor, start)) return
   const panel = document.querySelector<HTMLDialogElement>('[data-thread-panel]')
   if (!panel) return
   state.open = { anchor, title }
@@ -366,7 +377,8 @@ export async function setupComments() {
       if (!target) return
       event.preventDefault()
       event.stopPropagation()
-      openThreads(target.dataset.thread!, target.dataset.threadTitle ?? '')
+      // Its threads already show beside or under it: the button starts another.
+      openThreads(target.dataset.thread!, target.dataset.threadTitle ?? '', true)
     })
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && state.slug) void api('/threads')
