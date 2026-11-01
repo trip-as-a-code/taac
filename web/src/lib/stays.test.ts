@@ -19,8 +19,11 @@ const days: DayStay[] = [
 
 describe('stays', () => {
   it('names the places most people sleep in first', () => {
-    expect(placesOf(days[3]!, [])).toEqual(['Tokyo', 'Nikko'])
-    expect(placesOf(days[3]!, ['r'])).toEqual(['Nikko'])
+    expect(placesOf(days[3]!, [])).toEqual([
+      { title: 'Tokyo', members: ['s', 'm'] },
+      { title: 'Nikko', members: ['r'] },
+    ])
+    expect(placesOf(days[3]!, ['r'])).toEqual([{ title: 'Nikko', members: ['r'] }])
   })
 
   it('runs the days spent in one place, for the people in view', () => {

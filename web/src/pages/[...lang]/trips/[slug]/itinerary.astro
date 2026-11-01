@@ -8,8 +8,8 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { itemFacts } from '@/lib/facts'
 import { nextDay, spans } from '@/lib/presence'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { nightsOf, placeHue, stayRuns } from '@/lib/stays'
-import { homeOffset, kindIcon, people } from '@/lib/trip'
+import { nightsOf, placeHue, splitBar, stayRuns, stayTitle } from '@/lib/stays'
+import { homeOffset, initials, kindIcon, memberHue, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -65,6 +65,12 @@ trip.days.forEach((day, index) => {
 // Where everyone sleeps each night, for the strip's groups (lib/stays); the page regroups for the lens.
 const nights = nightsOf(trip)
 const runs = stayRuns(nights, [])
+const memberById = new Map(trip.members.map((m) => [m.id, m]))
+const nameOf = (id: string) => memberById.get(id)?.name ?? id
+// What the strip's script needs to draw the same avatars.
+const stripPeople = Object.fromEntries(
+  trip.members.map((m) => [m.id, { name: m.name, initials: initials(m), hue: memberHue(m.id), github: m.github }]),
+)
 const basesOf = (date: string) => JSON.stringify(nights.find((n) => n.date === date)?.bases ?? [])
 const dayIndex = new Map(trip.days.map((d, i) => [d.date, i]))
 // Where a month starts (and at the first day): 31 → 1 reads as a new month, not a typo.
@@ -91,14 +97,26 @@ const span = (from: string, to: string) =>
   </div>
 
   {/* Days grouped by where the night is spent, each place's name jumping to its first day (scripts/stays). */}
-  <nav class="day-strip" aria-label={t('filter.day')} data-day-strip data-jump={t('stay.jump')}>
+  <nav
+    class="day-strip"
+    aria-label={t('filter.day')}
+    data-day-strip
+    data-jump={t('stay.jump')}
+    data-people={JSON.stringify(stripPeople)}
+  >
     {runs.map((run) => (
       <div
         class="stay"
         data-stay
         data-transit={run.titles.length ? undefined : ''}
         data-split={run.titles.length > 1 ? '' : undefined}
-        style={run.titles.length === 1 ? `--place-hue:${placeHue(run.titles[0]!)}` : undefined}
+        style={
+          run.titles.length === 1
+            ? `--place-hue:${placeHue(run.titles[0]!)}`
+            : run.titles.length > 1
+              ? `--split-bar:${splitBar(run)}`
+              : undefined
+        }
       >
         <div class="stay-days">
           {run.dates.map((day, i) => {
@@ -123,10 +141,18 @@ const span = (from: string, to: string) =>
                 <a
                   class="stay-label"
                   href={`#${run.dates[0]}`}
-                  title={t('stay.jump', { place: run.titles.join(' · ') })}
+                  title={t('stay.jump', { place: stayTitle(run, nameOf) })}
                   lang={trip.locale}
                 >
-                  {run.titles.join(' · ')}
+                  {run.titles.length > 1
+                    ? // Who is where: each place in its colour, after its people.
+                      run.titles.map((title, k) => (
+                        <span class="stay-place" style={`--place-hue:${placeHue(title)}`}>
+                          <Avatars members={run.who[k]!.flatMap((id) => memberById.get(id) ?? [])} size={18} max={3} />
+                          <span class="stay-name">{title}</span>
+                        </span>
+                      ))
+                    : run.titles[0]}
                 </a>
                 {chip}
               </span>
@@ -390,7 +416,44 @@ const span = (from: string, to: string) =>
   }
 
   .day-strip :global(.stay[data-split] .stay-label) {
-    color: var(--label-secondary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: none;
+    overflow: visible;
+  }
+
+  .day-strip :global(.stay-place) {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    color: hsl(var(--place-hue) 70% 42%);
+  }
+
+  :global(:root[data-theme='dark']) .day-strip :global(.stay-place) {
+    color: hsl(var(--place-hue) 80% 72%);
+  }
+
+  .day-strip :global(.stay-name) {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .day-strip :global(.stay-place .avatars) {
+    flex: none;
+  }
+
+  .day-strip :global(.stay-place .avatar) {
+    width: 18px;
+    height: 18px;
+    font-size: 8px;
+    box-shadow: 0 0 0 1.5px var(--bg);
+  }
+
+  .day-strip :global(.stay-place .avatar + .avatar) {
+    margin-left: -5px;
   }
 
   .day-strip :global(.stay-label:hover) {
@@ -405,11 +468,12 @@ const span = (from: string, to: string) =>
       var(--shadow-sm);
   }
 
+  /* Split: neutral, with a bar shared between the places' colours. */
   .day-strip :global(.stay[data-split] .day-chip) {
-    background: var(--bg-grouped);
-    box-shadow:
-      inset 0 -3px 0 var(--separator-strong),
-      var(--shadow-sm);
+    background:
+      var(--split-bar) bottom / 100% 3px no-repeat,
+      var(--bg-grouped);
+    box-shadow: var(--shadow-sm);
   }
 
   .month {
