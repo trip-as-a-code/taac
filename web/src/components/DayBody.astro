@@ -61,16 +61,34 @@ const present = [
 let groups: Group[] = []
 if (baseSplit) groups = day.bases.map((b) => ({ party: b.party, members: b.members, base: b }))
 else {
-  const parties = [...new Set(plans.filter((p) => p.party !== 'everyone').map((p) => p.party))].map((party) => ({
-    party,
-    members: trip.parties.find((p) => p.id === party)?.members ?? [],
+  // Who spends the day together: people a plan joins, however many ways
+  // that splits (an A+B dinner while C is elsewhere is two sections).
+  const link = new Map<string, string>()
+  const root = (m: string): string => {
+    const up = link.get(m)
+    return up && up !== m ? root(up) : m
+  }
+  for (const plan of plans.filter((p) => p.party !== 'everyone')) {
+    const [first, ...others] = plan.members.filter((m) => present.includes(m))
+    if (!first) continue
+    if (!link.has(first)) link.set(first, first)
+    for (const other of others) {
+      if (!link.has(other)) link.set(other, other)
+      link.set(root(other), root(first))
+    }
+  }
+  const parties = [
+    ...Map.groupBy(
+      present.filter((m) => link.has(m)),
+      root,
+    ).values(),
+  ].map((members) => ({
+    party: partyOf(members),
+    members,
   }))
-  const disjoint = parties.every((a, i) =>
-    parties.slice(i + 1).every((b) => !a.members.some((m) => b.members.includes(m))),
-  )
-  const rest = present.filter((m) => !parties.some((p) => p.members.includes(m)))
+  const rest = present.filter((m) => !link.has(m))
   const all = rest.length ? [...parties, { party: partyOf(rest), members: rest }] : parties
-  if (all.length > 1 && disjoint) {
+  if (all.length > 1) {
     const shared = !trip.basesDerived && day.bases.length === 1 ? day.bases[0] : undefined
     groups = all.map((g) => ({ ...g, open: shared && { id: shared.id, members: g.members, party: g.party } }))
   }

@@ -21,6 +21,7 @@ const place = (id?: string): TodayPlace | undefined => {
 const href = (id: string) => path(`/trips/${trip.slug}/itinerary/#item-${id}`)
 const data: TodayData = {
   timezone: trip.timezone,
+  names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),
   days: trip.days.map((day, index) => {
     const next = trip.days[index + 1]?.date
     return {
@@ -66,6 +67,7 @@ const strings = {
   until: t('today.until'),
   tomorrow: t('today.tomorrow'),
   free: t('today.free'),
+  and: t('party.and'),
   done: t('today.done'),
   map: t('today.map'),
   morning: t('part.morning'),
@@ -168,12 +170,21 @@ const strings = {
       return row
     }
 
+    // Split up tonight, however many ways: each stay says whose it is.
+    const whose = (members: string[]) => {
+      const names = members.map((m) => data.names[m] ?? m)
+      return names.length > 1 ? `${names.slice(0, -1).join(', ')}${s.and}${names.at(-1)}` : names[0]
+    }
     const stays = root.querySelector('[data-today-stays]')!
     stays.replaceChildren(
       ...view.stays.map((stay) =>
         fill(root.querySelector('[data-today-stay]')!, {
           title: `${s.tonight} ${stay.place?.name ?? stay.title}`,
-          sub: [stay.place?.address, stay.until && s.until.replace('{date}', short(stay.until))]
+          sub: [
+            view.stays.length > 1 && whose(stay.members),
+            stay.place?.address,
+            stay.until && s.until.replace('{date}', short(stay.until)),
+          ]
             .filter(Boolean)
             .join(' · '),
           href: stay.href,

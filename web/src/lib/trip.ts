@@ -196,20 +196,34 @@ export function ideasAt(trip: TripExport, base: Base): Idea[] {
     .sort((a, b) => Number(b.priority === 'must') - Number(a.priority === 'must'))
 }
 
-/** Route rows: one per group when groups go separate ways, else one. */
+/**
+ * Route rows: one per set of people who sleep in the same places every night,
+ * however many ways the trip splits; a single unlabelled row when nobody does.
+ * A row named like a group takes its name.
+ */
 export function routeRows(
   trip: TripExport,
   and: string,
 ): { label?: string; emoji?: string; members: string[]; bases: Base[] }[] {
   const ordered = [...trip.bases].sort((a, b) => a.from.localeCompare(b.from))
-  const rows = trip.groups.map((g) => ({
-    label: groupLabel(trip, g, and),
-    emoji: g.emoji,
-    members: g.members,
-    bases: ordered.filter((b) => g.members.every((m) => b.members.includes(m))),
-  }))
-  const same = rows.every((r) => r.bases.map((b) => b.id).join() === rows[0]?.bases.map((b) => b.id).join())
-  return rows.length === 0 || same ? [{ members: trip.members.map((m) => m.id), bases: ordered }] : rows
+  const nightsOf = (member: string) =>
+    trip.days.map((d) => ordered.find((b) => b.members.includes(member) && b.from <= d.date && d.date <= b.to)?.id)
+  const tracks = new Map<string, string[]>()
+  for (const m of trip.members) {
+    const key = nightsOf(m.id).join()
+    tracks.set(key, [...(tracks.get(key) ?? []), m.id])
+  }
+  if (tracks.size < 2) return [{ members: trip.members.map((m) => m.id), bases: ordered }]
+  const same = (a: string[], b: string[]) => a.length === b.length && a.every((m) => b.includes(m))
+  return [...tracks.values()].map((members) => {
+    const group = trip.groups.find((g) => same(g.members, members))
+    return {
+      label: group ? groupLabel(trip, group, and) : memberNames(trip, members, and),
+      emoji: group?.emoji,
+      members,
+      bases: ordered.filter((b) => members.every((m) => b.members.includes(m))),
+    }
+  })
 }
 
 /** The most common UTC offset among a trip's items — its "home" time. */

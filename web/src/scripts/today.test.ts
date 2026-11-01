@@ -13,6 +13,7 @@ const item = (id: string, start: string, end: string | undefined, members = ['a'
 })
 
 const data: TodayData = {
+  names: {},
   timezone: 'Asia/Tokyo',
   days: [
     {

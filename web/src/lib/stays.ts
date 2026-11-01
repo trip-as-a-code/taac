@@ -121,6 +121,24 @@ export function placeHue(title: string): number {
   return hash
 }
 
+/**
+ * Every place's hue, kept apart: one too close to a hue already taken turns
+ * until it isn't (as far as the colour wheel allows).
+ */
+export function placeHues(titles: Iterable<string>): Record<string, number> {
+  const hues: Record<string, number> = {}
+  const unique = [...new Set(titles)].filter(Boolean).sort()
+  const gap = Math.min(36, 360 / Math.max(unique.length, 1) / 1.5)
+  const near = (hue: number) =>
+    Object.values(hues).some((h) => Math.min(Math.abs(h - hue), 360 - Math.abs(h - hue)) < gap)
+  for (const title of unique) {
+    let hue = placeHue(title)
+    for (let turn = 0; turn < 12 && near(hue); turn++) hue = (hue + 137) % 360
+    hues[title] = hue
+  }
+  return hues
+}
+
 /** The stay's places in words; a split one says who is where. */
 export function stayTitle(run: StayRun, nameOf: (id: string) => string): string {
   if (run.titles.length < 2) return run.titles[0] ?? ''
@@ -128,13 +146,13 @@ export function stayTitle(run: StayRun, nameOf: (id: string) => string): string 
 }
 
 /** A split stay's chip bar: each place's colour, as wide as its share of the people. */
-export function splitBar(run: StayRun): string {
+export function splitBar(run: StayRun, hues: Record<string, number>): string {
   const total = run.who.reduce((sum, w) => sum + w.length, 0)
   let at = 0
   const stops = run.titles.map((title, i) => {
     const from = (at / total) * 100
     at += run.who[i]!.length
-    return `hsl(${placeHue(title)} 70% 55%) ${from}% ${(at / total) * 100}%`
+    return `hsl(${hues[title] ?? placeHue(title)} 70% 55%) ${from}% ${(at / total) * 100}%`
   })
   return `linear-gradient(to right, ${stops.join(', ')})`
 }

@@ -19,10 +19,14 @@ const columns = trip.days.length || 1
 
 <div class="route" style={`--hue:${tripHue(trip)};--columns:${columns}`}>
   <div class="grid">
-    {rows.map((row) => (
+    {rows.map((row, r) => (
       <>
         {row.label && (
-          <span class="footnote secondary label" data-route-people={row.members.join(' ')}>
+          <span
+            class="footnote secondary label"
+            data-route-people={row.members.join(' ')}
+            style={`grid-row:${2 * r + 1}`}
+          >
             {row.emoji} {row.label}
           </span>
         )}
@@ -32,7 +36,8 @@ const columns = trip.days.length || 1
             class="stop"
             data-route-people={row.members.join(' ')}
             data-alt={index % 2 === 1 ? '' : undefined}
-            style={`grid-column:${daysBetween(start, base.from) + 1} / span ${base.nights}`}
+            // Each track on its own line, its label above it.
+            style={`grid-column:${daysBetween(start, base.from) + 1} / span ${base.nights};grid-row:${row.label ? 2 * r + 2 : 1}`}
             title={`${base.title} · ${plural('trip.nightsShort', base.nights)} · ${dateRange(base.from, base.to)}`}
           >
             <span class="name" lang={trip.locale}>

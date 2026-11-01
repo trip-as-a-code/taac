@@ -8,7 +8,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { itemFacts } from '@/lib/facts'
 import { nextDay, spans } from '@/lib/presence'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { nightsOf, placeHue, splitBar, stayRuns, stayTitle } from '@/lib/stays'
+import { nightsOf, placeHues, splitBar, stayRuns, stayTitle } from '@/lib/stays'
 import { homeOffset, initials, kindIcon, memberHue, people } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
@@ -65,6 +65,7 @@ trip.days.forEach((day, index) => {
 // Where everyone sleeps each night, for the strip's groups (lib/stays); the page regroups for the lens.
 const nights = nightsOf(trip)
 const runs = stayRuns(nights, [])
+const hues = placeHues(nights.flatMap((n) => n.bases.map((b) => b.title)))
 const memberById = new Map(trip.members.map((m) => [m.id, m]))
 const nameOf = (id: string) => memberById.get(id)?.name ?? id
 // What the strip's script needs to draw the same avatars.
@@ -103,6 +104,7 @@ const span = (from: string, to: string) =>
     data-day-strip
     data-jump={t('stay.jump')}
     data-people={JSON.stringify(stripPeople)}
+    data-hues={JSON.stringify(hues)}
   >
     {runs.map((run) => (
       <div
@@ -110,11 +112,12 @@ const span = (from: string, to: string) =>
         data-stay
         data-transit={run.titles.length ? undefined : ''}
         data-split={run.titles.length > 1 ? '' : undefined}
+        data-many={run.titles.length > 2 ? '' : undefined}
         style={
           run.titles.length === 1
-            ? `--place-hue:${placeHue(run.titles[0]!)}`
+            ? `--place-hue:${hues[run.titles[0]!]}`
             : run.titles.length > 1
-              ? `--split-bar:${splitBar(run)}`
+              ? `--split-bar:${splitBar(run, hues)}`
               : undefined
         }
       >
@@ -147,8 +150,12 @@ const span = (from: string, to: string) =>
                   {run.titles.length > 1
                     ? // Who is where: each place in its colour, after its people.
                       run.titles.map((title, k) => (
-                        <span class="stay-place" style={`--place-hue:${placeHue(title)}`}>
-                          <Avatars members={run.who[k]!.flatMap((id) => memberById.get(id) ?? [])} size={18} max={3} />
+                        <span class="stay-place" style={`--place-hue:${hues[title]}`}>
+                          <Avatars
+                            members={run.who[k]!.flatMap((id) => memberById.get(id) ?? [])}
+                            size={18}
+                            max={run.titles.length > 2 ? 2 : 3}
+                          />
                           <span class="stay-name">{title}</span>
                         </span>
                       ))
@@ -417,10 +424,28 @@ const span = (from: string, to: string) =>
 
   .day-strip :global(.stay[data-split] .stay-label) {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 2px 10px;
     max-width: none;
     overflow: visible;
+  }
+
+  /* However many ways it splits, the label wraps within the strip, never past it. */
+  .day-strip :global(.stay[data-split] .stay-lead) {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .day-strip :global(.stay[data-split] .stay-lead .stay-label) {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  /* Three places and more: shorter names; the tooltip has them whole. */
+  .day-strip :global(.stay[data-many] .stay-name) {
+    max-width: 76px;
   }
 
   .day-strip :global(.stay-place) {
