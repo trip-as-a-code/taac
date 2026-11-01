@@ -93,7 +93,8 @@ export interface PushStrings {
   thread: string
   reply: string
   resolved: string
-  /** The one sent to check they arrive. */
+  /** The one sent to check they arrive: its title (never the site's name, which the system already shows) and text. */
+  testTitle: string
   test: string
   change: string
   /** A change GitHub couldn't put a name to. */
@@ -111,7 +112,8 @@ const PUSH: Record<string, PushStrings> = {
     thread: '{name} started a discussion',
     reply: '{name} replied',
     resolved: '{name} resolved a discussion',
-    test: 'Notifications work on this device.',
+    testTitle: 'Notifications are on',
+    test: 'Replies, plan changes and deadline reminders will show up here.',
     change: '{name} changed the plan',
     changeAnon: 'The plan changed',
     due: { booking: 'Booking due {rel}', payment: 'Payment due {rel}', task: 'Task due {rel}' },
@@ -126,7 +128,8 @@ const PUSH: Record<string, PushStrings> = {
     thread: '{name}: новое обсуждение',
     reply: '{name}: ответ',
     resolved: '{name}: обсуждение решено',
-    test: 'Уведомления на этом устройстве работают.',
+    testTitle: 'Уведомления включены',
+    test: 'Сюда будут приходить ответы, изменения в плане и напоминания о сроках.',
     change: '{name}: изменения в плане',
     changeAnon: 'Изменения в плане',
     due: { booking: 'Срок бронирования — {rel}', payment: 'Оплата — {rel}', task: 'Срок задачи — {rel}' },

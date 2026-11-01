@@ -436,7 +436,7 @@ export const en = {
   'notifications.error': 'Couldn’t load notifications.',
 
   'push.title': 'Turn on notifications?',
-  'push.lead': 'Hear about replies and new discussions on your trips, even when this site is closed.',
+  'push.lead': 'Hear about replies, plan changes and deadlines on your trips, even when this site is closed.',
   'push.allow': 'Turn on',
   'push.later': 'Not now',
   'push.never': 'Don’t ask again',
@@ -453,7 +453,7 @@ export const en = {
   'notifications.filterUnread': 'Unread',
   'notifications.today': 'Today',
   'notifications.yesterday': 'Yesterday',
-  'push.hint': 'Replies and new discussions, even when the site is closed.',
+  'push.hint': 'Replies, plan changes and deadline reminders, even when the site is closed.',
 
   'push.unsupported': 'This browser doesn’t show notifications from sites.',
   'push.homeScreen': 'On iPhone and iPad: Share → Add to Home Screen, open the site from there, and turn them on here.',
