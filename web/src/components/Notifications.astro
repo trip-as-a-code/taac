@@ -45,7 +45,7 @@ const people = Object.fromEntries(
     <span class="badge-count" data-notifications-count></span>
     <span class="visually-hidden">{t('notifications.title')}</span>
   </button>
-  <dialog class="center" data-notifications-panel aria-labelledby="notifications-title">
+  <dialog class="center" data-notifications-panel aria-labelledby="notifications-title" tabindex="-1">
     <header>
       <h2 id="notifications-title" class="headline">
         {t('notifications.title')}
@@ -114,14 +114,25 @@ const people = Object.fromEntries(
     position: fixed;
     inset: calc(var(--nav-height) + env(safe-area-inset-top) + 6px) var(--gutter) auto auto;
     width: min(400px, calc(100vw - 2 * var(--gutter)));
-    max-height: min(640px, calc(100dvh - var(--nav-height) - 24px));
+    max-height: calc(100dvh - var(--nav-height) - 24px);
     margin: 0;
+    /* A few at most, so it never scrolls: the page and settings stay one tap away. */
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  .center[open] {
+    display: flex;
     padding: var(--space-4);
     border: 0;
     border-radius: 18px;
     background: var(--bg-elevated);
     color: var(--label);
     box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+  }
+
+  .center:focus {
+    outline: none;
   }
 
   .center::backdrop {
@@ -147,8 +158,12 @@ const people = Object.fromEntries(
     margin: 0;
   }
 
+  /* On the shortest screens the list gives way, never the buttons under it. */
   .list {
     display: grid;
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -159,12 +174,22 @@ const people = Object.fromEntries(
   }
 
   footer {
-    display: flex;
-    justify-content: space-between;
+    flex: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
-    margin-top: var(--space-2);
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--separator);
+    margin-top: var(--space-3);
+  }
+
+  footer .button {
+    justify-content: center;
+    min-height: 40px;
+    border-radius: 12px;
+    background: var(--fill);
+  }
+
+  footer .button:hover {
+    background: var(--fill-strong);
   }
 
   /* Built by scripts/notifications.ts. */

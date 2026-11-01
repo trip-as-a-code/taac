@@ -130,6 +130,9 @@ export async function markNotifications(read: boolean, which: { ids?: string[]; 
 }
 
 /** One notification: who did what, where and when, and what they said. */
+/** How many the bell's panel shows. */
+const PANEL = 5
+
 async function renderItem(n: Notification, ctx: Context, withToggle: boolean): Promise<HTMLLIElement> {
   const trip = await targetsOf(ctx.base, n.trip)
   const target = trip?.targets[n.anchor]
@@ -281,7 +284,8 @@ export async function setupNotifications() {
 
   async function load() {
     try {
-      ;({ notifications: items, unread } = await fetchPage(20))
+      // The latest few: the panel never scrolls; the rest is a tap away on the page.
+      ;({ notifications: items, unread } = await fetchPage(PANEL))
       error.hidden = true
     } catch {
       error.textContent = ctx!.strings.error!
@@ -299,6 +303,8 @@ export async function setupNotifications() {
 
   open.addEventListener('click', async () => {
     panel.showModal()
+    // The panel itself takes focus, not its first button (no ring on "read all").
+    panel.focus()
     await render()
   })
   readAll.addEventListener('click', () => void markNotifications(true, { all: true }))
