@@ -4,23 +4,28 @@
 
 import { placeHue, stayRuns, type DayStay } from '@/lib/stays'
 
-function stayElement(titles: string[], first: string, jump: string): HTMLElement {
+function stayElement(titles: string[]): HTMLElement {
   const stay = document.createElement('div')
   stay.className = 'stay'
   stay.dataset.stay = ''
-  if (!titles.length) {
-    stay.dataset.transit = ''
-    return stay
-  }
-  if (titles.length === 1) stay.style.setProperty('--place-hue', String(placeHue(titles[0]!)))
+  if (!titles.length) stay.dataset.transit = ''
+  else if (titles.length === 1) stay.style.setProperty('--place-hue', String(placeHue(titles[0]!)))
   else stay.dataset.split = ''
+  return stay
+}
+
+/** The place's name, kept with its first day so it never ends a row alone. */
+function leadElement(titles: string[], first: string, jump: string): HTMLElement {
+  const lead = document.createElement('span')
+  lead.className = 'stay-lead'
+  lead.dataset.stayLead = ''
   const label = document.createElement('a')
   label.className = 'stay-label'
   label.href = `#${first}`
   label.title = jump.replace('{place}', titles.join(' · '))
   label.textContent = titles.join(' · ')
-  stay.append(label)
-  return stay
+  lead.append(label)
+  return lead
 }
 
 /** Regroups the strip's chips for `people` (everyone when empty). */
@@ -35,15 +40,22 @@ export function groupStrip(strip: HTMLElement, people: string[]) {
   const byDate = new Map(chips.map((chip) => [chip.dataset.dayLink!, chip]))
   const jump = strip.dataset.jump ?? '{place}'
   const groups = stayRuns(days, people).map((run) => {
-    const stay = stayElement(run.titles, run.dates[0]!, jump)
+    const stay = stayElement(run.titles)
     const row = document.createElement('div')
     row.className = 'stay-days'
-    for (const date of run.dates) {
-      // A month's marker goes before its first day.
+    run.dates.forEach((date, i) => {
       const month = months.get(date)
-      if (month) row.append(month)
-      row.append(byDate.get(date)!)
-    }
+      // A place's name, or a month's marker, wraps with the day after it.
+      let into: HTMLElement = row
+      if (i === 0 && run.titles.length) into = leadElement(run.titles, date, jump)
+      else if (month) {
+        into = document.createElement('span')
+        into.className = 'stay-lead'
+      }
+      if (into !== row) row.append(into)
+      if (month) into.append(month)
+      into.append(byDate.get(date)!)
+    })
     stay.append(row)
     return stay
   })

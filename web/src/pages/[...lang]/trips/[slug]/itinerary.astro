@@ -104,31 +104,41 @@ const span = (from: string, to: string) =>
         data-split={run.titles.length > 1 ? '' : undefined}
         style={run.titles.length === 1 ? `--place-hue:${placeHue(run.titles[0]!)}` : undefined}
       >
-        {run.titles.length > 0 && (
-          <a
-            class="stay-label"
-            href={`#${run.dates[0]}`}
-            title={t('stay.jump', { place: run.titles.join(' · ') })}
-            lang={trip.locale}
-          >
-            {run.titles.join(' · ')}
-          </a>
-        )}
         <div class="stay-days">
-          {run.dates.map((day) => (
-            <>
-              {startsMonth(day) && (
-                <span class="month footnote" aria-hidden="true" data-month={day}>
-                  {date(day, { month: 'short' })}
-                </span>
-              )}
-              <a href={`#${day}`} class="day-chip" data-day-link={day} data-bases={basesOf(day)}>
-                <span class="dow">{date(day, { weekday: 'short' })}</span>
-                <span class="dom tabular">{date(day, { day: 'numeric' })}</span>
-                <span class="visually-hidden">{t('trip.dayN', { n: dayIndex.get(day)! + 1 })}</span>
-              </a>
-            </>
-          ))}
+          {run.dates.map((day, i) => {
+            const chip = (
+              <>
+                {startsMonth(day) && (
+                  <span class="month footnote" aria-hidden="true" data-month={day}>
+                    {date(day, { month: 'short' })}
+                  </span>
+                )}
+                <a href={`#${day}`} class="day-chip" data-day-link={day} data-bases={basesOf(day)}>
+                  <span class="dow">{date(day, { weekday: 'short' })}</span>
+                  <span class="dom tabular">{date(day, { day: 'numeric' })}</span>
+                  <span class="visually-hidden">{t('trip.dayN', { n: dayIndex.get(day)! + 1 })}</span>
+                </a>
+              </>
+            )
+            // A place's name, or a month's, wraps with the day after it: neither ends a row alone.
+            return i === 0 && run.titles.length > 0 ? (
+              <span class="stay-lead" data-stay-lead>
+                <a
+                  class="stay-label"
+                  href={`#${run.dates[0]}`}
+                  title={t('stay.jump', { place: run.titles.join(' · ') })}
+                  lang={trip.locale}
+                >
+                  {run.titles.join(' · ')}
+                </a>
+                {chip}
+              </span>
+            ) : startsMonth(day) ? (
+              <span class="stay-lead">{chip}</span>
+            ) : (
+              chip
+            )
+          })}
         </div>
       </div>
     ))}
@@ -284,14 +294,11 @@ const span = (from: string, to: string) =>
         chip.hidden = Boolean(
           document.getElementById(chip.dataset.dayLink!)?.closest<HTMLElement>('[data-day-section]')?.hidden,
         ) // A month marker goes when none of its days are left.
-      for (const month of document.querySelectorAll<HTMLElement>('.day-strip .month')) {
-        let next = month.nextElementSibling as HTMLElement | null
-        let any = false
-        while (next && !next.classList.contains('month')) {
-          any ||= !next.hidden
-          next = next.nextElementSibling as HTMLElement | null
-        }
-        month.hidden = !any
+      for (const month of document.querySelectorAll<HTMLElement>('[data-month]')) {
+        const key = month.dataset.month!.slice(0, 7)
+        month.hidden = ![...document.querySelectorAll<HTMLElement>('[data-day-link]')].some(
+          (chip) => chip.dataset.dayLink!.startsWith(key) && !chip.hidden,
+        )
       }
       hideEmptyStays(strip)
     })
@@ -314,8 +321,7 @@ const span = (from: string, to: string) =>
        without a positioned ancestor, they'd widen the whole page. */
     position: relative;
     display: flex;
-    align-items: flex-end;
-    gap: 8px;
+    gap: 6px;
     margin: 0 calc(-1 * var(--gutter)) var(--space-6);
     padding: 2px var(--gutter) var(--space-2);
     overflow-x: auto;
@@ -334,57 +340,42 @@ const span = (from: string, to: string) =>
   @media (min-width: 761px) {
     .day-strip {
       flex-wrap: wrap;
-      row-gap: var(--space-3);
       margin-inline: 0;
       padding-inline: 0;
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
     }
-
-    .day-strip :global(.stay) {
-      max-width: 100%;
-    }
-
-    .day-strip :global(.stay-days) {
-      flex-wrap: wrap;
-    }
   }
 
-  /* A place's run of days: tinted in its colour, its name on top. */
+  /* One row of days (wrapping only where they don't fit): a place's name
+     before its run, its colour on each of its days. */
+  .day-strip :global(.stay),
+  .day-strip :global(.stay-days) {
+    display: contents;
+  }
+
   .day-strip :global(.stay) {
     --place-hue: 210;
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 6px;
-    border-radius: 20px;
-    background: hsl(var(--place-hue) 70% 55% / 0.12);
-  }
-
-  .day-strip :global(.stay[data-split]) {
-    background: var(--fill);
-  }
-
-  /* Nights in transit: no place, no tint. */
-  .day-strip :global(.stay[data-transit]) {
-    padding-inline: 0;
-    background: none;
   }
 
   .day-strip :global(.stay[hidden]) {
     display: none;
   }
 
-  /* Stays in view while a long stay scrolls past. */
+  .day-strip :global(.stay-lead) {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .day-strip :global(.stay-label) {
-    position: sticky;
-    left: 6px;
-    align-self: flex-start;
-    /* A short stay doesn't widen to fit a long name: the rest is in the tooltip. */
-    max-width: max(100%, 168px);
-    padding: 0 6px;
+    flex: none;
+    align-self: center;
+    /* A long name gives way; the rest is in the tooltip. */
+    max-width: 150px;
+    padding: 0 2px 0 6px;
     overflow: hidden;
     font-size: 13px;
     font-weight: 600;
@@ -406,9 +397,19 @@ const span = (from: string, to: string) =>
     text-decoration: underline;
   }
 
-  .day-strip :global(.stay-days) {
-    display: flex;
-    gap: 6px;
+  /* Nights in transit keep the plain chip. */
+  .day-strip :global(.stay:not([data-transit]) .day-chip) {
+    background: color-mix(in srgb, hsl(var(--place-hue) 70% 50%) 14%, var(--bg-grouped));
+    box-shadow:
+      inset 0 -3px 0 hsl(var(--place-hue) 70% 55%),
+      var(--shadow-sm);
+  }
+
+  .day-strip :global(.stay[data-split] .day-chip) {
+    background: var(--bg-grouped);
+    box-shadow:
+      inset 0 -3px 0 var(--separator-strong),
+      var(--shadow-sm);
   }
 
   .month {
