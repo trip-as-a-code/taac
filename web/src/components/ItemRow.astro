@@ -98,7 +98,16 @@ const offsetLabel =
   class:list={['item', { shared: everyone || grouped, 'with-photo': shownPhoto }]}
 >
   <div class="when tabular">
-    {withDate && <span class="date">{date(item.local.date, { day: 'numeric', month: 'short' })}</span>}
+    {withDate && (
+      <span class="date">
+        {date(item.local.date, {
+          day: 'numeric',
+          month: 'short',
+          // Into the trip's next year, the year too.
+          ...(item.local.date.slice(0, 4) !== trip.days[0]?.date.slice(0, 4) ? { year: '2-digit' } : {}),
+        })}
+      </span>
+    )}
     <span class:list={['time', { loose: !item.local.time }]}>
       {item.local.time ?? t(`part.${item.local.part ?? 'anytime'}`)}
     </span>

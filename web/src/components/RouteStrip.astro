@@ -15,10 +15,12 @@ const rows = routeRows(trip, i18n.t('party.and'))
 // One shared day grid, so parallel tracks line up in time.
 const start = trip.startDate ?? rows[0]?.bases[0]?.from ?? ''
 const columns = trip.days.length || 1
+// Two months and more: the whole route fits the page instead of scrolling sideways.
+const fit = columns > 60
 ---
 
 <div class="route" style={`--hue:${tripHue(trip)};--columns:${columns}`}>
-  <div class="grid">
+  <div class:list={['grid', { fit }]}>
     {rows.map((row, r) => (
       <>
         {row.label && (
@@ -96,6 +98,27 @@ const columns = trip.days.length || 1
     grid-auto-flow: row;
     gap: 6px 3px;
     min-width: calc(var(--columns) * 29px);
+  }
+
+  /* A long route fits the width; a short stop keeps its colour, its name in the tooltip. */
+  .grid.fit {
+    grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+    column-gap: 2px;
+    min-width: 0;
+  }
+
+  .fit .stop {
+    container-type: inline-size;
+    padding: 8px 6px;
+    overflow: hidden;
+  }
+
+  /* Too narrow to read: just the colour (the tooltip names it). */
+  @container (max-width: 44px) {
+    .fit .stop .name,
+    .fit .stop .nights {
+      display: none;
+    }
   }
 
   .label {

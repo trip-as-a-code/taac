@@ -1,8 +1,12 @@
 // Wide screens: once the day strip scrolls away, a month calendar takes its
-// place in the margin left of the page, like the mini calendar beside a
-// calendar app's day view. It is drawn from the strip itself, so it shows the
-// same places (each in its colour), the same people and the same filters; the
-// day being read is filled, and a tap on a day goes to it.
+// place in the margin left of the page, like the mini month beside a calendar
+// app's day view. One month at a time, however long the trip: the month of
+// the day being read, or another with its arrows. Its days carry their
+// place's colour for the people in view, days the filters leave out are dim,
+// the day being read is filled, and a tap goes to a day.
+
+import { placesOf, splitBar, type DayStay } from '@/lib/stays'
+import { getLens } from '@/scripts/lens'
 
 const POINTER = '(hover: hover)'
 const WIDTH = 236
@@ -11,8 +15,7 @@ const GAP = 24
 interface Day {
   date: string
   chip: HTMLAnchorElement
-  /** The place's colour: a hue, or a split stay's bar. */
-  hue?: string
+  hue?: number
   bar?: string
   place: string
 }
@@ -20,80 +23,86 @@ interface Day {
 let cleanup: (() => void) | undefined
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
-const parse = (date: string) => new Date(`${date}T00:00:00Z`)
 
-/** Where its people sleep: the stay's places, as the strip names them. */
-function placeOf(stay: HTMLElement | null): string {
-  const names = [...(stay?.querySelectorAll('.stay-name') ?? [])].map((n) => n.textContent ?? '')
-  return names.length ? names.join(' · ') : (stay?.querySelector('.stay-label')?.textContent?.trim() ?? '')
-}
-
+/** Each trip day from its chip: where its people sleep, in the strip's colours. */
 function daysOf(strip: HTMLElement): Day[] {
+  const hues = JSON.parse(strip.dataset.hues ?? '{}') as Record<string, number>
+  const people = getLens().people
   return [...strip.querySelectorAll<HTMLAnchorElement>('[data-day-link]')].map((chip) => {
-    const stay = chip.closest<HTMLElement>('[data-stay]')
+    const places = placesOf(
+      { date: chip.dataset.dayLink!, bases: JSON.parse(chip.dataset.bases ?? '[]') as DayStay['bases'] },
+      people,
+    )
+    const titles = places.map((p) => p.title)
     return {
       date: chip.dataset.dayLink!,
       chip,
-      hue: stay?.style.getPropertyValue('--place-hue') || undefined,
-      bar: stay?.style.getPropertyValue('--split-bar') || undefined,
-      place: placeOf(stay),
+      hue: titles.length === 1 ? hues[titles[0]!] : undefined,
+      bar: titles.length > 1 ? splitBar({ titles, who: places.map((p) => p.members), dates: [] }, hues) : undefined,
+      place: titles.join(' · '),
     }
   })
 }
 
-/** Every month the trip touches, Monday-first weeks, the trip's days marked. */
-function draw(box: HTMLElement, days: Day[], lang: string) {
-  const byDate = new Map(days.map((d) => [d.date, d]))
-  const first = parse(days[0]!.date)
-  const last = parse(days.at(-1)!.date)
-  const monthName = new Intl.DateTimeFormat(lang, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+const arrow = (d: string) =>
+  `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`
+
+/** One month, Monday-first, always six weeks tall so paging never jumps. */
+function drawMonth(box: HTMLElement, month: string, days: Map<string, Day>, months: string[], lang: string) {
+  const first = new Date(`${month}-01T00:00:00Z`)
+  const monthName = new Intl.DateTimeFormat(lang, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first)
   const weekday = new Intl.DateTimeFormat(lang, { weekday: 'narrow', timeZone: 'UTC' })
   const today = ymd(new Date())
-  const months: HTMLElement[] = []
-  for (let m = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1)); m <= last;) {
-    const month = document.createElement('section')
-    month.className = 'side-cal-month'
-    const title = document.createElement('h3')
-    const name = monthName.format(m)
-    title.textContent = name.charAt(0).toUpperCase() + name.slice(1)
-    const grid = document.createElement('div')
-    grid.className = 'side-cal-grid'
-    // Monday-first: 2024-01-01 was a Monday.
-    for (let i = 0; i < 7; i++) {
-      const head = document.createElement('span')
-      head.className = 'side-cal-weekday'
-      head.textContent = weekday.format(new Date(Date.UTC(2024, 0, 1 + i)))
-      grid.append(head)
-    }
-    const lead = (m.getUTCDay() + 6) % 7
-    for (let i = 0; i < lead; i++) grid.append(document.createElement('span'))
-    const next = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth() + 1, 1))
-    for (let d = new Date(m); d < next; d.setUTCDate(d.getUTCDate() + 1)) {
-      const date = ymd(d)
-      const day = byDate.get(date)
-      const cell = document.createElement(day ? 'button' : 'span')
-      cell.className = 'side-cal-day'
-      cell.textContent = String(d.getUTCDate())
-      cell.toggleAttribute('data-today', date === today)
-      if (day) {
-        ;(cell as HTMLButtonElement).type = 'button'
-        cell.dataset.sideCalDay = date
-        cell.toggleAttribute('data-hidden', day.chip.hasAttribute('hidden'))
-        if (day.hue) cell.style.setProperty('--place-hue', day.hue)
-        if (day.bar) cell.style.setProperty('--split-bar', day.bar)
-        cell.title = day.place
-        cell.addEventListener('click', () => day.chip.click())
-      }
-      grid.append(cell)
-    }
-    month.append(title, grid)
-    months.push(month)
-    m = next
+  const head = document.createElement('header')
+  head.className = 'side-cal-head'
+  const title = document.createElement('h3')
+  title.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1)
+  const at = months.indexOf(month)
+  const step = (by: number, path: string) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'side-cal-step'
+    b.innerHTML = arrow(path)
+    b.disabled = !months[at + by]
+    b.dataset.sideCalStep = String(by)
+    return b
   }
+  head.append(title, step(-1, 'm15 18-6-6 6-6'), step(1, 'm9 18 6-6-6-6'))
+  const grid = document.createElement('div')
+  grid.className = 'side-cal-grid'
+  // Monday-first: 2024-01-01 was a Monday.
+  for (let i = 0; i < 7; i++) {
+    const w = document.createElement('span')
+    w.className = 'side-cal-weekday'
+    w.textContent = weekday.format(new Date(Date.UTC(2024, 0, 1 + i)))
+    grid.append(w)
+  }
+  const lead = (first.getUTCDay() + 6) % 7
+  for (let i = 0; i < lead; i++) grid.append(document.createElement('span'))
+  const next = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1))
+  let cells = lead
+  for (let d = new Date(first); d < next; d.setUTCDate(d.getUTCDate() + 1), cells++) {
+    const date = ymd(d)
+    const day = days.get(date)
+    const cell = document.createElement(day ? 'button' : 'span')
+    cell.className = 'side-cal-day'
+    cell.textContent = String(d.getUTCDate())
+    cell.toggleAttribute('data-today', date === today)
+    if (day) {
+      ;(cell as HTMLButtonElement).type = 'button'
+      cell.dataset.sideCalDay = date
+      cell.toggleAttribute('data-hidden', day.chip.hasAttribute('hidden'))
+      if (day.hue !== undefined) cell.style.setProperty('--place-hue', String(day.hue))
+      if (day.bar) cell.style.setProperty('--split-bar', day.bar)
+      cell.title = day.place
+    }
+    grid.append(cell)
+  }
+  for (; cells < 42; cells++) grid.append(document.createElement('span'))
   const place = document.createElement('p')
   place.className = 'side-cal-place'
   place.dataset.sideCalPlace = ''
-  box.replaceChildren(...months, place)
+  box.replaceChildren(head, grid, place)
 }
 
 export function setupSideCalendar() {
@@ -104,13 +113,21 @@ export function setupSideCalendar() {
   const tabs = document.querySelector<HTMLElement>('.tabs')
   if (!box || !strip || !content) return
   const lang = document.documentElement.lang || 'en'
-  let days: Day[] = []
+  let days = new Map<string, Day>()
+  let months: string[] = []
+  let shown = ''
+  let reading = ''
   let stripGone = false
+  const draw = () => {
+    if (shown) drawMonth(box, shown, days, months, lang)
+    mark()
+  }
   const redraw = () => {
-    days = daysOf(strip)
-    if (days.length) draw(box, days, lang)
-    place()
-    spy()
+    const list = daysOf(strip)
+    days = new Map(list.map((d) => [d.date, d]))
+    months = [...new Set(list.map((d) => d.date.slice(0, 7)))]
+    if (!months.includes(shown)) shown = months[0] ?? ''
+    draw()
   }
   // Beside the page, as far from its text as the discussions on the other
   // side (the page's own padding), below the sticky bars, where the margin holds it.
@@ -118,26 +135,47 @@ export function setupSideCalendar() {
     const left = content.getBoundingClientRect().left
     const gutter = parseFloat(getComputedStyle(content).paddingLeft) || 0
     const fits = matchMedia(POINTER).matches && left >= WIDTH + gutter
-    box.hidden = !fits || !stripGone || !days.length
+    box.hidden = !fits || !stripGone || !days.size
     box.style.left = `${left - WIDTH}px`
     box.style.top = `${(tabs?.getBoundingClientRect().bottom ?? 0) + GAP}px`
   }
-  // The day being read: the last one whose heading is in the top third of the view.
+  /** Fills the day being read, if it is in the month shown, and names its place. */
+  const mark = () => {
+    for (const cell of box.querySelectorAll<HTMLElement>('[data-current]')) cell.removeAttribute('data-current')
+    const cell = reading ? box.querySelector<HTMLElement>(`[data-side-cal-day="${reading}"]`) : null
+    cell?.setAttribute('data-current', '')
+    const label = box.querySelector<HTMLElement>('[data-side-cal-place]')
+    if (label) label.textContent = days.get(reading)?.place ?? ''
+  }
+  // The day being read: the last one whose heading is in the top third of the
+  // view. Its month comes into the calendar, and the strip hears of it.
   const spy = () => {
-    if (box.hidden) return
     const top = tabs?.getBoundingClientRect().bottom ?? 0
     const line = top + (innerHeight - top) / 3
-    let current: string | undefined
+    let current = ''
     for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]')) {
       if (section.hidden) continue
       if (section.getBoundingClientRect().top > line) break
       current = section.id
     }
-    for (const cell of box.querySelectorAll<HTMLElement>('[data-current]')) cell.removeAttribute('data-current')
-    const cell = current ? box.querySelector<HTMLElement>(`[data-side-cal-day="${current}"]`) : null
-    cell?.setAttribute('data-current', '')
-    const label = box.querySelector<HTMLElement>('[data-side-cal-place]')
-    if (label) label.textContent = cell?.title ?? ''
+    if (!current || current === reading) return
+    const turned = current.slice(0, 7) !== reading.slice(0, 7)
+    reading = current
+    document.dispatchEvent(new CustomEvent('day-in-view', { detail: current }))
+    if (turned && months.includes(current.slice(0, 7))) {
+      shown = current.slice(0, 7)
+      draw()
+    } else mark()
+  }
+  box.onclick = (event) => {
+    const target = event.target as Element
+    const step = target.closest<HTMLElement>('[data-side-cal-step]')
+    if (step) {
+      shown = months[months.indexOf(shown) + Number(step.dataset.sideCalStep)] ?? shown
+      return draw()
+    }
+    const day = target.closest<HTMLElement>('[data-side-cal-day]')
+    if (day) days.get(day.dataset.sideCalDay!)?.chip.click()
   }
   let frame = 0
   const onScroll = () => {
@@ -148,17 +186,18 @@ export function setupSideCalendar() {
     ([entry]) => {
       stripGone = !entry!.isIntersecting
       place()
-      spy()
     },
     { rootMargin: `-${(tabs?.getBoundingClientRect().bottom ?? 0) + 8}px 0px 0px 0px` },
   )
   seen.observe(strip)
-  // The strip regroups for the lens and hides days the filters leave out.
+  // The strip regroups for the lens or a month, and hides days the filters leave out.
   const changes = new MutationObserver(redraw)
-  changes.observe(strip, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'style'] })
+  changes.observe(strip, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] })
   addEventListener('scroll', onScroll, { passive: true })
   addEventListener('resize', place)
   redraw()
+  spy()
+  place()
   cleanup = () => {
     seen.disconnect()
     changes.disconnect()

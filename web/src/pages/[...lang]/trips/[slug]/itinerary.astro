@@ -73,6 +73,19 @@ const stripPeople = Object.fromEntries(
   trip.members.map((m) => [m.id, { name: m.name, initials: initials(m), hue: memberHue(m.id), github: m.github }]),
 )
 const basesOf = (date: string) => JSON.stringify(nights.find((n) => n.date === date)?.bases ?? [])
+// Six weeks and more: the strip shows a month at a time.
+const stripMonths = [...new Set(trip.days.map((d) => d.date.slice(0, 7)))]
+const paged = trip.days.length > 42 && stripMonths.length > 1
+const monthLabel = (m: string, i: number) => {
+  const first = new Date(`${m}-01T00:00:00Z`)
+  // The year only where it changes, so a year-long trip still reads "Jan 2027".
+  const withYear = i === 0 || m.endsWith('-01')
+  return new Intl.DateTimeFormat(lang, {
+    month: 'short',
+    ...(withYear ? { year: 'numeric' } : {}),
+    timeZone: 'UTC',
+  }).format(first)
+}
 const dayIndex = new Map(trip.days.map((d, i) => [d.date, i]))
 // Where a month starts (and at the first day): 31 → 1 reads as a new month, not a typo.
 const startsMonth = (date: string) => {
@@ -80,10 +93,12 @@ const startsMonth = (date: string) => {
   return i === 0 || date.slice(5, 7) !== trip.days[i - 1]!.date.slice(5, 7)
 }
 
-// A bed is news the night you check in; after that the base chip says where you are.
-// Short, without the year: a run never spans more than a few weeks.
+// A date says its year once the trip has run into another one: on a long trip
+// "10 Dec" could be either end of it.
+const firstYear = trip.days[0]?.date.slice(0, 4)
+const year = (d: string) => (d.slice(0, 4) !== firstYear ? ({ year: 'numeric' } as const) : {})
 const span = (from: string, to: string) =>
-  `${date(from, { day: 'numeric', month: 'short' })} – ${date(to, { day: 'numeric', month: 'short' })}`
+  `${date(from, { day: 'numeric', month: 'short', ...year(from) })} – ${date(to, { day: 'numeric', month: 'short', ...year(to) })}`
 ---
 
 <TripLayout trip={trip} lang={lang} section="itinerary">
@@ -97,8 +112,20 @@ const span = (from: string, to: string) =>
     />
   </div>
 
+  {/* A long trip's strip goes a month at a time (scripts/stays): one row, not a wall of days. */}
+  {paged && (
+    <div class="strip-months" role="group" aria-label={t('filter.day')} data-strip-months>
+      {stripMonths.map((m, i) => (
+        <button type="button" data-strip-month={m} aria-pressed={i === 0 ? 'true' : 'false'}>
+          {monthLabel(m, i)}
+        </button>
+      ))}
+    </div>
+  )}
+
   {/* Days grouped by where the night is spent, each place's name jumping to its first day (scripts/stays). */}
   <nav
+    data-paged={paged ? '' : undefined}
     class="day-strip"
     aria-label={t('filter.day')}
     data-day-strip
@@ -237,7 +264,7 @@ const span = (from: string, to: string) =>
                 <span class="weekday">{date(day.date, { weekday: 'long' })}</span>
                 {/* The link stays on the date's line. */}
                 <span class="date-line">
-                  <span class="tabular">{date(day.date, { day: 'numeric', month: 'long' })}</span>
+                  <span class="tabular">{date(day.date, { day: 'numeric', month: 'long', ...year(day.date) })}</span>
                   <ThreadButton
                     anchor={`day:${day.date}`}
                     title={date(day.date, { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -311,16 +338,42 @@ const span = (from: string, to: string) =>
   import { groupStrip, hideEmptyStays } from '@/scripts/stays'
 
   let stopLens: (() => void) | undefined
+  let stopFollow: (() => void) | undefined
 
   onPage('itinerary', () => {
     setupSideCalendar()
     // The strip's groups follow the lens: where its people sleep.
     const strip = document.querySelector<HTMLElement>('[data-day-strip]')!
+    // A long trip: one month of the strip at a time, the one being read once it's scrolled to.
+    const switcher = document.querySelector<HTMLElement>('[data-strip-months]')
+    const tabs = [...(switcher?.querySelectorAll<HTMLButtonElement>('[data-strip-month]') ?? [])]
+    const firstDay = strip.querySelector<HTMLElement>('[data-day-link]')?.dataset.dayLink ?? ''
+    const lastDay = [...strip.querySelectorAll<HTMLElement>('[data-day-link]')].at(-1)?.dataset.dayLink ?? ''
+    const now = new Date(todayUTC()).toISOString().slice(0, 10)
+    const asked = /^#(\d{4}-\d{2})-\d{2}$/.exec(location.hash)?.[1]
+    let month = switcher
+      ? (asked ?? (now >= firstDay && now <= lastDay ? now.slice(0, 7) : firstDay.slice(0, 7)))
+      : undefined
     const regroup = () => {
-      groupStrip(strip, getLens().people)
+      groupStrip(strip, getLens().people, month)
       hideEmptyStays(strip)
+      for (const tab of tabs) tab.setAttribute('aria-pressed', String(tab.dataset.stripMonth === month))
+      strip.dataset.ready = ''
     }
-    if (getLens().people.length) regroup()
+    const show = (next: string) => {
+      if (!switcher || next === month) return
+      month = next
+      regroup()
+      // Its pill into view, sideways only: the page itself stays where it is.
+      const tab = tabs.find((t) => t.dataset.stripMonth === month)
+      if (tab && switcher) switcher.scrollLeft = tab.offsetLeft - (switcher.clientWidth - tab.offsetWidth) / 2
+    }
+    for (const tab of tabs) tab.addEventListener('click', () => show(tab.dataset.stripMonth!))
+    stopFollow?.()
+    const follow = (event: Event) => show((event as CustomEvent<string>).detail.slice(0, 7))
+    document.addEventListener('day-in-view', follow)
+    stopFollow = () => document.removeEventListener('day-in-view', follow)
+    if (getLens().people.length || month) regroup()
     stopLens?.()
     stopLens = onLens(regroup)
     // Days the filters emptied drop out of the strip too; so do group
@@ -350,6 +403,45 @@ const span = (from: string, to: string) =>
 </script>
 
 <style>
+  /* A long trip's months, a row of pills that scrolls sideways if it must. */
+  .strip-months {
+    display: flex;
+    gap: 6px;
+    margin: 0 calc(-1 * var(--gutter)) var(--space-3);
+    padding: 2px var(--gutter);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .strip-months::-webkit-scrollbar {
+    display: none;
+  }
+
+  .strip-months button {
+    flex: none;
+    min-height: 30px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label);
+    background: var(--fill);
+    cursor: pointer;
+  }
+
+  .strip-months button[aria-pressed='true'] {
+    color: #fff;
+    background: var(--tint);
+  }
+
+  /* Until the script has picked the month, a long strip shows no more than its first rows. */
+  .day-strip[data-paged]:not([data-ready]) {
+    max-height: 140px;
+    overflow: hidden;
+  }
+
   .toolbar {
     margin-bottom: var(--space-4);
   }

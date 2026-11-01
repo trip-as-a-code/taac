@@ -101,6 +101,7 @@ const routes = trip.items
   }))
 const overlays = trip.overlays.map((o) => ({ name: o.name, data: o.data }))
 const data = { places, routes, items: itemInfo, overlays, areas }
+const multiYear = new Set(trip.days.map((d) => d.date.slice(0, 4))).size > 1
 ---
 
 <TripLayout trip={trip} lang={lang} section="map" bare>
@@ -119,7 +120,8 @@ const data = { places, routes, items: itemInfo, overlays, areas }
             { value: '', label: t('filter.allDays') },
             ...trip.days.map((day, index) => ({
               value: day.date,
-              label: `${t('trip.dayN', { n: index + 1 })} · ${date(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`,
+              // A trip that crosses a new year says which year each day is in.
+              label: `${t('trip.dayN', { n: index + 1 })} · ${date(day.date, { weekday: 'short', day: 'numeric', month: 'short', ...(multiYear ? { year: 'numeric' } : {}) })}`,
             })),
           ]}
         />
