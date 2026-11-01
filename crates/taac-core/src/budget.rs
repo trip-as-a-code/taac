@@ -88,7 +88,7 @@ pub struct CurrencyBudget {
     pub settlements: Vec<Settlement>,
 }
 
-/// `committed` counts only booked items; `planned` everything not cancelled.
+/// `committed` counts only booked items; `planned` every item.
 #[derive(Debug, Clone, Copy, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Amounts {
@@ -136,12 +136,6 @@ pub fn is_committed(item: &Item) -> bool {
     item.booking
         .as_ref()
         .is_some_and(|b| b.status == BookingStatus::Booked)
-}
-
-fn is_cancelled(item: &Item) -> bool {
-    item.booking
-        .as_ref()
-        .is_some_and(|b| b.status == BookingStatus::Cancelled)
 }
 
 /// Splits `amount` per the rule, in cents, so shares always sum exactly.
@@ -370,16 +364,9 @@ pub fn compute(trip: &Trip) -> Budget {
     };
 
     for item in &trip.itinerary {
-        if is_cancelled(item) {
-            continue;
-        }
         // Each reservation counts for its own people, booked or not.
         for part in item.parts() {
-            let status = part.booking.as_ref().map(|b| b.status);
-            if status == Some(BookingStatus::Cancelled) {
-                continue;
-            }
-            let committed = status == Some(BookingStatus::Booked);
+            let committed = part.booking.as_ref().map(|b| b.status) == Some(BookingStatus::Booked);
             let participants = part
                 .who
                 .map_or_else(|| trip.participants(item), |w| trip.who(Some(w)));

@@ -875,31 +875,31 @@ impl Reservation {
 }
 
 /// The plan's overall state across reservations: needs booking while any
-/// does, booked once all that are not cancelled are, cancelled when all are.
+/// does, booked once all are.
 pub fn summarize(reservations: &[Reservation]) -> Option<Booking> {
     let first = reservations.first()?;
-    let live: Vec<&Reservation> = reservations
+    let status = if reservations
         .iter()
-        .filter(|r| r.status != BookingStatus::Cancelled)
-        .collect();
-    let status = if live.is_empty() {
-        BookingStatus::Cancelled
-    } else if live.iter().any(|r| r.status == BookingStatus::Required) {
+        .any(|r| r.status == BookingStatus::Required)
+    {
         BookingStatus::Required
-    } else if live.iter().any(|r| r.status == BookingStatus::Booked) {
+    } else if reservations
+        .iter()
+        .any(|r| r.status == BookingStatus::Booked)
+    {
         BookingStatus::Booked
     } else {
         BookingStatus::NotRequired
     };
     Some(Booking {
         status,
-        deadline: live
+        deadline: reservations
             .iter()
             .filter(|r| r.status == BookingStatus::Required)
             .filter_map(|r| r.deadline)
             .min(),
         provider: first.provider.clone(),
-        url: live
+        url: reservations
             .iter()
             .find(|r| r.status == BookingStatus::Required)
             .and_then(|r| r.url.clone())
@@ -915,7 +915,6 @@ pub enum BookingStatus {
     Required,
     Booked,
     NotRequired,
-    Cancelled,
 }
 
 impl BookingStatus {
@@ -924,7 +923,6 @@ impl BookingStatus {
             Self::Required => "required",
             Self::Booked => "booked",
             Self::NotRequired => "notRequired",
-            Self::Cancelled => "cancelled",
         }
     }
 }

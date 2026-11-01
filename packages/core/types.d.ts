@@ -49,7 +49,7 @@ export interface SiteExport {
 
 export type ItemKind =
   'flight' | 'train' | 'bus' | 'ferry' | 'transfer' | 'walk' | 'ride' | 'lodging' | 'activity' | 'meal' | 'note'
-export type BookingStatus = 'required' | 'booked' | 'notRequired' | 'cancelled'
+export type BookingStatus = 'required' | 'booked' | 'notRequired'
 
 export interface Member {
   id: string

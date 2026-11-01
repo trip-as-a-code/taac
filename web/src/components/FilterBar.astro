@@ -28,7 +28,7 @@ interface Option {
   some: (f: Facts) => boolean
 }
 
-const statuses = ['required', 'booked', 'notRequired', 'cancelled'] as const
+const statuses = ['required', 'booked', 'notRequired'] as const
 const kinds = Object.keys(kindIcon) as CostKind[]
 // Cities and other areas first ("Tokyo and around"), then the spots themselves.
 const byName = (a: string, b: string) => trip.places[a]!.name.localeCompare(trip.places[b]!.name)

@@ -700,8 +700,7 @@
           "type": "string",
           "enum": [
             "booked",
-            "notRequired",
-            "cancelled"
+            "notRequired"
           ]
         },
         {

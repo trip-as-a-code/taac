@@ -76,7 +76,6 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
         let status = match item.booking.as_ref().map(|b| b.status) {
             Some(BookingStatus::Booked | BookingStatus::NotRequired) | None => "CONFIRMED",
             Some(BookingStatus::Required) => "TENTATIVE",
-            Some(BookingStatus::Cancelled) => "CANCELLED",
         };
 
         let mut description = Vec::new();
