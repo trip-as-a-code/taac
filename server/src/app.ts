@@ -493,7 +493,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
       for (const sub of subs) {
         const subLang = chosen ?? sub.lang
         const result = await config.push.send(sub, {
-          title: localizedText(manifest.title, subLang),
+          title: pushStrings(subLang).testTitle,
           body: pushStrings(subLang).test,
           url: localeRoot(subLang === manifest.defaultLocale ? null : subLang, manifest),
           tag: 'test',

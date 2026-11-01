@@ -664,7 +664,11 @@ describe('browser notifications', () => {
       new Request('https://trips.example/api/push/test', { method: 'POST', headers: { Cookie: theirs }, body: '{}' }),
     )
     expect(await test.json()).toMatchObject({ sent: 1, of: 1 })
-    expect(sent[0]![1]).toMatchObject({ body: 'Уведомления на этом устройстве работают.', tag: 'test' })
+    expect(sent[0]![1]).toMatchObject({
+      title: 'Уведомления включены',
+      body: 'Сюда будут приходить ответы, изменения в плане и напоминания о сроках.',
+      tag: 'test',
+    })
   })
 })
 
