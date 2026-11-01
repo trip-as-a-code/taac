@@ -485,18 +485,11 @@ const offsetLabel =
 
   /* The disclosure chevron sits in the corner, so it never wraps onto a
      line of its own after a long title. */
-  /* Only cards with a photo widen their leading column. */
-  .item.with-photo {
-    grid-template-columns: 64px 52px minmax(0, 1fr);
-  }
-
+  /* A photo is the kind icon's size and in its place: the row doesn't shift. */
   .glyph.photo {
     position: relative;
-    width: 52px;
-    height: 52px;
     padding: 0;
     border: 0;
-    border-radius: 12px;
     overflow: hidden;
     cursor: zoom-in;
     -webkit-tap-highlight-color: transparent;
@@ -819,6 +812,9 @@ const offsetLabel =
     /* A photo stays, under the time; the text keeps its column, also when open. */
     .glyph.photo {
       display: block;
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
       grid-column: 1;
       grid-row: 2;
       align-self: start;
