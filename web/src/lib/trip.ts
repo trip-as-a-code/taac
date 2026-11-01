@@ -2,6 +2,7 @@ import type { Base, BookingStatus, Idea, Item, ItemKind, Member, Pass, TripExpor
 import { marked } from 'marked'
 
 import { issuesOf } from '@/lib/facts'
+import { distanceM } from '@/lib/geo'
 
 import type { IconName } from '@/components/Icon.astro'
 
@@ -167,15 +168,6 @@ export function ideasByArea(trip: TripExport): Map<string, Idea[]> {
     out.set(key, [...(out.get(key) ?? []), idea])
   }
   return out
-}
-
-/** Great-circle metres between two `[lat, lon]` points. */
-function distanceM([lat1, lon1]: [number, number], [lat2, lon2]: [number, number]): number {
-  const rad = Math.PI / 180
-  const h =
-    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
-    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lon2 - lon1) * rad) / 2) ** 2
-  return 12_742_000 * Math.asin(Math.sqrt(h))
 }
 
 /** Whether a place lies in a base's area (within its radius; without one, only the place itself). */

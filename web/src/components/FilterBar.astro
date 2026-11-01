@@ -30,9 +30,13 @@ interface Option {
 
 const statuses = ['required', 'booked', 'notRequired', 'cancelled'] as const
 const kinds = Object.keys(kindIcon) as CostKind[]
-const placeIds = [...new Set(facts.flatMap((f) => f.places))]
-  .filter((id) => trip.places[id])
-  .sort((a, b) => trip.places[a].name.localeCompare(trip.places[b].name))
+// Cities and other areas first ("Tokyo and around"), then the spots themselves.
+const byName = (a: string, b: string) => trip.places[a]!.name.localeCompare(trip.places[b]!.name)
+const used = [...new Set(facts.flatMap((f) => f.places))].filter((id) => trip.places[id])
+const placeIds = [
+  ...used.filter((id) => trip.places[id]!.radius).sort(byName),
+  ...used.filter((id) => !trip.places[id]!.radius).sort(byName),
+]
 
 const options: Record<Exclude<Facet, 'place'>, Option[]> = {
   focus: [
@@ -146,7 +150,12 @@ const id = 'filters-panel'
           class="place"
           options={[
             { value: '', label: t('filter.anyPlace') },
-            ...placeIds.map((p) => ({ value: p, label: trip.places[p].name, lang: trip.locale })),
+            ...placeIds.map((p) => ({
+              value: p,
+              label: trip.places[p]!.radius ? t('filter.area', { name: trip.places[p]!.name }) : trip.places[p]!.name,
+              short: trip.places[p]!.name,
+              lang: trip.locale,
+            })),
           ]}
         />
       </section>

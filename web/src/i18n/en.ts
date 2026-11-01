@@ -477,6 +477,10 @@ export const en = {
 
   'photo.open': 'Open photo',
 
+  'stay.jump': 'Go to {place}',
+
+  'filter.area': '{name} and around',
+
   'a11y.skip': 'Skip to content',
   'a11y.openMenu': 'Open menu',
 }
