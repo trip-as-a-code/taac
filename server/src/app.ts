@@ -42,6 +42,7 @@ import {
   verifySession,
 } from './auth'
 import { avatarLogin, avatarSource, mayShowAvatar } from './avatars'
+import { photoRoute, photoSource, type PhotoEntry, type PhotoSize } from './photos'
 import { parseSubscription, type PushMessage, type PushSender } from './push'
 import {
   changeEvents,
@@ -137,6 +138,13 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
   const secure = (request: Request) => origin(request).startsWith('https:')
   const ready = !isProtected(manifest) || (!!config.sessionSecret && !!config.github)
   const avatarOf = avatarSource(config.store, config.fetcher ?? fetch)
+  const photoOf = photoSource(config.store, config.fetcher ?? fetch, `taac (+${config.publicUrl ?? 'self-hosted'})`)
+  /** The photos the build lists (`/_taac/photos.json`), by id. */
+  let photoIndex: Promise<Record<string, PhotoEntry>> | undefined
+  const photos = () =>
+    (photoIndex ??= readFile(join(config.dist, '_taac', 'photos.json'), 'utf8')
+      .then((text) => JSON.parse(text) as Record<string, PhotoEntry>)
+      .catch((): Record<string, PhotoEntry> => ({})))
 
   async function loginOf(request: Request): Promise<string | null> {
     if (!config.sessionSecret) return null
@@ -604,6 +612,21 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     return key === (await calendarKey(config.sessionSecret, slug))
   }
 
+  /** A place's photo in a size, or 404 so the page keeps its icon. */
+  async function photo(request: Request, id: string, size: PhotoSize): Promise<Response> {
+    const none = () => new Response(null, { status: 404, headers: { 'Cache-Control': 'private, max-age=3600' } })
+    const entry = (await photos())[id]
+    if (!entry) return none()
+    const visible = tripsFor(await loginOf(request), await linkOf(request))
+    if (!entry.trips.some((slug) => visible.includes(slug))) return none()
+    const found = await photoOf(id, entry.url, size, config.now?.() ?? Date.now())
+    if (!found) return none()
+    // The id is the URL's hash: a new picture is a new id.
+    return new Response(found.image, {
+      headers: { 'Content-Type': found.type, 'Cache-Control': 'private, max-age=2592000, immutable' },
+    })
+  }
+
   /** A trip person's GitHub picture, or 404 so the site keeps their initials. */
   async function avatar(request: Request, login: string): Promise<Response> {
     const none = () => new Response(null, { status: 404, headers: { 'Cache-Control': 'private, max-age=3600' } })
@@ -668,6 +691,8 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     if (commentsApi) return plain(await discussions(request, commentsApi))
     const linkApi = linksRoute(path)
     if (linkApi) return plain(await links(request, linkApi.slug, linkApi.id))
+    const pictureOfPlace = photoRoute(path)
+    if (pictureOfPlace) return plain(await photo(request, pictureOfPlace.id, pictureOfPlace.size))
     const pictured = avatarLogin(path)
     if (pictured) return plain(await avatar(request, pictured))
 

@@ -1,7 +1,7 @@
 /**
  * Shared state in Postgres: packing ticks, kept GitHub pictures, view-only links, discussions
  * how far each account has read its notifications, the browsers to push them to, and each
- * account's language. Migrations are plain SQL
+ * account's language, and places' photos. Migrations are plain SQL
  * files in `migrations/`, applied in name order on start, each once.
  */
 
@@ -13,10 +13,11 @@ import type { Avatar, AvatarStore } from './avatars'
 import type { Comment, CommentStore, Thread } from './comments'
 import type { LinkStore, ShareLink } from './links'
 import type { NotificationStore } from './notifications'
+import type { PhotoStore } from './photos'
 import type { PushStore } from './push'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
-export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore, PushStore {
+export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore, PushStore, PhotoStore {
   /** The language an account chose, or null. */
   userLang(login: string): Promise<string | null>
   setUserLang(login: string, lang: string): Promise<void>
@@ -315,6 +316,22 @@ export async function openStore(connectionString: string): Promise<Store> {
           [trip, ids],
         )
       return { fresh: ids.filter((id) => !known.has(id)), first: rows.length === 0 }
+    },
+    async photo(id, size) {
+      const { rows } = await pool.query<{ type: string; image: Buffer; fetched_at: string }>(
+        'select type, image, fetched_at from photos where id = $1 and size = $2',
+        [id, size],
+      )
+      const row = rows[0]
+      return row ? { type: row.type, image: row.image, fetchedAt: Number(row.fetched_at) } : null
+    },
+    async putPhoto(id, size, photo) {
+      await pool.query(
+        `insert into photos (id, size, type, image, fetched_at) values ($1, $2, $3, $4, $5)
+         on conflict (id, size) do update set type = excluded.type, image = excluded.image,
+           fetched_at = excluded.fetched_at`,
+        [id, size, photo.type, Buffer.from(photo.image), photo.fetchedAt],
+      )
     },
     close: () => pool.end(),
   }

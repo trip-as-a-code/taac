@@ -191,6 +191,12 @@ pub struct Place {
     pub address: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// A picture of the place: any `https://` image URL. The server fetches
+    /// and resizes it, so browsers never load it from its host; the larger
+    /// the original, the sharper it opens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(regex(pattern = r"^https://\S+$"))]
+    pub photo: Option<String>,
     /// Makes the place an area (a city, a valley) of this many metres around
     /// `geo`: bases, passes and ideas' `area` need one. Without it the place
     /// is a single spot.

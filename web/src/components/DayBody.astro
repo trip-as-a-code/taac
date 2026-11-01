@@ -9,6 +9,7 @@ import ItemRow from '@/components/ItemRow.astro'
 import OpenDay from '@/components/OpenDay.astro'
 import Whereabouts from '@/components/Whereabouts.astro'
 import type { I18n } from '@/i18n'
+import { photosOnce } from '@/lib/photos'
 import { isTransport, spans } from '@/lib/presence'
 import { baseById, itemById, partyEmoji, partyLabel } from '@/lib/trip'
 
@@ -111,7 +112,7 @@ const arrival = (i: (typeof arrivals)[number]) => {
 {!baseSplit && <Whereabouts trip={trip} i18n={i18n} date={day.date} span={span} bases={day.bases} stays={day.stays} />}
 {shared(plans).length > 0 && (
   <div class="card list">
-    {shared(plans).map((item) => (
+    {photosOnce(trip, shared(plans)).map(([item, photo]) => (
       <div class="row-wrap">
         {/* For exactly who is here (the rest have gone home): no need to say whose. */}
         <ItemRow
@@ -120,6 +121,7 @@ const arrival = (i: (typeof arrivals)[number]) => {
           i18n={i18n}
           homeOffset={homeOffset}
           grouped={item.party !== 'everyone' && present.length > 0 && same(item.members, present)}
+          photo={photo}
         />
       </div>
     ))}
@@ -166,7 +168,7 @@ const arrival = (i: (typeof arrivals)[number]) => {
         ))}
         {mine(plans, g).length > 0 && (
           <div class="card list">
-            {mine(plans, g).map((item) => (
+            {photosOnce(trip, mine(plans, g)).map(([item, photo]) => (
               <div class="row-wrap">
                 <ItemRow
                   trip={trip}
@@ -174,6 +176,7 @@ const arrival = (i: (typeof arrivals)[number]) => {
                   i18n={i18n}
                   homeOffset={homeOffset}
                   grouped={same(item.members, g.members)}
+                  photo={photo}
                 />
               </div>
             ))}

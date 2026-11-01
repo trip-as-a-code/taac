@@ -1,6 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions'
 
+import PhotoViewer from '@/components/PhotoViewer.astro'
 import PushPrompt from '@/components/PushPrompt.astro'
 import NavBar from '@/components/NavBar.astro'
 import UpdateToast from '@/components/UpdateToast.astro'
@@ -150,6 +151,7 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
         }
       })()
     </script>
+    <PhotoViewer lang={lang} />
   </body>
 </html>
 

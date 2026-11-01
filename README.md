@@ -54,7 +54,10 @@ places: # by name; everything else refers to them by it
   Lisbon Airport: { geo: [38.7742, -9.1342], category: airport }
   Cais do Sodré: { geo: [38.7058, -9.1445], category: station }
   Belém: { geo: [38.6975, -9.2032] }
-  Castelo de São Jorge: { geo: [38.7139, -9.1335], category: historic }
+  Castelo de São Jorge:
+    geo: [38.7139, -9.1335]
+    category: historic
+    photo: https://example.org/castelo.jpg # any https image; the server serves it resized
 itinerary:
   - kind: flight # flight, train, bus, ferry, transfer, walk, ride, lodging, activity, meal, note
     title: London → Lisbon

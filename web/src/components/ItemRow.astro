@@ -8,6 +8,7 @@ import ThreadButton from '@/components/ThreadButton.astro'
 import Money from '@/components/Money.astro'
 import type { I18n } from '@/i18n'
 import { isLabelled, issuesOf, itemFacts } from '@/lib/facts'
+import { photoOf, photoSrc } from '@/lib/photos'
 import { sourceHref, sourceLabel } from '@/lib/source'
 import {
   daysBetween,
@@ -39,14 +40,19 @@ interface Props {
   dueShown?: boolean
   /** In a section headed by exactly its people: no party pill or rail. */
   grouped?: boolean
+  /** The photo URL to show, or null for none; by default its first place's. Day lists show each once. */
+  photo?: string | null
 }
 
-const { trip, item, i18n, withDate, homeOffset, dueShown, grouped, anchor = 'item' } = Astro.props
+const { trip, item, i18n, withDate, homeOffset, dueShown, grouped, photo, anchor = 'item' } = Astro.props
 // A pass isn't on a day or at a point: no links into the itinerary or map.
 const plan = anchor === 'item'
 const days = (periods: { from: string; to: string }[]) => periods.map((p) => i18n.dateRange(p.from, p.to)).join(' · ')
 const { t, money, date } = i18n
 const places = item.places.map((id) => trip.places[id]).filter(Boolean)
+const shownPhoto = photo === undefined ? photoOf(trip, item) : (photo ?? undefined)
+// The photo is of a place: the viewer names it.
+const photoPlace = places.find((p) => p.photo === shownPhoto)?.name ?? item.title
 const everyone = item.members.length === trip.members.length
 const members = trip.members.filter((m) => item.members.includes(m.id))
 const party = partyLabel(trip, item.party, i18n.t('lens.everyone'), i18n.t('party.and'))
@@ -89,7 +95,7 @@ const offsetLabel =
   data-day={item.local.date}
   data-facts={JSON.stringify(itemFacts(trip, item as Item))}
   style={`--kind:${kindTint[item.kind]}`}
-  class:list={['item', { shared: everyone || grouped }]}
+  class:list={['item', { shared: everyone || grouped, 'with-photo': shownPhoto }]}
 >
   <div class="when tabular">
     {withDate && <span class="date">{date(item.local.date, { day: 'numeric', month: 'short' })}</span>}
@@ -108,9 +114,32 @@ const offsetLabel =
       </span>
     )}
   </div>
-  <div class="glyph" aria-hidden="true">
-    <Icon name={kindIcon[item.kind]} size={18} />
-  </div>
+  {/* A photo takes the kind's place, its icon underneath until the photo loads (or if it can't). */}
+  {shownPhoto ? (
+    <button
+      type="button"
+      class="glyph photo"
+      data-photo={photoSrc(shownPhoto, 'large')}
+      data-photo-title={photoPlace}
+      aria-label={`${t('photo.open')}: ${photoPlace}`}
+    >
+      <Icon name={kindIcon[item.kind]} size={18} />
+      <img
+        class="photo-img"
+        src={photoSrc(shownPhoto, 'thumb')}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        width="52"
+        height="52"
+        data-photo-img
+      />
+    </button>
+  ) : (
+    <div class="glyph" aria-hidden="true">
+      <Icon name={kindIcon[item.kind]} size={18} />
+    </div>
+  )}
   <details class="main" open={false} data-expandable={hasDetails ? '' : undefined}>
     <summary>
       <h3 class="headline" lang={trip.locale}>
@@ -456,6 +485,57 @@ const offsetLabel =
 
   /* The disclosure chevron sits in the corner, so it never wraps onto a
      line of its own after a long title. */
+  /* Only cards with a photo widen their leading column. */
+  .item.with-photo {
+    grid-template-columns: 64px 52px minmax(0, 1fr);
+  }
+
+  .glyph.photo {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: zoom-in;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform var(--duration) var(--ease);
+  }
+
+  /* A hairline so light photos keep their edge on a light card. */
+  .glyph.photo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.14);
+    pointer-events: none;
+  }
+
+  .glyph.photo:active {
+    transform: scale(0.96);
+  }
+
+  .glyph.photo:focus-visible {
+    outline: 2px solid var(--tint);
+    outline-offset: 2px;
+  }
+
+  .photo-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity var(--duration) var(--ease);
+  }
+
+  .photo-img[data-loaded] {
+    opacity: 1;
+  }
+
   /* The title makes room for the copy-link button and, when the card
      opens, the chevron; the rows below keep the full width. */
   summary h3 {
@@ -727,6 +807,41 @@ const offsetLabel =
     }
 
     .glyph {
+      display: none;
+    }
+
+    /* The time takes what it needs; the photo goes right under it. */
+    .item.with-photo {
+      grid-template-columns: 52px minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+    }
+
+    /* A photo stays, under the time; the text keeps its column, also when open. */
+    .glyph.photo {
+      display: block;
+      grid-column: 1;
+      grid-row: 2;
+      align-self: start;
+      justify-self: end;
+      margin-top: 8px;
+    }
+
+    .with-photo .when {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .with-photo .main {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+    }
+
+    .with-photo .details {
+      margin-left: 0;
+    }
+
+    /* A photo that can't load leaves no lone icon on a phone. */
+    .glyph.photo:has(.photo-img[hidden]) {
       display: none;
     }
 

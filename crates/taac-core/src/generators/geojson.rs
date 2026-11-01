@@ -84,6 +84,7 @@ pub fn generate(trip: &Trip) -> String {
                 "category": place.category,
                 "address": place.address,
                 "url": place.url,
+                "photo": place.photo,
                 "items": items,
             },
         }));

@@ -6,6 +6,7 @@ import { exportSite, type Diagnostic, type Rates, type SiteExport } from '@taac/
 import type { AstroIntegration } from 'astro'
 import type { Plugin, ViteDevServer } from 'vite'
 
+import { photoIndex } from '../lib/photos'
 import { tripChanges } from './history'
 
 const VIRTUAL = 'virtual:taac/site'
@@ -150,6 +151,8 @@ export function taac(): AstroIntegration {
         const out = fileURLToPath(new URL('_taac/access.json', dir))
         mkdirSync(dirname(out), { recursive: true })
         writeFileSync(out, JSON.stringify(access, null, 2))
+        // Places' photos for the server to fetch and serve (lib/photos).
+        writeFileSync(fileURLToPath(new URL('_taac/photos.json', dir)), JSON.stringify(photoIndex(site.trips), null, 2))
         const warnings = [...site.diagnostics, ...site.trips.flatMap((t) => t.diagnostics)]
         if (warnings.length) logger.warn(`\n${format(warnings)}`)
         logger.info(`${site.trips.length} trip(s); access: ${access.auth ?? 'public'}`)

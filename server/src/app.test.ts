@@ -2,12 +2,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import sharp from 'sharp'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { normalise } from './access'
 import { createHandler } from './app'
 import { calendarKey } from './auth'
 import type { Thread } from './comments'
+import type { StoredPhoto } from './photos'
 import type { PushMessage, PushSubscription } from './push'
 import { works, type ShareLink } from './links'
 import { merge, type Ticks } from './packing'
@@ -30,7 +32,12 @@ const manifest = normalise({
 })
 
 let dist = ''
-beforeAll(() => {
+beforeAll(async () => {
+  shrine = new Uint8Array(
+    await sharp({ create: { width: 300, height: 200, channels: 3, background: '#c33' } })
+      .png()
+      .toBuffer(),
+  )
   dist = mkdtempSync(join(tmpdir(), 'taac-dist-'))
   mkdirSync(join(dist, 'trips/japan'), { recursive: true })
   writeFileSync(join(dist, 'index.html'), '<h1>home</h1>')
@@ -38,6 +45,11 @@ beforeAll(() => {
   writeFileSync(join(dist, 'trips/japan/calendar.ics'), 'BEGIN:VCALENDAR')
   writeFileSync(join(dist, '404.html'), '<h1>nope</h1>')
   changes([{ id: 'c1', login: 'grandma', author: 'Grandma', at: Date.now() - 1000, summary: 'Moved: Walk' }])
+  mkdirSync(join(dist, '_taac'), { recursive: true })
+  writeFileSync(
+    join(dist, '_taac/photos.json'),
+    JSON.stringify({ '0123456789abcdef': { url: 'https://pictures.example/shrine.png', trips: ['japan'] } }),
+  )
   writeFileSync(
     join(dist, 'trips/japan/threads.json'),
     JSON.stringify({
@@ -56,12 +68,20 @@ function changes(sets: { id: string; login?: string; author: string; at: number;
   )
 }
 
+/** A 300×200 picture, as a host would serve it, and how often it was fetched. */
+let shrine: Uint8Array
+let photoFetches = 0
+
 /** GitHub, answering every code with `who`. */
 function github(who: string): typeof fetch {
   return (async (input: string | URL | Request) => {
     const url = String(input)
     if (url.endsWith('/access_token')) return Response.json({ access_token: 'token' })
     if (url.endsWith('/user')) return Response.json({ login: who })
+    if (url === 'https://pictures.example/shrine.png') {
+      photoFetches++
+      return new Response(shrine, { headers: { 'Content-Type': 'image/png' } })
+    }
     if (url.startsWith('https://github.com/alex.png'))
       return new Response(new Uint8Array([0xff, 0xd8, 0xff]), { headers: { 'Content-Type': 'image/jpeg' } })
     return new Response('nope', { status: 404 })
@@ -82,7 +102,10 @@ function memoryStore(): Store {
   const langs = new Map<string, string>()
   const mutes = new Map<string, string[]>()
   const announced = new Map<string, Set<string>>()
+  const pictures = new Map<string, StoredPhoto>()
   return {
+    photo: async (id, size) => pictures.get(`${id}/${size}`) ?? null,
+    putPhoto: async (id, size, photo) => void pictures.set(`${id}/${size}`, photo),
     userMuted: async (login) => mutes.get(login) ?? [],
     setUserMuted: async (login, muted) => void mutes.set(login, muted),
     unannounced: async (trip, ids) => {
@@ -694,5 +717,36 @@ describe('change notifications', () => {
       ],
     ])
     changes([{ id: 'c1', login: 'grandma', author: 'Grandma', at: Date.now() - 1000, summary: 'Moved: Walk' }])
+  })
+})
+
+describe('place photos', () => {
+  it('serves a trip’s photos resized, to those who see the trip, fetching each once', async () => {
+    const store = memoryStore()
+    const member = handler('Alex', store)
+    const cookies = await signIn(member)
+    const get = (size: string) =>
+      member(new Request(`https://trips.example/api/photos/0123456789abcdef/${size}`, { headers: { Cookie: cookies } }))
+    const before = photoFetches
+    const thumb = await get('thumb')
+    expect(thumb.status).toBe(200)
+    expect(thumb.headers.get('Content-Type')).toBe('image/webp')
+    expect(await sharp(new Uint8Array(await thumb.arrayBuffer())).metadata()).toMatchObject({ width: 168, height: 168 })
+    // Never enlarged: the original is 300 wide.
+    const large = await get('large')
+    expect(await sharp(new Uint8Array(await large.arrayBuffer())).metadata()).toMatchObject({ width: 300, height: 200 })
+    expect(photoFetches - before).toBe(1)
+
+    expect((await member(new Request('https://trips.example/api/photos/0123456789abcdef/thumb'))).status).toBe(404)
+    const stranger = handler('stranger', store)
+    const theirs = await signIn(stranger)
+    expect(
+      (
+        await stranger(
+          new Request('https://trips.example/api/photos/0123456789abcdef/thumb', { headers: { Cookie: theirs } }),
+        )
+      ).status,
+    ).toBe(404)
+    expect((await get('../thumb')).status).not.toBe(200)
   })
 })
