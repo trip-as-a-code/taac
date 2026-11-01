@@ -18,6 +18,8 @@ export interface DayStay {
 export interface StayRun {
   /** The places, most people first; empty when nobody's place is known. */
   titles: string[]
+  /** Who of the people in view is in each of them. */
+  who: string[][]
   dates: string[]
 }
 
@@ -85,25 +87,29 @@ export function nightsOf(trip: TripExport): DayStay[] {
   })
 }
 
-/** The places `people` (everyone when empty) sleep in that night. */
-export function placesOf(day: DayStay, people: string[]): string[] {
-  const seen = new Map<string, number>()
+/** The places `people` (everyone when empty) sleep in that night, and who. */
+export function placesOf(day: DayStay, people: string[]): { title: string; members: string[] }[] {
+  const seen = new Map<string, string[]>()
   for (const base of day.bases) {
     const who = people.length ? base.members.filter((m) => people.includes(m)) : base.members
     if (!who.length) continue
-    seen.set(base.title, (seen.get(base.title) ?? 0) + who.length)
+    seen.set(base.title, [...new Set([...(seen.get(base.title) ?? []), ...who])])
   }
-  return [...seen].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([title]) => title)
+  return [...seen]
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .map(([title, members]) => ({ title, members }))
 }
 
 /** Consecutive days with the same places, in order. */
 export function stayRuns(days: DayStay[], people: string[]): StayRun[] {
   const runs: StayRun[] = []
   for (const day of days) {
-    const titles = placesOf(day, people)
+    const places = placesOf(day, people)
+    const key = JSON.stringify(places)
     const last = runs.at(-1)
-    if (last && last.titles.join('\u0000') === titles.join('\u0000')) last.dates.push(day.date)
-    else runs.push({ titles, dates: [day.date] })
+    if (last && JSON.stringify(last.titles.map((title, i) => ({ title, members: last.who[i] }))) === key)
+      last.dates.push(day.date)
+    else runs.push({ titles: places.map((p) => p.title), who: places.map((p) => p.members), dates: [day.date] })
   }
   return runs
 }
@@ -113,4 +119,22 @@ export function placeHue(title: string): number {
   let hash = 0
   for (const char of title) hash = (hash * 31 + char.charCodeAt(0)) % 360
   return hash
+}
+
+/** The stay's places in words; a split one says who is where. */
+export function stayTitle(run: StayRun, nameOf: (id: string) => string): string {
+  if (run.titles.length < 2) return run.titles[0] ?? ''
+  return run.titles.map((title, i) => `${title}: ${run.who[i]!.map(nameOf).join(', ')}`).join(' · ')
+}
+
+/** A split stay's chip bar: each place's colour, as wide as its share of the people. */
+export function splitBar(run: StayRun): string {
+  const total = run.who.reduce((sum, w) => sum + w.length, 0)
+  let at = 0
+  const stops = run.titles.map((title, i) => {
+    const from = (at / total) * 100
+    at += run.who[i]!.length
+    return `hsl(${placeHue(title)} 70% 55%) ${from}% ${(at / total) * 100}%`
+  })
+  return `linear-gradient(to right, ${stops.join(', ')})`
 }
