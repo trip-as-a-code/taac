@@ -318,10 +318,11 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
         await pushToMembers(slug, set.login, 'change', async (lang) => {
           const trip = await describeTrip(slug, lang)
           const worded = (await changesOf(slug, lang)).find((s) => s.id === set.id) ?? set
+          const strings = pushStrings(lang)
           const name = set.login ? (trip?.people[set.login] ?? `@${set.login}`) : set.author
           return {
             title: trip?.title ?? slug,
-            body: `${pushStrings(lang).change.replace('{name}', name)}: ${worded.summary}`,
+            body: `${name ? strings.change.replace('{name}', name) : strings.changeAnon}: ${worded.summary}`,
             url: worded.href,
             tag: `change:${set.id}`,
           }

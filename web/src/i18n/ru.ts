@@ -488,6 +488,7 @@ export const ru: Messages = {
   'settings.browser': 'В этом браузере',
 
   'notifications.change': '{name}: изменения в плане',
+  'notifications.changeAnon': 'Изменения в плане',
   'settings.kinds': 'Уведомлять о',
   'settings.kind.thread': 'Новых обсуждениях',
   'settings.kind.reply': 'Ответах',

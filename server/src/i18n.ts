@@ -96,6 +96,8 @@ export interface PushStrings {
   /** The one sent to check they arrive. */
   test: string
   change: string
+  /** A change GitHub couldn't put a name to. */
+  changeAnon: string
 }
 
 const PUSH: Record<string, PushStrings> = {
@@ -105,6 +107,7 @@ const PUSH: Record<string, PushStrings> = {
     resolved: '{name} resolved a discussion',
     test: 'Notifications work on this device.',
     change: '{name} changed the plan',
+    changeAnon: 'The plan changed',
   },
   ru: {
     thread: '{name}: новое обсуждение',
@@ -112,6 +115,7 @@ const PUSH: Record<string, PushStrings> = {
     resolved: '{name}: обсуждение решено',
     test: 'Уведомления на этом устройстве работают.',
     change: '{name}: изменения в плане',
+    changeAnon: 'Изменения в плане',
   },
 }
 

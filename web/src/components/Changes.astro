@@ -55,7 +55,7 @@ const value = (text?: string) => {
           data-more={index >= SHOWN ? '' : undefined}
         >
           <p class="who footnote secondary">
-            <span class="author">{set.author}</span>
+            {set.author && <span class="author">{set.author}</span>}
             <time data-relative={set.date.slice(0, 10)} data-template="{rel}" />
             {set.pr && repo && (
               <a href={`${repo}/pull/${set.pr}`} target="_blank" rel="noopener noreferrer">

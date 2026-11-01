@@ -1,9 +1,9 @@
 // Recent changes per trip, from git: each first-parent commit on the current
 // branch that touched a trip's files (a merged PR is one), loaded as it was
 // and diffed against the version before. Without git or history (a shallow
-// clone, a tarball) there are simply no changes to show. On GitHub, authors
-// are their accounts (the trip member with that GitHub username, else
-// `@username`); without API access, the name on the commit.
+// clone, a tarball) there are simply no changes to show. Authors are GitHub
+// accounts (the trip member with that username, else `@username`), never the
+// name on a commit; one GitHub can't place is left unnamed.
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -61,7 +61,11 @@ function githubToken(): string | undefined {
   }
 }
 
-/** Replaces commit names with GitHub accounts: the PR's author, else the commit's. */
+/**
+ * Names each change by a GitHub account: a merged PR's author; else, as for a
+ * commit straight to the branch, the commit's account, or the author of the PR
+ * GitHub links the commit to.
+ */
 async function withAccounts(
   sets: ChangeSet[],
   repo: string,
@@ -69,16 +73,14 @@ async function withAccounts(
 ): Promise<void> {
   const token = githubToken()
   const logins = new Map<string, Promise<string | undefined>>()
-  const ask = (path: string, pick: (body: Record<string, { login?: string } | undefined>) => string | undefined) => {
+  const ask = (path: string, pick: (body: unknown) => string | undefined) => {
     let login = logins.get(path)
     if (!login) {
       login = fetch(`https://api.github.com/repos/${repo}/${path}`, {
         headers: { Accept: 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         signal: AbortSignal.timeout(8000),
       })
-        .then(async (r) =>
-          r.ok ? pick((await r.json()) as Record<string, { login?: string } | undefined>) : undefined,
-        )
+        .then(async (r) => (r.ok ? pick(await r.json()) : undefined))
         .catch(() => undefined)
       logins.set(path, login)
     }
@@ -86,10 +88,11 @@ async function withAccounts(
   }
   await Promise.all(
     sets.map(async (set) => {
-      // A PR's author, else (no PR, or no access to it) the commit's account.
+      type Account = { login?: string } | null | undefined
       const login =
-        (set.pr && (await ask(`pulls/${set.pr}`, (b) => b.user?.login))) ||
-        (await ask(`commits/${set.sha}`, (b) => b.author?.login))
+        (set.pr && (await ask(`pulls/${set.pr}`, (b) => (b as { user?: Account }).user?.login))) ||
+        (await ask(`commits/${set.sha}`, (b) => (b as { author?: Account }).author?.login)) ||
+        (await ask(`commits/${set.sha}/pulls`, (b) => (b as { user?: Account }[])[0]?.user?.login))
       if (!login) return
       set.login = login.toLowerCase()
       set.author = members.find((m) => m.github?.toLowerCase() === login.toLowerCase())?.name ?? `@${login}`
@@ -128,13 +131,12 @@ export async function tripChanges(sitePath: string, site: SiteExport): Promise<R
         .split('\n')
         .filter(Boolean)
         .map((line) => {
-          const [sha, parents, author, date, subject] = line.split('\x1f') as [string, string, string, string, string]
-          const merged = parents.split(' ')[1]
+          const [sha, , , date, subject] = line.split('\x1f') as [string, string, string, string, string]
           return {
             sha,
             date,
-            // A merged PR is its author's change, not the merger's.
-            author: merged ? git(root, ['log', '-1', '--format=%an', merged]).trim() : author,
+            // Named by its GitHub account below; the commit's own name is never shown.
+            author: '',
             pr: Number(/^Merge pull request #(\d+)/.exec(subject)?.[1]) || undefined,
           }
         })

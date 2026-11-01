@@ -466,6 +466,7 @@ export const en = {
   'settings.browser': 'In this browser',
 
   'notifications.change': '{name} changed the plan',
+  'notifications.changeAnon': 'The plan changed',
   'settings.kinds': 'Notify me about',
   'settings.kind.thread': 'New discussions',
   'settings.kind.reply': 'Replies',

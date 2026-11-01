@@ -20,6 +20,7 @@ export interface ChangeSet {
   sha: string
   /** ISO date-time of the commit. */
   date: string
+  /** Who, by GitHub account: the member's name, else `@login`; empty when GitHub can't say. */
   author: string
   /** The author's GitHub login, lowercase, when GitHub knows it. */
   login?: string
