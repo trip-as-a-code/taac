@@ -528,16 +528,20 @@ const span = (from: string, to: string) =>
     overflow: visible;
   }
 
-  /* However many ways it splits, the label wraps within the strip, never past it. */
-  .day-strip :global(.stay[data-split] .stay-lead) {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 100%;
-  }
+  /* However many ways it splits, the label wraps within the strip, never past
+     it. Only where the strip wraps: in the one swiped row, shrinking would
+     squeeze the label onto the days next to it. */
+  @media (min-width: 761px) {
+    .day-strip :global(.stay[data-split] .stay-lead) {
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: 100%;
+    }
 
-  .day-strip :global(.stay[data-split] .stay-lead .stay-label) {
-    flex: 0 1 auto;
-    min-width: 0;
+    .day-strip :global(.stay[data-split] .stay-lead .stay-label) {
+      flex: 0 1 auto;
+      min-width: 0;
+    }
   }
 
   /* Three places and more: shorter names; the tooltip has them whole. */
