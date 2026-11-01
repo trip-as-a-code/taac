@@ -36,6 +36,9 @@ const strings = Object.fromEntries(
       'edited',
       'deleted',
       'error',
+      'new',
+      'railReplies',
+      'railThreads',
     ] as const
   ).map((k) => [k, t(`comments.${k}`)]),
 )

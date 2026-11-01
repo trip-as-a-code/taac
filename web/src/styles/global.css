@@ -935,3 +935,193 @@ html[data-filter-pending] .trip .content {
 .switch[aria-checked='true'] .knob {
   transform: translateX(20px);
 }
+
+/* Discussions in the margin (scripts/rail): wide screens move the page left
+   to make room for them, the way a document leaves room for its comments. */
+:root {
+  --rail: 264px;
+}
+
+:root[data-rail] .trip .container,
+:root[data-rail] .nav-inner {
+  --page: min(var(--content), 100vw - var(--rail) - 4 * var(--gutter));
+  max-width: calc(var(--page) + 2 * var(--gutter));
+  margin-left: max(0px, calc((100vw - var(--page) - 3 * var(--gutter) - var(--rail)) / 2));
+  margin-right: auto;
+}
+
+/* The rail has them: a card for each open one, "+" on the row under the pointer. */
+:root[data-rail] .thread-button {
+  visibility: hidden;
+}
+
+:root[data-rail] .trip {
+  overflow-x: clip;
+}
+
+.thread-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--rail);
+  pointer-events: none;
+}
+
+.rail-card,
+.rail-add {
+  position: absolute;
+  left: 0;
+  pointer-events: auto;
+  transition:
+    transform var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.rail-card {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 14px;
+  text-align: left;
+  font: inherit;
+  color: var(--label);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+/* Lit with its row: it steps towards the page, like the active comment in a document. */
+.rail-card[data-rail-lit],
+.rail-card:focus-visible {
+  transform: translateX(-6px);
+  box-shadow:
+    0 0 0 1.5px var(--tint),
+    var(--shadow-sm);
+}
+
+.rail-card[data-unread]::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tint);
+}
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding-right: 14px;
+  font-size: 13px;
+}
+
+.rail-head .avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+  box-shadow: none;
+}
+
+.rail-head strong {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rail-when {
+  flex: none;
+  font-size: 12px;
+  color: var(--label-tertiary);
+}
+
+.rail-body {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--label-secondary);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.rail-more {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tint);
+}
+
+/* In the gap between the page and the rail, level with the row: never under a card. */
+.rail-add {
+  left: calc(var(--gutter) / -2 - 14px);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--tint);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.rail-add[hidden] {
+  display: none;
+}
+
+.rail-add:hover {
+  transform: scale(1.08);
+}
+
+/* The row a card talks about. */
+[data-rail-lit]:not(.rail-card) {
+  box-shadow: inset 3px 0 0 var(--tint);
+}
+
+/* Narrower screens: a discussion peeks out of its row, in the text's column. */
+.thread-peek {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  grid-column: -2 / -1;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--label);
+  background: var(--fill);
+  cursor: pointer;
+}
+
+.thread-peek .rail-body {
+  -webkit-line-clamp: 2;
+}
+
+.thread-peek[data-unread]::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tint);
+}
+
+/* Under a day's heading, its own line before the day's plans. */
+.day-header + .thread-peek {
+  margin: 0 0 var(--space-3);
+}

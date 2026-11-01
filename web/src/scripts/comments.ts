@@ -6,6 +6,7 @@
 import { closeOnBackdrop } from '@/scripts/sheet'
 import { avatarPhoto } from '@/scripts/avatars'
 import { markNotifications } from '@/scripts/notifications'
+import { updateRail } from '@/scripts/rail'
 import { me } from '@/scripts/session'
 
 interface Comment {
@@ -124,6 +125,17 @@ function refresh(redraw = true) {
       threads.some((t) => unread(t, seen)),
     )
   }
+  const panel = document.querySelector<HTMLElement>('[data-thread-panel]')
+  if (panel)
+    updateRail({
+      threads: state.threads,
+      writer: state.writer,
+      people: JSON.parse(panel.dataset.people ?? '{}') as Record<string, Person>,
+      strings: JSON.parse(panel.dataset.strings ?? '{}') as Record<string, string>,
+      lang: panel.dataset.lang!,
+      unread: (thread) => unread(thread as Thread, seen),
+      open: openThreads,
+    })
   if (state.open) renderPanel(redraw)
 }
 
