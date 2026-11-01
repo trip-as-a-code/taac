@@ -699,8 +699,7 @@
         {
           "type": "string",
           "enum": [
-            "booked",
-            "notRequired"
+            "booked"
           ]
         },
         {
@@ -1093,7 +1092,7 @@
           ]
         },
         "booking": {
-          "description": "How to book it if chosen: `required` (with a `deadline`) or\n`notRequired`. `booked` makes it a plan.",
+          "description": "How to book it if chosen: `required`, with a `deadline`; leave it out\nwhen there is nothing to book. `booked` makes it a plan.",
           "anyOf": [
             {
               "$ref": "#/$defs/Booking"
@@ -1440,9 +1439,15 @@
           }
         },
         "status": {
-          "description": "A card topped up as you go needs no booking.",
-          "$ref": "#/$defs/BookingStatus",
-          "default": "notRequired"
+          "description": "Left out for a card topped up as you go: nothing to book.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BookingStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "deadline": {
           "description": "Book by this date.",

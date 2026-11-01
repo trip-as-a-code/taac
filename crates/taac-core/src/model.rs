@@ -298,8 +298,8 @@ pub struct Idea {
     pub duration: Option<IdeaDuration>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transport: Option<Transport>,
-    /// How to book it if chosen: `required` (with a `deadline`) or
-    /// `notRequired`. `booked` makes it a plan.
+    /// How to book it if chosen: `required`, with a `deadline`; leave it out
+    /// when there is nothing to book. `booked` makes it a plan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub booking: Option<Booking>,
     /// What it would cost, usually `estimate: true`: possible spend only,
@@ -740,9 +740,9 @@ pub struct PassBooking {
     /// Their days; omitted means the pass's.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub periods: Vec<Period>,
-    /// A card topped up as you go needs no booking.
-    #[serde(default = "not_required")]
-    pub status: BookingStatus,
+    /// Left out for a card topped up as you go: nothing to book.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<BookingStatus>,
     /// Book by this date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
@@ -753,10 +753,6 @@ pub struct PassBooking {
     /// What their share costs; `who` defaults to theirs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<Cost>,
-}
-
-fn not_required() -> BookingStatus {
-    BookingStatus::NotRequired
 }
 
 /// Who holds a pass on which days, at what cost: each of its `bookings`, or
@@ -793,7 +789,7 @@ impl Pass {
                     &b.periods
                 },
                 costs: &b.costs,
-                status: b.status,
+                status: b.status.unwrap_or(BookingStatus::NotRequired),
                 deadline: b.deadline,
             })
             .collect()
@@ -914,6 +910,10 @@ pub enum BookingStatus {
     /// Needs a reservation that has not been made yet.
     Required,
     Booked,
+    /// Nothing to book: what a plan without `booking` (or a pass topped up as
+    /// you go) gets. Not written in trip files: leave `booking` out instead.
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
     NotRequired,
 }
 
