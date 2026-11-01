@@ -388,6 +388,7 @@ const data = { places, routes, items: itemInfo, overlays, areas }
   :global(.popup-photo) {
     display: block;
     width: calc(100% + 32px);
+    max-width: none;
     height: 120px;
     margin: -14px -16px 10px;
     border-radius: 16px 16px 0 0;
@@ -403,10 +404,37 @@ const data = { places, routes, items: itemInfo, overlays, areas }
     color: var(--label-tertiary);
   }
 
+  /* Over a photo: a frosted round button on it, like Photos' and Maps' cards. */
+  :global(.maplibregl-popup-content:has(.popup-photo) .maplibregl-popup-close-button) {
+    z-index: 1;
+    top: 8px !important;
+    right: 8px !important;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 17px;
+    line-height: 1;
+    color: #fff;
+    background: rgb(0 0 0 / 0.45);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  :global(.maplibregl-popup-content:has(.popup-photo) .maplibregl-popup-close-button:hover) {
+    background: rgb(0 0 0 / 0.6);
+  }
+
   :global(.popup h3) {
     margin: 0 18px 6px 0;
     font-size: 15px;
     font-weight: 600;
+  }
+
+  :global(.popup-photo + h3) {
+    margin-right: 0;
   }
 
   :global(.popup ul) {
