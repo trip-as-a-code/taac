@@ -1122,3 +1122,135 @@ button.thread-card {
 [data-rail-lit]:not(.rail-group) {
   box-shadow: inset 3px 0 0 var(--tint);
 }
+
+/* The month calendar beside the itinerary (scripts/sidecal), like a calendar
+   app's mini month: the trip's days in their place's colour, the one being
+   read filled, today in red. */
+.side-cal {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: 14px;
+  width: 236px;
+  max-height: calc(100dvh - 160px);
+  overflow-y: auto;
+  padding: 14px 12px 12px;
+  border-radius: 18px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  scrollbar-width: none;
+  animation: side-cal-in var(--duration) var(--ease);
+}
+
+.side-cal[hidden] {
+  display: none;
+}
+
+@keyframes side-cal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.side-cal-month h3 {
+  margin: 0 0 6px 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.side-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 2px;
+  text-align: center;
+}
+
+.side-cal-weekday {
+  padding-bottom: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--label-tertiary);
+}
+
+.side-cal-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--label-tertiary);
+}
+
+/* A trip day: in full colour, a bar of its place's under the number. */
+button.side-cal-day {
+  color: var(--label);
+  cursor: pointer;
+}
+
+button.side-cal-day::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 12px;
+  height: 2.5px;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  background: var(--split-bar, hsl(var(--place-hue, 0) 70% 55%));
+}
+
+button.side-cal-day:not([style])::after {
+  background: var(--separator-strong);
+}
+
+button.side-cal-day:hover {
+  background: var(--fill);
+}
+
+/* Left out by the filters or the people in view. */
+button.side-cal-day[data-hidden] {
+  color: var(--label-tertiary);
+}
+
+button.side-cal-day[data-hidden]::after {
+  opacity: 0.35;
+}
+
+.side-cal-day[data-today] {
+  color: var(--red, #ff453a);
+  font-weight: 700;
+}
+
+/* The day being read. */
+button.side-cal-day[data-current] {
+  color: #fff;
+  font-weight: 600;
+  background: var(--tint);
+}
+
+button.side-cal-day[data-current]::after {
+  background: rgb(255 255 255 / 0.85);
+}
+
+.side-cal-place {
+  margin: -4px 4px 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--label-secondary);
+}
+
+.side-cal-place:empty {
+  display: none;
+}
