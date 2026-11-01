@@ -37,8 +37,9 @@ const strings = Object.fromEntries(
       'deleted',
       'error',
       'new',
+      'newPlaceholder',
+      'collapse',
       'railReplies',
-      'railThreads',
     ] as const
   ).map((k) => [k, t(`comments.${k}`)]),
 )
@@ -130,7 +131,7 @@ const strings = Object.fromEntries(
   }
 
   /* Built by scripts/comments.ts. */
-  .thread-panel :global(.thread) {
+  :global(:is(.thread-panel, .thread-card) .thread) {
     display: grid;
     gap: var(--space-3);
     padding: var(--space-4);
@@ -138,57 +139,57 @@ const strings = Object.fromEntries(
     background: var(--fill);
   }
 
-  .thread-panel :global(.thread[data-resolved]) {
+  :global(:is(.thread-panel, .thread-card) .thread[data-resolved]) {
     opacity: 0.75;
   }
 
-  .thread-panel :global(.comment) {
+  :global(:is(.thread-panel, .thread-card) .comment) {
     display: grid;
     grid-template-columns: 28px minmax(0, 1fr);
     gap: 0 var(--space-3);
   }
 
-  .thread-panel :global(.comment .avatar) {
+  :global(:is(.thread-panel, .thread-card) .comment .avatar) {
     grid-row: span 2;
   }
 
-  .thread-panel :global(.comment-head) {
+  :global(:is(.thread-panel, .thread-card) .comment-head) {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 2px 8px;
   }
 
-  .thread-panel :global(.comment-body) {
+  :global(:is(.thread-panel, .thread-card) .comment-body) {
     margin: 2px 0 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
-  .thread-panel :global(.comment-body.gone) {
+  :global(:is(.thread-panel, .thread-card) .comment-body.gone) {
     color: var(--label-tertiary);
     font-style: italic;
   }
 
-  .thread-panel :global(.comment-actions),
-  .thread-panel :global(.thread-actions) {
+  :global(:is(.thread-panel, .thread-card) .comment-actions),
+  :global(:is(.thread-panel, .thread-card) .thread-actions) {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
   }
 
-  .thread-panel :global(.thread-actions) {
+  :global(:is(.thread-panel, .thread-card) .thread-actions) {
     justify-content: space-between;
     align-items: center;
   }
 
-  .thread-panel :global(.reply) {
+  :global(:is(.thread-panel, .thread-card) .reply) {
     display: flex;
     gap: var(--space-2);
     align-items: flex-end;
   }
 
-  .thread-panel :global(textarea) {
+  :global(:is(.thread-panel, .thread-card) textarea) {
     flex: 1;
     width: 100%;
     min-height: 38px;
@@ -201,31 +202,31 @@ const strings = Object.fromEntries(
     resize: vertical;
   }
 
-  .thread-panel :global(textarea:focus-visible) {
+  :global(:is(.thread-panel, .thread-card) textarea:focus-visible) {
     outline: 2px solid var(--tint);
     outline-offset: 1px;
   }
 
-  .thread-panel :global(.resolved-list summary) {
+  :global(:is(.thread-panel, .thread-card) .resolved-list summary) {
     cursor: pointer;
     color: var(--label-secondary);
   }
 
-  .thread-panel :global(.resolved-list[open] summary) {
+  :global(:is(.thread-panel, .thread-card) .resolved-list[open] summary) {
     margin-bottom: var(--space-3);
   }
 
-  .thread-panel :global(.comment-actions .button) {
+  :global(:is(.thread-panel, .thread-card) .comment-actions .button) {
     min-height: 24px;
     padding: 0 6px;
     font-size: 13px;
   }
 
-  .thread-panel :global(.comment-actions) {
+  :global(:is(.thread-panel, .thread-card) .comment-actions) {
     margin-left: -6px;
   }
 
-  .thread-panel :global(.danger) {
+  :global(:is(.thread-panel, .thread-card) .danger) {
     color: var(--red, #ff453a);
   }
 </style>

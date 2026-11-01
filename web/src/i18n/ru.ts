@@ -429,7 +429,7 @@ export const ru: Messages = {
   'comments.title': 'Обсуждение',
   'comments.new': 'Начать обсуждение',
   'comments.railReplies': 'ещё {n}',
-  'comments.railThreads': 'обсуждений: {n}',
+  'comments.collapse': 'Свернуть',
   'comments.newPlaceholder': 'О чём хотите поговорить?',
   'comments.reply': 'Ответить',
   'comments.replyPlaceholder': 'Ответ…',

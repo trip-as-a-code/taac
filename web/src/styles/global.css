@@ -936,9 +936,9 @@ html[data-filter-pending] .trip .content {
   transform: translateX(20px);
 }
 
-/* Discussions in the margin (scripts/rail), right of the centred page when
-   there is room for them; the script sets the rail's width. */
-/* The rail has them: a card for each open one, "+" on the row under the pointer. */
+/* Discussions next to what they discuss (scripts/rail): a rail right of the
+   centred page when there is room for it (the script sets its width), else
+   inside the row. Each thread folds to its first words and opens in place. */
 :root[data-rail] .thread-button {
   visibility: hidden;
 }
@@ -954,17 +954,42 @@ html[data-filter-pending] .trip .content {
   pointer-events: none;
 }
 
-.rail-card,
+/* One thing's threads, stacked; the group sits level with the thing. */
+.rail-group,
 .rail-add {
   position: absolute;
   left: 0;
   pointer-events: auto;
-  transition:
-    transform var(--duration) var(--ease),
-    box-shadow var(--duration) var(--ease);
 }
 
-.rail-card {
+.rail-group,
+.thread-peeks {
+  display: grid;
+  gap: 6px;
+}
+
+.rail-group {
+  width: 100%;
+  transition: transform var(--duration) var(--ease);
+}
+
+/* Lit with its row: it steps towards the page, like the active comment in a document. */
+.rail-group[data-rail-lit] {
+  transform: translateX(-6px);
+}
+
+.thread-peeks {
+  grid-column: -2 / -1;
+  margin-top: 10px;
+}
+
+/* Under a day's heading, its own line before the day's plans. */
+.day-header + .thread-peeks {
+  margin: 0 0 var(--space-3);
+}
+
+.thread-card {
+  position: relative;
   display: grid;
   gap: 4px;
   width: 100%;
@@ -976,19 +1001,78 @@ html[data-filter-pending] .trip .content {
   color: var(--label);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-sm);
+}
+
+.thread-peeks .thread-card {
+  border-radius: 12px;
+  background: var(--fill);
+  box-shadow: none;
+}
+
+button.thread-card {
   cursor: pointer;
 }
 
-/* Lit with its row: it steps towards the page, like the active comment in a document. */
-.rail-card[data-rail-lit],
-.rail-card:focus-visible {
-  transform: translateX(-6px);
+.rail-group[data-rail-lit] .thread-card {
   box-shadow:
     0 0 0 1.5px var(--tint),
     var(--shadow-sm);
 }
 
-.rail-card[data-unread]::before {
+/* Open: the whole conversation, its replies and resolving, in place. */
+.thread-card[data-expanded] {
+  gap: var(--space-3);
+  padding: 12px;
+  box-shadow:
+    0 0 0 1.5px var(--tint),
+    var(--shadow-md, var(--shadow-sm));
+}
+
+.thread-peeks .thread-card[data-expanded] {
+  background: var(--bg-elevated);
+}
+
+.thread-card .thread {
+  padding: 0;
+  padding-right: 22px;
+  background: none;
+}
+
+.thread-card .reply {
+  flex-direction: column;
+  align-items: stretch;
+  margin-right: -22px;
+}
+
+.thread-card .reply .button {
+  align-self: flex-end;
+}
+
+.thread-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--label-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.thread-close:hover {
+  background: var(--fill);
+}
+
+.thread-card[data-resolved]:not([data-expanded]) {
+  opacity: 0.7;
+}
+
+.thread-card[data-unread]::before {
   content: '';
   position: absolute;
   top: 14px;
@@ -997,6 +1081,70 @@ html[data-filter-pending] .trip .content {
   height: 8px;
   border-radius: 50%;
   background: var(--tint);
+}
+
+/* A new thread being written, where its row is. */
+.thread-new textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 10px;
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--label);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.thread-new textarea:focus-visible {
+  outline: 2px solid var(--tint);
+  outline-offset: 1px;
+}
+
+.thread-new-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Shown with its row or group under the pointer; its room is kept so nothing moves. */
+.thread-more {
+  justify-self: start;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tint);
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.rail-group[data-rail-lit] .thread-more,
+.rail-group:hover .thread-more,
+.thread-more:focus-visible {
+  visibility: visible;
+}
+
+.thread-resolved-toggle {
+  justify-self: start;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--label-secondary);
+  cursor: pointer;
+}
+
+.thread-resolved-toggle::after {
+  content: ' ▸';
+}
+
+.thread-resolved-toggle[aria-expanded='true']::after {
+  content: ' ▾';
 }
 
 .rail-head {
@@ -1040,13 +1188,17 @@ html[data-filter-pending] .trip .content {
   white-space: pre-line;
 }
 
+.thread-peeks .rail-body {
+  -webkit-line-clamp: 2;
+}
+
 .rail-more {
   font-size: 12px;
   font-weight: 500;
   color: var(--tint);
 }
 
-/* In the rail with the cards, level with the row. */
+/* In the rail with the cards, under the row's own threads. */
 .rail-add {
   display: grid;
   place-items: center;
@@ -1059,6 +1211,7 @@ html[data-filter-pending] .trip .content {
   background: var(--bg-elevated);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
+  transition: transform var(--duration) var(--ease);
 }
 
 .rail-add[hidden] {
@@ -1069,45 +1222,7 @@ html[data-filter-pending] .trip .content {
   transform: scale(1.08);
 }
 
-/* The row a card talks about. */
-[data-rail-lit]:not(.rail-card) {
+/* The row its threads talk about. */
+[data-rail-lit]:not(.rail-group) {
   box-shadow: inset 3px 0 0 var(--tint);
-}
-
-/* Narrower screens: a discussion peeks out of its row, in the text's column. */
-.thread-peek {
-  position: relative;
-  display: grid;
-  gap: 2px;
-  grid-column: -2 / -1;
-  width: 100%;
-  margin-top: 10px;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 12px;
-  text-align: left;
-  font: inherit;
-  color: var(--label);
-  background: var(--fill);
-  cursor: pointer;
-}
-
-.thread-peek .rail-body {
-  -webkit-line-clamp: 2;
-}
-
-.thread-peek[data-unread]::before {
-  content: '';
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--tint);
-}
-
-/* Under a day's heading, its own line before the day's plans. */
-.day-header + .thread-peek {
-  margin: 0 0 var(--space-3);
 }

@@ -1,25 +1,33 @@
-// Wide screens: open discussions sit in the margin right of the page, each
-// card level with what it discusses, like comments in a document. Hovering a
-// row offers to start one there. Narrower screens and phones show each one as
-// a peek inside its row instead; its inline button still starts a new one.
+// Discussions next to what they discuss, opened in place like comments in a
+// document. Wide screens: a rail in the margin right of the centred page, each
+// thing's threads level with it; hovering a row offers "+" to start another.
+// Narrower screens and phones: the same threads inside the row, and the row's
+// own chat button starts one. A thread opens to the whole conversation, with
+// replies, edits and resolving right there; one at a time.
 
 import { avatarPhoto } from '@/scripts/avatars'
 
 export interface RailThread {
   id: string
   anchor: string
+  createdAt: number
+  createdBy: string
   resolvedAt: number | null
   comments: { author: string; body: string; createdAt: number; deletedAt: number | null }[]
 }
 
 export interface RailOptions {
   threads: RailThread[]
+  login: string | null
   writer: boolean
   people: Record<string, { name: string; initials: string; hue: number }>
   strings: Record<string, string>
   lang: string
   unread: (thread: RailThread) => boolean
-  open: (anchor: string, title: string) => void
+  /** The whole thread: its comments, the reply box, resolving. */
+  render: (thread: RailThread) => HTMLElement
+  create: (anchor: string, body: string) => Promise<boolean>
+  seen: (threads: RailThread[]) => void
 }
 
 /** The rail lives in the margin right of the centred page, only when that margin can hold it. */
@@ -29,25 +37,40 @@ const WIDEST = 300
 const GAP = 8
 /** What a thread is about: the row, card or heading its button sits in. */
 const HOST = '[data-item], article, li, .day-header, .heading'
+/** Where threads fit inside the page on narrow screens. */
+const PEEKS = '[data-item], article, .day-header'
 
 let options: RailOptions | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
+let mode: 'rail' | 'peeks' | undefined
+/** Each discussed thing's threads, built when they change and placed whenever the page moves. */
+let groups = new Map<string, HTMLElement>()
+/** The thread open in full; a new one being written; things showing their resolved threads. */
+let expanded: string | null = null
+let draft: string | null = null
+let pending: string | null = null
+const showResolved = new Set<string>()
 /** The thing under the pointer, lit again whenever the rail redraws. */
 let lit: string | undefined
 
 const hostOf = (button: Element) => button.closest<HTMLElement>(HOST) ?? button.parentElement!
+const buttonFor = (anchor: string) =>
+  [...document.querySelectorAll<HTMLElement>(`[data-thread="${CSS.escape(anchor)}"]`)].find(
+    (b) => hostOf(b).getClientRects().length > 0 && !b.closest('[hidden]'),
+  )
 
-function visible(el: HTMLElement): boolean {
-  return el.getClientRects().length > 0 && !el.closest('[hidden]')
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text !== undefined) node.textContent = text
+  return node
 }
 
 function avatar(login: string): HTMLElement {
   const person = options!.people[login]
-  const span = document.createElement('span')
-  span.className = 'avatar'
+  const span = el('span', 'avatar', person?.initials ?? login.slice(0, 1).toUpperCase())
   span.style.setProperty('--hue', String(person?.hue ?? 210))
-  span.textContent = person?.initials ?? login.slice(0, 1).toUpperCase()
   span.append(avatarPhoto(login))
   return span
 }
@@ -63,130 +86,253 @@ function relative(ms: number): string {
   return new Intl.DateTimeFormat(options!.lang, { day: 'numeric', month: 'short' }).format(ms)
 }
 
-/** One card per discussed thing: its first open thread, and how much more there is. */
-function card(anchor: string, threads: RailThread[], title: string): HTMLElement {
-  const first = threads[0]!
-  const lead = first.comments.find((c) => !c.deletedAt) ?? first.comments[0]!
-  const box = document.createElement('button')
+/** Something is being typed in it: a redraw would lose it. */
+const typing = (root: Element) =>
+  [...root.querySelectorAll('textarea')].some((t) => t.value.trim() !== '' && t.value !== t.defaultValue)
+
+/** A thread folded to its first words; a click opens it in full. */
+function folded(thread: RailThread): HTMLElement {
+  const lead = thread.comments.find((c) => !c.deletedAt) ?? thread.comments[0]!
+  const box = el('button', 'thread-card')
   box.type = 'button'
-  box.className = 'rail-card'
-  box.dataset.railAnchor = anchor
-  box.toggleAttribute('data-unread', threads.some(options!.unread))
-  box.toggleAttribute('data-rail-lit', anchor === lit)
-  const head = document.createElement('span')
-  head.className = 'rail-head'
-  const name = document.createElement('strong')
-  name.textContent = options!.people[lead.author]?.name ?? `@${lead.author}`
-  const when = document.createElement('span')
-  when.className = 'rail-when'
-  when.textContent = relative(Math.max(...threads.flatMap((t) => t.comments.map((c) => c.createdAt))))
-  head.append(avatar(lead.author), name, when)
-  const body = document.createElement('span')
-  body.className = 'rail-body'
-  body.textContent = lead.deletedAt ? options!.strings.deleted! : lead.body
-  box.append(head, body)
-  const replies = threads.reduce((n, t) => n + t.comments.length, 0) - 1
-  if (replies > 0 || threads.length > 1) {
-    const more = document.createElement('span')
-    more.className = 'rail-more'
-    more.textContent = [
-      replies > 0 && options!.strings.railReplies!.replace('{n}', String(replies)),
-      threads.length > 1 && options!.strings.railThreads!.replace('{n}', String(threads.length)),
-    ]
-      .filter(Boolean)
-      .join(' · ')
-    box.append(more)
-  }
-  box.title = title
-  box.addEventListener('click', () => options!.open(anchor, title))
+  box.dataset.threadCard = thread.id
+  box.toggleAttribute('data-unread', options!.unread(thread))
+  box.toggleAttribute('data-resolved', thread.resolvedAt !== null)
+  const head = el('span', 'rail-head')
+  head.append(
+    avatar(lead.author),
+    el('strong', undefined, options!.people[lead.author]?.name ?? `@${lead.author}`),
+    el('span', 'rail-when', relative(Math.max(...thread.comments.map((c) => c.createdAt)))),
+  )
+  box.append(head, el('span', 'rail-body', lead.deletedAt ? options!.strings.deleted! : lead.body))
+  const replies = thread.comments.length - 1
+  if (replies > 0) box.append(el('span', 'rail-more', options!.strings.railReplies!.replace('{n}', String(replies))))
+  box.addEventListener('click', () => open(thread.id))
   return box
 }
 
-/** Narrow screens: the first words of a discussion under what it is about; a tap opens it. */
-function peeks(byAnchor: Map<string, RailThread[]>) {
-  for (const old of document.querySelectorAll('[data-thread-peek]')) old.remove()
-  for (const [anchor, threads] of byAnchor)
-    for (const button of document.querySelectorAll<HTMLElement>(`[data-thread="${CSS.escape(anchor)}"]`)) {
-      const host = hostOf(button)
-      // Rows and cards take it inside; a day's heading, under it.
-      const inside = host.matches('[data-item], article')
-      if (!inside && !host.matches('.day-header')) continue
-      const peek = card(anchor, threads, button.dataset.threadTitle ?? '')
-      peek.className = 'thread-peek'
-      peek.dataset.threadPeek = ''
-      delete peek.dataset.railAnchor
-      peek.removeAttribute('data-rail-lit')
-      if (inside) host.append(peek)
-      else host.after(peek)
-    }
+/** A thread in full, where it sits. */
+function unfolded(thread: RailThread): HTMLElement {
+  const box = el('div', 'thread-card')
+  box.dataset.threadCard = thread.id
+  box.dataset.expanded = ''
+  box.toggleAttribute('data-resolved', thread.resolvedAt !== null)
+  const close = el('button', 'thread-close')
+  close.type = 'button'
+  close.title = options!.strings.collapse!
+  close.innerHTML =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>'
+  close.append(el('span', 'visually-hidden', close.title))
+  close.addEventListener('click', () => collapse())
+  box.append(close, options!.render(thread))
+  return box
 }
 
-/** Cards level with their rows, pushed down where they would overlap. */
-function layout() {
+/** A new thread being written, in place of the dialog. */
+function composer(anchor: string): HTMLElement {
+  const form = el('form', 'thread-card thread-new')
+  form.dataset.threadCard = 'new'
+  const area = el('textarea')
+  area.rows = 2
+  area.maxLength = 4000
+  area.placeholder = options!.strings.newPlaceholder!
+  area.required = true
+  area.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) form.requestSubmit()
+    if (event.key === 'Escape') cancelDraft()
+  })
+  const actions = el('div', 'thread-new-actions')
+  const cancel = el('button', 'button button-plain', options!.strings.cancel)
+  cancel.type = 'button'
+  cancel.addEventListener('click', cancelDraft)
+  const submit = el('button', 'button button-primary', options!.strings.new)
+  submit.type = 'submit'
+  actions.append(cancel, submit)
+  form.append(area, actions)
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    if (!area.value.trim()) return
+    submit.disabled = true
+    pending = anchor
+    if (await options!.create(anchor, area.value)) {
+      draft = null
+      build()
+    } else {
+      pending = null
+      submit.disabled = false
+    }
+  })
+  queueMicrotask(() => area.focus({ preventScroll: true }))
+  return form
+}
+
+/** One thing's threads: open ones, then a fold for the resolved, then a new one being written. */
+function group(anchor: string, threads: RailThread[]): HTMLElement {
+  const box = el('div', mode === 'rail' ? 'rail-group' : 'thread-peeks')
+  box.dataset.threadGroup = anchor
+  box.toggleAttribute('data-rail-lit', anchor === lit)
+  const open = threads.filter((t) => t.resolvedAt === null)
+  const resolved = threads.filter((t) => t.resolvedAt !== null)
+  box.append(...open.map((t) => (t.id === expanded ? unfolded(t) : folded(t))))
+  if (resolved.length) {
+    const shown = showResolved.has(anchor) || resolved.some((t) => t.id === expanded)
+    const toggle = el(
+      'button',
+      'thread-resolved-toggle',
+      options!.strings.resolvedCount!.replace('{n}', String(resolved.length)),
+    )
+    toggle.type = 'button'
+    toggle.setAttribute('aria-expanded', String(shown))
+    toggle.addEventListener('click', () => {
+      if (shown) showResolved.delete(anchor)
+      else showResolved.add(anchor)
+      build()
+    })
+    box.append(toggle)
+    if (shown) box.append(...resolved.map((t) => (t.id === expanded ? unfolded(t) : folded(t))))
+  }
+  if (draft === anchor) box.append(composer(anchor))
+  // Another thread on the same thing, from its own group (the row's button does it inside the page).
+  else if (mode === 'rail' && options!.writer && threads.length) {
+    const more = el('button', 'thread-more', `+ ${options!.strings.new}`)
+    more.type = 'button'
+    more.addEventListener('click', () => showThreads(anchor, true))
+    box.append(more)
+  }
+  return box
+}
+
+function wantedMode(): 'rail' | 'peeks' | undefined {
   const rail = document.querySelector<HTMLElement>('[data-thread-rail]')
-  const page = rail?.parentElement
-  const content = page?.querySelector<HTMLElement>('.content')
-  if (!rail || !page || !content || !options) return
+  const content = rail?.parentElement?.querySelector<HTMLElement>('.content')
+  if (!rail || !content || !options) return undefined
   // The margin right of the text, less a gutter at the window's edge.
   const gutter = parseFloat(getComputedStyle(content).paddingRight) || 0
   const room = document.documentElement.clientWidth - content.getBoundingClientRect().right - gutter
-  const on =
-    matchMedia(POINTER).matches &&
-    room >= NARROWEST &&
-    (options.writer || options.threads.some((t) => t.resolvedAt === null))
   rail.style.width = `${Math.min(room, WIDEST)}px`
+  return matchMedia(POINTER).matches && room >= NARROWEST ? 'rail' : 'peeks'
+}
+
+/** Rebuilds every thing's threads from the data; keeps a draft or reply being typed. */
+function build() {
+  if (!options) return
+  for (const g of groups.values()) g.remove()
+  groups = new Map()
+  mode = wantedMode()
+  if (!mode) return
+  const rail = document.querySelector<HTMLElement>('[data-thread-rail]')!
+  const anchors = new Set(options.threads.map((t) => t.anchor))
+  if (draft) anchors.add(draft)
+  for (const anchor of anchors)
+    groups.set(
+      anchor,
+      group(
+        anchor,
+        options.threads.filter((t) => t.anchor === anchor).sort((a, b) => a.createdAt - b.createdAt),
+      ),
+    )
+  const on = mode === 'rail' && (options.writer || groups.size > 0)
   document.documentElement.toggleAttribute('data-rail', on)
   rail.hidden = !on
-  const byAnchor = Map.groupBy(
-    options.threads.filter((t) => t.resolvedAt === null),
-    (t) => t.anchor,
-  )
-  if (!on) {
-    rail.replaceChildren(...[...rail.children].filter((c) => c.matches('[data-rail-add]')))
-    return peeks(byAnchor)
+  place()
+}
+
+/** Puts each group by what it discusses: level with it in the rail, or inside it. */
+function place() {
+  const rail = document.querySelector<HTMLElement>('[data-thread-rail]')
+  const page = rail?.parentElement
+  const content = page?.querySelector<HTMLElement>('.content')
+  if (!rail || !page || !content) return
+  if (wantedMode() !== mode) return build()
+  if (mode === 'peeks') {
+    for (const [anchor, g] of groups) {
+      const button = buttonFor(anchor)
+      const host = button && hostOf(button)
+      g.hidden = !host?.matches(PEEKS)
+      if (!host || g.hidden) continue
+      // Rows and cards take it inside; a day's heading, under it.
+      if (host.matches('.day-header')) {
+        if (host.nextElementSibling !== g) host.after(g)
+      } else if (g.parentElement !== host) host.append(g)
+    }
+    return
   }
-  peeks(new Map())
   const origin = page.getBoundingClientRect()
   rail.style.left = `${content.getBoundingClientRect().right - origin.left}px`
-  const placed: { top: number; el: HTMLElement; host: HTMLElement }[] = []
-  for (const [anchor, threads] of byAnchor) {
-    const button = [...document.querySelectorAll<HTMLElement>(`[data-thread="${CSS.escape(anchor)}"]`)].find((b) =>
-      visible(hostOf(b)),
-    )
+  const placed: { top: number; g: HTMLElement }[] = []
+  for (const [anchor, g] of groups) {
+    const button = buttonFor(anchor)
+    g.hidden = !button
     if (!button) continue
-    const host = hostOf(button)
-    const el = card(anchor, threads, button.dataset.threadTitle ?? '')
-    placed.push({ top: host.getBoundingClientRect().top - origin.top, el, host })
+    if (g.parentElement !== rail) rail.append(g)
+    placed.push({ top: hostOf(button).getBoundingClientRect().top - origin.top, g })
   }
   placed.sort((a, b) => a.top - b.top)
-  const add = rail.querySelector('[data-rail-add]')
-  rail.replaceChildren(...placed.map((p) => p.el), ...(add ? [add] : []))
   let floor = -Infinity
   for (const p of placed) {
     const top = Math.max(p.top, floor)
-    p.el.style.top = `${top}px`
-    floor = top + p.el.offsetHeight + GAP
+    p.g.style.top = `${top}px`
+    floor = top + p.g.offsetHeight + GAP
   }
 }
 
 function schedule() {
   cancelAnimationFrame(frame)
-  frame = requestAnimationFrame(layout)
+  frame = requestAnimationFrame(place)
 }
 
-/** The row under the pointer and its card light up together; a row without one offers "+". */
+function open(id: string) {
+  expanded = id
+  const thread = options?.threads.find((t) => t.id === id)
+  if (thread) options!.seen([thread])
+  build()
+}
+
+function collapse() {
+  if (expanded === null) return
+  expanded = null
+  build()
+}
+
+function cancelDraft() {
+  draft = null
+  build()
+}
+
+/**
+ * Opens what is said about `anchor` where it is on the page: its first open
+ * thread, or a new one to write. False when the page has nowhere to show it.
+ */
+export function showThreads(anchor: string, start = false): boolean {
+  if (!options || !mode) return false
+  const button = buttonFor(anchor)
+  const host = button && hostOf(button)
+  if (!host || (mode === 'peeks' && !host.matches(PEEKS))) return false
+  const first = options.threads.find((t) => t.anchor === anchor && t.resolvedAt === null)
+  if (first && !start) expanded = first.id
+  else if (options.writer) {
+    draft = anchor
+    expanded = null
+  } else if (!options.threads.some((t) => t.anchor === anchor)) return false
+  if (first && !start) options.seen([first])
+  build()
+  groups.get(anchor)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  return true
+}
+
+/** The row under the pointer and its threads light up together; "+" starts another. */
 function hover(event: Event) {
-  if (!document.documentElement.hasAttribute('data-rail')) return
+  if (mode !== 'rail') return
   const rail = document.querySelector<HTMLElement>('[data-thread-rail]')!
   const target = event.target as Element
-  const fromCard = target.closest<HTMLElement>('[data-rail-anchor]')
-  const overAdd = target.closest('[data-rail-add]')
-  let anchor = fromCard?.dataset.railAnchor
+  const fromGroup = target.closest<HTMLElement>('[data-thread-group]')
+  if (target.closest('[data-rail-add]')) return
+  let anchor = fromGroup?.dataset.threadGroup
   let host: HTMLElement | undefined
-  if (fromCard) {
-    const button = document.querySelector<HTMLElement>(`[data-thread="${CSS.escape(anchor!)}"]`)
+  if (fromGroup) {
+    const button = buttonFor(anchor!)
     host = button ? hostOf(button) : undefined
-  } else if (!overAdd) {
+  } else {
     const row = target.closest<HTMLElement>(HOST)
     const button = row?.querySelector<HTMLElement>('[data-thread]')
     if (row && button && hostOf(button) === row) {
@@ -195,45 +341,63 @@ function hover(event: Event) {
     }
   }
   // Between rows (on the way to the rail, say) nothing changes.
-  if (overAdd || !host) return
+  if (!host || !anchor) return
   lit = anchor
-  for (const el of document.querySelectorAll('[data-rail-lit]')) el.removeAttribute('data-rail-lit')
-  host?.setAttribute('data-rail-lit', '')
-  rail.querySelector(`[data-rail-anchor="${CSS.escape(anchor ?? '')}"]`)?.setAttribute('data-rail-lit', '')
+  for (const node of document.querySelectorAll('[data-rail-lit]')) node.removeAttribute('data-rail-lit')
+  host.setAttribute('data-rail-lit', '')
+  groups.get(anchor)?.setAttribute('data-rail-lit', '')
+  // A thing with threads offers another at the foot of its group; one without, "+" level with it.
   const add = rail.querySelector<HTMLButtonElement>('[data-rail-add]')!
-  const free = host && anchor && options?.writer && !rail.querySelector(`[data-rail-anchor="${CSS.escape(anchor)}"]`)
+  const free = options?.writer && !groups.has(anchor)
   add.hidden = !free
-  if (free) {
-    const button = host!.querySelector<HTMLElement>('[data-thread]')!
-    add.dataset.anchor = anchor
-    add.dataset.title = button.dataset.threadTitle ?? ''
-    // In the rail, level with the row; below whichever card already sits there.
-    let top = host!.getBoundingClientRect().top - rail.parentElement!.getBoundingClientRect().top
-    for (const card of [...rail.querySelectorAll<HTMLElement>('[data-rail-anchor]')].sort(
-      (a, b) => a.offsetTop - b.offsetTop,
-    ))
-      if (top + add.offsetHeight > card.offsetTop && top < card.offsetTop + card.offsetHeight)
-        top = card.offsetTop + card.offsetHeight + GAP
-    add.style.top = `${top}px`
-  }
+  if (!free) return
+  add.dataset.anchor = anchor
+  // Below any card already at that height.
+  let top = host.getBoundingClientRect().top - rail.parentElement!.getBoundingClientRect().top
+  for (const other of [...groups.values()].filter((o) => !o.hidden).sort((a, b) => a.offsetTop - b.offsetTop))
+    if (top + add.offsetHeight > other.offsetTop && top < other.offsetTop + other.offsetHeight)
+      top = other.offsetTop + other.offsetHeight + GAP
+  add.style.top = `${top}px`
 }
 
-/** Draws the rail from the trip's threads; called whenever they change. */
-export function updateRail(next: RailOptions) {
+/** A click elsewhere folds the open thread, unless something is being typed in it. */
+function away(event: Event) {
+  const target = event.target as Element
+  if (target.closest('[data-thread-group], [data-rail-add], [data-thread], dialog')) return
+  const card = document.querySelector('[data-thread-card][data-expanded]')
+  if (card && !typing(card)) collapse()
+}
+
+/**
+ * Draws the threads from the trip's discussions; called whenever they change.
+ * A refresh in the background (`force` false) waits while something is typed.
+ */
+export function updateRail(next: RailOptions, force = true) {
   options = next
   const rail = document.querySelector<HTMLElement>('[data-thread-rail]')
   if (!rail) return
+  // A thread just started: open it.
+  if (pending) {
+    const mine = next.threads
+      .filter((t) => t.anchor === pending && t.createdBy === next.login)
+      .sort((a, b) => b.createdAt - a.createdAt)[0]
+    if (mine) expanded = mine.id
+    pending = null
+  }
+  if (expanded && !next.threads.some((t) => t.id === expanded)) expanded = null
   if (!rail.querySelector('[data-rail-add]')) {
-    const add = document.createElement('button')
+    const add = el('button', 'rail-add')
     add.type = 'button'
-    add.className = 'rail-add'
     add.dataset.railAdd = ''
     add.hidden = true
     add.title = next.strings.new!
     add.innerHTML =
       '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>'
-    add.append(Object.assign(document.createElement('span'), { className: 'visually-hidden', textContent: add.title }))
-    add.addEventListener('click', () => options?.open(add.dataset.anchor!, add.dataset.title ?? ''))
+    add.append(el('span', 'visually-hidden', add.title))
+    add.addEventListener('click', () => {
+      add.hidden = true
+      showThreads(add.dataset.anchor!, true)
+    })
     rail.append(add)
   }
   if (!observer) {
@@ -242,9 +406,15 @@ export function updateRail(next: RailOptions) {
     addEventListener('resize', schedule)
     document.addEventListener('mouseover', hover)
     document.addEventListener('toggle', schedule, true)
+    document.addEventListener('pointerdown', away)
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') collapse()
+    })
   }
   observer.disconnect()
   const content = rail.parentElement?.querySelector('.content')
   if (content) observer.observe(content)
-  schedule()
+  // Typing a reply or a new thread: the refresh waits rather than take it away.
+  const busy = [...groups.values()].some((g) => g.isConnected && typing(g))
+  if (force || !busy) build()
 }

@@ -407,7 +407,7 @@ export const en = {
   'comments.title': 'Discussion',
   'comments.new': 'Start a discussion',
   'comments.railReplies': '{n} more',
-  'comments.railThreads': '{n} discussions',
+  'comments.collapse': 'Fold',
   'comments.newPlaceholder': 'What’s on your mind?',
   'comments.reply': 'Reply',
   'comments.replyPlaceholder': 'Reply…',
