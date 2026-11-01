@@ -1008,7 +1008,8 @@ button.thread-card {
   cursor: pointer;
 }
 
-.rail-group[data-rail-lit] .thread-card {
+/* Lit with its row, unless one of its threads is open or being started: that one is lit. */
+.rail-group[data-rail-lit]:not(:has([data-expanded], .thread-new)) .thread-card {
   box-shadow:
     0 0 0 1.5px var(--tint),
     var(--shadow-sm);
