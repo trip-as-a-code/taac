@@ -1,6 +1,7 @@
 ---
-import type { TripExport } from '@taac/core'
+import type { Member, TripExport } from '@taac/core'
 
+import Avatar from '@/components/Avatar.astro'
 import Icon from '@/components/Icon.astro'
 import type { I18n } from '@/i18n'
 import { changes } from '@/lib/build'
@@ -16,6 +17,9 @@ const { trip, i18n } = Astro.props
 const { t, date, money, path } = i18n
 const sets = changes[trip.slug] ?? []
 const SHOWN = 6
+// Each author's circle, as everywhere else: the member's, else the GitHub account's.
+const byLogin = new Map(trip.members.filter((m) => m.github).map((m) => [m.github!.toLowerCase(), m]))
+const authorOf = (login: string): Member => byLogin.get(login) ?? ({ id: login, name: login, github: login } as Member)
 const repo = site.site.source?.repo.replace(/\/$/, '')
 const ideas = new Set(trip.ideas.map((i) => i.id))
 const items = new Set(trip.items.map((i) => i.id))
@@ -55,6 +59,7 @@ const value = (text?: string) => {
           data-more={index >= SHOWN ? '' : undefined}
         >
           <p class="who footnote secondary">
+            {set.login && <Avatar member={authorOf(set.login)} hidden />}
             {set.author && <span class="author">{set.author}</span>}
             <time data-relative={set.date.slice(0, 10)} data-template="{rel}" />
             {set.pr && repo && (
@@ -155,8 +160,17 @@ const value = (text?: string) => {
   .who {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 4px 10px;
     margin: 0;
+  }
+
+  .who :global(.avatar) {
+    width: 20px;
+    height: 20px;
+    margin-right: -4px;
+    font-size: 9px;
+    box-shadow: none;
   }
 
   .author {
