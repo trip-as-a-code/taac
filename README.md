@@ -67,7 +67,7 @@ itinerary:
     places: [London Gatwick, Lisbon Airport] # names from `places`, or inline places
     transport: { carrier: TAP Air Portugal, number: TP1337 }
     booking:
-      status: booked # required, booked, notRequired
+      status: booked # or required; leave `booking` out when there's nothing to book
       reference: { secret: LISBON_PNR } # resolved from .env / secrets.yaml / env, never published
     costs:
       - { amount: 138, currency: GBP, paidBy: Sam } # split: equal (default), personal, { shares: … }, { exact: … }

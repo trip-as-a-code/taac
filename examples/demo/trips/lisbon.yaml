@@ -269,7 +269,6 @@ ideas:
     area: Lisbon
     date: 2027-05-16
     part: evening
-    booking: { status: notRequired }
     costs: [{ amount: 60, currency: EUR, estimate: true }]
 # Pays the metro, trams and buses of the legs in Lisbon on these days.
 passes:
