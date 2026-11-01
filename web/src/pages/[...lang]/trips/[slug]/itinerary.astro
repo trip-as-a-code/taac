@@ -177,6 +177,9 @@ const span = (from: string, to: string) =>
     ))}
   </nav>
 
+  {/* Wide screens, once the strip scrolls away: a month calendar in the left margin (scripts/sidecal). */}
+  <aside class="side-cal" data-side-cal aria-label={t('filter.day')} hidden></aside>
+
   <div class="days">
     {blocks.map(({ days, index }) => {
       const day = days[0]
@@ -304,11 +307,13 @@ const span = (from: string, to: string) =>
   import { revealTarget, setupFilters } from '@/scripts/filters'
   import { getLens, onLens } from '@/scripts/lens'
   import { onPage, todayUTC } from '@/scripts/page'
+  import { setupSideCalendar } from '@/scripts/sidecal'
   import { groupStrip, hideEmptyStays } from '@/scripts/stays'
 
   let stopLens: (() => void) | undefined
 
   onPage('itinerary', () => {
+    setupSideCalendar()
     // The strip's groups follow the lens: where its people sleep.
     const strip = document.querySelector<HTMLElement>('[data-day-strip]')!
     const regroup = () => {
