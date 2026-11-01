@@ -75,9 +75,13 @@ function leadElement(run: StayRun, jump: string, people: People, hues: Hues): HT
   return lead
 }
 
-/** Regroups the strip's chips for `people` (everyone when empty). */
-export function groupStrip(strip: HTMLElement, people: string[]) {
-  const chips = [...strip.querySelectorAll<HTMLElement>('[data-day-link]')]
+/**
+ * Regroups the strip's chips for `people` (everyone when empty). A long trip's
+ * strip shows one `month` (`YYYY-MM`) at a time; the other days wait, hidden.
+ */
+export function groupStrip(strip: HTMLElement, people: string[], month?: string) {
+  const all = [...strip.querySelectorAll<HTMLElement>('[data-day-link]')]
+  const chips = month ? all.filter((chip) => chip.dataset.dayLink!.startsWith(month)) : all
   const months = new Map<string, HTMLElement>()
   for (const month of strip.querySelectorAll<HTMLElement>('[data-month]')) months.set(month.dataset.month!, month)
   const days: DayStay[] = chips.map((chip) => ({
@@ -88,6 +92,7 @@ export function groupStrip(strip: HTMLElement, people: string[]) {
   const jump = strip.dataset.jump ?? '{place}'
   const everyone = JSON.parse(strip.dataset.people ?? '{}') as People
   const hues = JSON.parse(strip.dataset.hues ?? '{}') as Hues
+  const used = new Set<HTMLElement>()
   const groups = stayRuns(days, people).map((run) => {
     const stay = stayElement(run, hues)
     const row = document.createElement('div')
@@ -103,13 +108,26 @@ export function groupStrip(strip: HTMLElement, people: string[]) {
       }
       if (into !== row) row.append(into)
       // The month comes first, before the place's name.
-      if (month) into.prepend(month)
+      if (month) {
+        into.prepend(month)
+        used.add(month)
+      }
       into.append(byDate.get(date)!)
     })
     stay.append(row)
     return stay
   })
-  strip.replaceChildren(...groups)
+  const rest = document.createElement('div')
+  rest.hidden = true
+  rest.dataset.stripRest = ''
+  rest.append(...all.filter((chip) => !chips.includes(chip)))
+  rest.append(...[...months.values()].filter((m) => !used.has(m)))
+  strip.replaceChildren(...groups, rest)
+}
+
+/** The months a trip's days fall in, `YYYY-MM`, in order. */
+export function monthsOf(dates: string[]): string[] {
+  return [...new Set(dates.map((d) => d.slice(0, 7)))]
 }
 
 /** A group whose days the filters all hid goes too. */
