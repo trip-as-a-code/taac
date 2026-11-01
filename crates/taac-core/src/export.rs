@@ -50,6 +50,9 @@ pub struct TripExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cover: Option<Cover>,
     pub tags: Vec<String>,
+    /// Where the trip starts and ends: a place id (members may have their own).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub home: Option<String>,
     /// On a `github` site: open to everyone.
     pub public: bool,
     /// On a `github` site: the GitHub usernames who may see it, its members'
@@ -682,6 +685,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
         timezone: trip.metadata.timezone.clone(),
         cover: trip.metadata.cover.clone(),
         tags: trip.metadata.tags.clone(),
+        home: trip.metadata.home.clone(),
         public: trip.public,
         logins: {
             let mut logins: Vec<String> = trip

@@ -89,6 +89,11 @@ pub struct TripMetadata {
     pub cover: Option<Cover>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    /// Where the trip starts and ends (a place, ideally an area: a city):
+    /// the days before the first stay and after the last one are spent
+    /// there. A member's own `home` wins.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -139,6 +144,9 @@ pub struct Member {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
     pub currency: Option<String>,
+    /// Where this person's trip starts and ends, if not the trip's `home`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]

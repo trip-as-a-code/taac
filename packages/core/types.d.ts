@@ -58,6 +58,8 @@ export interface Member {
   links?: string[]
   /** GitHub username: who signs in as this member; their picture stands for them. */
   github?: string
+  /** Where their trip starts and ends (a place id), if not the trip's `home`. */
+  home?: string
   /** What they may do on the site once signed in: `member` everything, `viewer` look and comment. */
   role: 'member' | 'viewer'
   /** ISO 4217 code this person pays with. */
@@ -336,6 +338,8 @@ export interface TripExport {
   timezone: string
   cover?: { emoji?: string; hue?: number }
   tags: string[]
+  /** Where the trip starts and ends: a place id. */
+  home?: string
   /** On a `github` site: open to everyone. */
   public: boolean
   /** On a `github` site: lowercase GitHub usernames who may see it, its members'. */

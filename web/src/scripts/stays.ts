@@ -2,14 +2,14 @@
 // run of days in one place under its name, which jumps to the first of them.
 // Rebuilt from the day chips when the lens changes.
 
-import { placeHue, stayRuns, type DayStay } from '@/lib/stays'
+import { placeHue, stayRuns, type DayStay, type StayRun } from '@/lib/stays'
 
-function stayElement(titles: string[]): HTMLElement {
+function stayElement(run: StayRun): HTMLElement {
   const stay = document.createElement('div')
   stay.className = 'stay'
   stay.dataset.stay = ''
-  if (!titles.length) stay.dataset.transit = ''
-  else if (titles.length === 1) stay.style.setProperty('--place-hue', String(placeHue(titles[0]!)))
+  if (run.transit || !run.titles.length) stay.dataset.transit = ''
+  else if (run.titles.length === 1) stay.style.setProperty('--place-hue', String(placeHue(run.titles[0]!)))
   else stay.dataset.split = ''
   return stay
 }
@@ -40,7 +40,7 @@ export function groupStrip(strip: HTMLElement, people: string[]) {
   const byDate = new Map(chips.map((chip) => [chip.dataset.dayLink!, chip]))
   const jump = strip.dataset.jump ?? '{place}'
   const groups = stayRuns(days, people).map((run) => {
-    const stay = stayElement(run.titles)
+    const stay = stayElement(run)
     const row = document.createElement('div')
     row.className = 'stay-days'
     run.dates.forEach((date, i) => {
@@ -53,7 +53,8 @@ export function groupStrip(strip: HTMLElement, people: string[]) {
         into.className = 'stay-lead'
       }
       if (into !== row) row.append(into)
-      if (month) into.append(month)
+      // The month comes first, before the place's name.
+      if (month) into.prepend(month)
       into.append(byDate.get(date)!)
     })
     stay.append(row)
