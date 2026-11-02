@@ -50,6 +50,7 @@ export type Theme = 'light' | 'dark'
 function page(lang: string, title: string, body: string, theme: Theme = 'dark'): string {
   return `<!doctype html><html lang="${escapeHtml(lang)}" data-theme="${theme}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
 <body><main>${body}</main></body></html>`
 }

@@ -239,7 +239,11 @@ describe('signing in', () => {
     expect(first.status).toBe(302)
     expect(first.headers.get('Location')).toBe('/login?next=%2Ftrips%2Fjapan%2F')
     const login = await handle(new Request('https://trips.example/login?next=/trips/japan/', { headers: page }))
-    expect(await login.text()).toContain('/api/auth/github?next=%2Ftrips%2Fjapan%2F')
+    const loginPage = await login.text()
+    expect(loginPage).toContain('/api/auth/github?next=%2Ftrips%2Fjapan%2F')
+    // The site's icon, which needs no sign-in to load.
+    expect(loginPage).toContain('<link rel="icon" href="/favicon.svg"')
+    expect((await handle(new Request('https://trips.example/favicon.svg'))).status).not.toBe(302)
 
     const cookies = await signIn(handle)
     expect(cookies).toContain('taac_signed_in=1')
