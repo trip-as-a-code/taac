@@ -12,8 +12,8 @@ use chrono::NaiveDate;
 
 use crate::model::{
     Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory, Pass,
-    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Task, TripFile,
-    TripKind, TripMetadata,
+    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Spending, Task,
+    TripFile, TripKind, TripMetadata,
 };
 
 pub type Files = BTreeMap<String, String>;
@@ -45,6 +45,8 @@ pub struct Trip {
     pub tasks: Vec<Task>,
     pub passes: Vec<Pass>,
     pub packing: Vec<PackingCategory>,
+    /// Budgets for buying on the spot.
+    pub spending: Vec<Spending>,
     pub overlays: Vec<LoadedOverlay>,
     /// On a `github` site: open to everyone.
     pub public: bool,
@@ -94,7 +96,7 @@ impl Trip {
 
     /// Effective participants of an item; see [`Trip::who`].
     /// The trip as some of the people see it: the plans, ideas, bases,
-    /// blockers, tasks, passes and packing any of them take part in — or, `together`, only
+    /// blockers, tasks, passes, packing and spending any of them take part in — or, `together`, only
     /// what all of them do. Members, groups and places stay, so names and
     /// shares still resolve.
     #[must_use]
@@ -121,6 +123,7 @@ impl Trip {
                 .retain(|i| mine(self.who(i.who().or(default.as_deref()))));
         }
         trip.packing.retain(|c| !c.items.is_empty());
+        trip.spending.retain(|s| mine(self.who(s.who.as_deref())));
         trip
     }
 
@@ -440,6 +443,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         tasks: Vec::new(),
         passes: Vec::new(),
         packing: Vec::new(),
+        spending: Vec::new(),
         overlays: Vec::new(),
         public: false,
     };
@@ -532,6 +536,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         trip.tasks.extend(doc.tasks);
         trip.passes.extend(doc.passes);
         trip.packing.extend(doc.packing);
+        trip.spending.extend(doc.spending);
         for overlay in doc.map.unwrap_or_default().overlays {
             let overlay_path = join(&dir, &overlay.file);
             match files.get(&overlay_path).map(|s| serde_json::from_str(s)) {
@@ -767,6 +772,9 @@ fn resolve_names(trip: &mut Trip) {
         }
     }
 
+    for spending in &mut trip.spending {
+        who(&mut spending.who);
+    }
     for category in &mut trip.packing {
         who(&mut category.who);
         for item in &mut category.items {
