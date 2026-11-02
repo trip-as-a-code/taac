@@ -28,7 +28,7 @@ export function base64url(bytes: ArrayBuffer | Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-async function hmac(key: ArrayBuffer | Uint8Array, message: string): Promise<ArrayBuffer> {
+async function hmac(key: ArrayBuffer | Uint8Array<ArrayBuffer>, message: string): Promise<ArrayBuffer> {
   const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   return crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(message))
 }
