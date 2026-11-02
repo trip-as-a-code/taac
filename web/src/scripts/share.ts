@@ -72,7 +72,7 @@ export async function setupShare() {
     try {
       await navigator.clipboard.writeText(link.url)
       button.textContent = d.copied!
-      setTimeout(() => (button.textContent = d.copy!), 1500)
+      setTimeout(() => (button.textContent = d.copyLabel!), 1500)
     } catch {
       prompt('', link.url)
     }
@@ -99,7 +99,7 @@ export async function setupShare() {
         const copyButton = document.createElement('button')
         copyButton.type = 'button'
         copyButton.className = 'button button-plain'
-        copyButton.textContent = d.copy!
+        copyButton.textContent = d.copyLabel!
         copyButton.addEventListener('click', () => void copy(link, copyButton))
         const revoke = document.createElement('button')
         revoke.type = 'button'
