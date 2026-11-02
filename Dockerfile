@@ -6,7 +6,7 @@
 # An instance builds its site with the first and copies it into the second; see deploy/Dockerfile.site.
 
 ARG RUST_VERSION=1.99.1
-ARG NODE_VERSION=22.16.0
+ARG NODE_VERSION=22.23.4
 # Must match the wasm-bindgen crate pinned in Cargo.toml.
 ARG WASM_BINDGEN_VERSION=0.2.129
 

@@ -565,7 +565,7 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
 
   /** Fix snippets copy with one tap. */
   function copyButtons() {
-    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+    for (const button of document.querySelectorAll<HTMLButtonElement>('button.copy[data-copy]')) {
       button.addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(button.dataset.copy!)
