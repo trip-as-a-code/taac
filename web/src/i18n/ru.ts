@@ -222,6 +222,9 @@ export const ru: Messages = {
   'tasks.required': 'Обязательно',
   'tasks.requiredHint': 'Без этого поездка не состоится',
   'issue.task.due': 'Обязательное позже начала',
+  'issue.spending.missing': 'Нет бюджета на траты в поездке',
+  'issue.spending.missing.detail':
+    'У {name} нет бюджета на покупки на месте (продукты, сувениры). Укажите сумму или 0, если ничего не планируется:',
   'issue.task.due.detail': 'Без этого не поехать, но срок {due} — позже начала поездки {start}:',
   'issue.route.jump': 'Нет пути к плану',
   'issue.route.jump.detail':
@@ -270,6 +273,7 @@ export const ru: Messages = {
   'kind.meal': 'Еда',
   'kind.note': 'Заметка',
   'kind.packing': 'Сборы',
+  'kind.spending': 'Траты в поездке',
 
   'status.required': 'Нужна бронь',
   'status.booked': 'Забронировано',

@@ -98,6 +98,13 @@
         "$ref": "#/$defs/PackingCategory"
       }
     },
+    "spending": {
+      "description": "Money set aside for what can't be planned item by item, bought on the\nspot: groceries, souvenirs, snacks. Everyone needs one, `amount: 0`\nwhen they plan to spend nothing.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Spending"
+      }
+    },
     "map": {
       "anyOf": [
         {
@@ -1566,6 +1573,43 @@
             "name"
           ]
         }
+      ]
+    },
+    "Spending": {
+      "description": "A budget for buying on the spot, shared equally by its people: planned\nspend, paid as it goes.",
+      "type": "object",
+      "properties": {
+        "label": {
+          "description": "What it is for, such as `Groceries and souvenirs`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "who": {
+          "description": "Names of members and/or groups, or `everyone`; omitted means everyone.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "amount": {
+          "description": "For all of them together.",
+          "type": "number",
+          "format": "double"
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "amount",
+        "currency"
       ]
     },
     "MapConfig": {

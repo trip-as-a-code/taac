@@ -285,7 +285,7 @@ export interface Amounts {
 }
 
 export interface CostLine {
-  /** Item, idea or packing item id. */
+  /** Item, idea, pass or packing item id; `spending-<n>` for a spending budget. */
   item: string
   /** Packing purchases only: the packing item's name. */
   title?: string

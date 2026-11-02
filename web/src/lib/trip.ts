@@ -7,7 +7,7 @@ import { distanceM } from '@/lib/geo'
 import type { IconName } from '@/components/Icon.astro'
 
 /** Budget categories: every item kind, plus passes and things bought before packing. */
-export type CostKind = ItemKind | 'pass' | 'packing'
+export type CostKind = ItemKind | 'pass' | 'packing' | 'spending'
 
 export const kindIcon: Record<CostKind, IconName> = {
   flight: 'flight',
@@ -23,6 +23,7 @@ export const kindIcon: Record<CostKind, IconName> = {
   note: 'note',
   pass: 'pass',
   packing: 'packing',
+  spending: 'wallet',
 }
 
 /** CSS custom property per kind, defined in tokens. */
@@ -40,6 +41,7 @@ export const kindTint: Record<CostKind, string> = {
   note: 'var(--gray)',
   pass: 'var(--teal)',
   packing: 'var(--yellow)',
+  spending: 'var(--indigo)',
 }
 
 export const statusTone: Record<BookingStatus, string | undefined> = {

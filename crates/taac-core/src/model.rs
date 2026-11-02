@@ -60,6 +60,11 @@ pub struct TripFile {
     pub passes: Vec<Pass>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packing: Vec<PackingCategory>,
+    /// Money set aside for what can't be planned item by item, bought on the
+    /// spot: groceries, souvenirs, snacks. Everyone needs one, `amount: 0`
+    /// when they plan to spend nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spending: Vec<Spending>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<MapConfig>,
 }
@@ -1041,6 +1046,24 @@ impl Cost {
     pub fn owed_once_paid(&self) -> bool {
         self.paid_by.is_some() && !self.is_each() && !self.settled
     }
+}
+
+/// A budget for buying on the spot, shared equally by its people: planned
+/// spend, paid as it goes.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Spending {
+    /// What it is for, such as `Groceries and souvenirs`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Names of members and/or groups, or `everyone`; omitted means everyone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub who: Option<Vec<String>>,
+    /// For all of them together.
+    #[schemars(with = "f64")]
+    pub amount: Decimal,
+    #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
+    pub currency: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]

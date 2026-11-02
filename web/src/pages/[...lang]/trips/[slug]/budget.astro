@@ -15,7 +15,12 @@ const lineHref = (l: { kind: string; item: string }) =>
     ? `/trips/${trip.slug}/packing/#packing-${l.item}`
     : l.kind === 'pass'
       ? `/trips/${trip.slug}/bookings/#pass-${l.item}`
-      : `/trips/${trip.slug}/itinerary/#item-${l.item}`
+      : l.kind === 'spending'
+        ? `/trips/${trip.slug}/budget/#${l.item}`
+        : `/trips/${trip.slug}/itinerary/#item-${l.item}`
+// A spending budget: what it's for, else what it is.
+const lineTitle = (l: { item: string; title?: string; kind: string }) =>
+  items.get(l.item)?.title ?? l.title ?? (l.kind === 'spending' ? t('kind.spending') : l.item)
 const { t, date, path } = i18n
 const { budget } = trip
 const items = itemById(trip)
@@ -175,9 +180,11 @@ const dash = '—'
             const item = items.get(line.item)
             const kind = (item?.kind ?? line.kind) as CostKind
             const packing = line.kind === 'packing'
+            const spending = line.kind === 'spending'
             return (
               <a
                 class="row expense"
+                id={spending ? line.item : undefined}
                 href={path(lineHref(line))}
                 data-item
                 data-line={index}
@@ -188,7 +195,7 @@ const dash = '—'
                 <span class="glyph">{kindIcon[kind] && <Icon name={kindIcon[kind]} size={16} />}</span>
                 <span class="expense-main">
                   <span class="subhead expense-title" lang={trip.locale}>
-                    {item?.title ?? line.title ?? line.item}
+                    {lineTitle(line)}
                     {line.label && <span class="secondary"> · {line.label}</span>}
                   </span>
                   <span class="footnote secondary">
@@ -197,7 +204,17 @@ const dash = '—'
                       : packing || line.kind === 'pass'
                         ? `${t(packing ? 'kind.packing' : 'kind.pass')} · `
                         : ''}
-                    {line.due ? (
+                    {spending ? (
+                      // Paid as it goes, by whoever buys: who it's for, not who paid.
+                      [
+                        line.title && t('kind.spending'),
+                        Object.keys(line.shares)
+                          .map((m) => memberName(trip, m))
+                          .join(', '),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    ) : line.due ? (
                       <>
                         <span data-show-until={line.due}>
                           {t('item.due', { date: date(line.due, { day: 'numeric', month: 'short' }) })}
@@ -255,7 +272,7 @@ const dash = '—'
       members: trip.members.map((m) => m.id),
       links: budget.lines.map((l) => path(lineHref(l))),
       titles: budget.lines.map((l) => {
-        const title = items.get(l.item)?.title ?? l.title ?? l.item
+        const title = lineTitle(l)
         return l.label ? `${title} · ${l.label}` : title
       }),
       names: Object.fromEntries(trip.members.map((m) => [m.id, m.name])),

@@ -210,6 +210,9 @@ export const en = {
   'tasks.required': 'Required',
   'tasks.requiredHint': 'The trip can’t go ahead without it',
   'issue.task.due': 'Required, but due after the start',
+  'issue.spending.missing': 'No budget for spending on the trip',
+  'issue.spending.missing.detail':
+    '{name} has no budget for buying on the spot (groceries, souvenirs). Set one, or 0 if nothing is planned:',
   'issue.task.due.detail': 'The trip needs it, but it’s due {due}, after it starts on {start}:',
   'issue.route.jump': 'No way to get here',
   'issue.route.jump.detail':
@@ -253,6 +256,7 @@ export const en = {
   'kind.meal': 'Meal',
   'kind.note': 'Note',
   'kind.packing': 'Packing',
+  'kind.spending': 'Spending on the trip',
 
   'status.required': 'To book',
   'status.booked': 'Booked',

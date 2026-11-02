@@ -18,6 +18,10 @@ groups:
   - name: Early birds
     emoji: 🌅
     members: [Alex, Sam]
+# Set aside for what gets bought on the spot; everyone needs one, 0 if nothing.
+spending:
+  - { label: Groceries and souvenirs, who: [Early birds], amount: 300, currency: EUR }
+  - { who: [Robin], amount: 0, currency: USD }
 bases:
   - { title: Lisbon, place: Lisbon, from: 2027-05-14, to: 2027-05-16 }
 # Plans, bases and ideas refer to places by these names.

@@ -59,6 +59,7 @@ export const ISSUE_CODES = [
   'area.radius',
   'title.who',
   'task.due',
+  'spending.missing',
 ] as const
 export type IssueCode = (typeof ISSUE_CODES)[number]
 

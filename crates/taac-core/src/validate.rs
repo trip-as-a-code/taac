@@ -58,6 +58,7 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.routes();
     v.flaws();
     v.packing();
+    v.spending();
     v.out
 }
 
@@ -1463,6 +1464,59 @@ impl Validator<'_> {
         }
     }
 
+    /// Everyone plans what they'll spend on the spot, if only to say nothing.
+    fn spending(&mut self) {
+        let base = self.trip.base_currency().to_owned();
+        for spending in &self.trip.spending {
+            for name in spending.who.iter().flatten() {
+                if name != crate::loader::EVERYONE
+                    && self.trip.member(name).is_none()
+                    && self.trip.group(name).is_none()
+                {
+                    self.error(
+                        "spending.member",
+                        None,
+                        format!("a spending budget is for unknown `{name}`"),
+                    );
+                }
+            }
+            if spending.amount.is_sign_negative() {
+                self.error(
+                    "spending.amount",
+                    None,
+                    format!(
+                        "a spending budget can't be negative ({} {})",
+                        spending.amount, spending.currency
+                    ),
+                );
+            }
+        }
+        for member in &self.trip.members {
+            let covered = self.trip.spending.iter().any(|s| {
+                self.trip
+                    .who(s.who.as_deref())
+                    .contains(&member.id.as_str())
+            });
+            if !covered {
+                self.error(
+                    "spending.missing",
+                    None,
+                    format!(
+                        "{} has no budget for buying on the spot (groceries, souvenirs): add one under `spending`, `amount: 0` if none",
+                        member.name
+                    ),
+                );
+                self.detail(
+                    &[("name", member.name.clone())],
+                    Some(format!(
+                        "spending:\n  - {{ who: [{}], amount: 0, currency: {base} }}",
+                        member.name
+                    )),
+                );
+            }
+        }
+    }
+
     fn packing(&mut self) {
         for category in &self.trip.packing {
             for member in category.who.iter().flatten() {
@@ -1510,6 +1564,7 @@ metadata: {{ title: T, timezone: Asia/Tokyo }}
 currency: {{ base: EUR }}
 members: [{{ name: A }}, {{ name: B }}]
 groups: [{{ name: Duo, members: [a, b] }}]
+spending: [{{ who: [everyone], amount: 0, currency: EUR }}]
 places:
   tokyo: {{ geo: [35.68, 139.76], radius: 25000 }}
   kyoto: {{ geo: [35.01, 135.77], radius: 12000 }}
@@ -1970,6 +2025,35 @@ ideas:
             .find(|d| d.code == "blocker.conflict")
             .and_then(|d| d.fix.clone());
         assert!(fix.is_some_and(|f| f.starts_with("overrides: [")), "{d:?}");
+    }
+
+    #[test]
+    fn everyone_plans_spending_on_the_spot() {
+        let load = |spending: &str| {
+            let trip = format!(
+                "apiVersion: taac/v1alpha4\nkind: Trip\nmetadata: {{ title: T, timezone: UTC }}\ncurrency: {{ base: EUR }}\nmembers: [{{ name: A }}, {{ name: B }}, {{ name: C }}]\ngroups: [{{ name: Duo, members: [a, b] }}]\n{spending}"
+            );
+            let files: Files = [("trip.yaml".to_owned(), trip)].into();
+            validate_site(&load_standalone_trip(&files, "trip.yaml").0.unwrap())
+        };
+        let missing = load("spending: [{ who: [Duo], amount: 1000, currency: EUR }]");
+        assert_eq!(codes(&missing), ["spending.missing"]);
+        assert_eq!(missing[0].params.get("name").map(String::as_str), Some("C"));
+        assert!(
+            missing[0]
+                .fix
+                .as_deref()
+                .is_some_and(|f| f.contains("who: [C], amount: 0, currency: EUR"))
+        );
+        // An explicit zero says nothing is planned, and that's fine.
+        assert!(load("spending: [{ who: [Duo], amount: 1000, currency: EUR }, { who: [c], amount: 0, currency: EUR }]").is_empty());
+        assert_eq!(
+            codes(&load(
+                "spending: [{ who: [everyone], amount: -5, currency: EUR }, { who: [zed], amount: 1, currency: EUR }]"
+            )),
+            ["spending.amount", "spending.member"]
+        );
+        assert_eq!(codes(&load("")), ["spending.missing"; 3]);
     }
 
     #[test]

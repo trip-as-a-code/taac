@@ -11,6 +11,12 @@ use serde::Serialize;
 use crate::loader::Trip;
 use crate::model::{BookingStatus, Cost, Item, Split};
 
+/// The line id of the trip's `index`th spending budget.
+#[must_use]
+pub fn spending_id(index: usize) -> String {
+    format!("spending-{index}")
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Budget {
@@ -418,6 +424,32 @@ pub fn compute(trip: &Trip) -> Budget {
         }
     }
 
+    // Budgets for buying on the spot: planned, a guess, shared equally;
+    // an explicit zero plans nothing and shows nothing.
+    for (index, spending) in trip.spending.iter().enumerate() {
+        if spending.amount.is_zero() {
+            continue;
+        }
+        let people = trip.who(spending.who.as_deref());
+        let cost = Cost {
+            amount: spending.amount,
+            currency: spending.currency.clone(),
+            charged: None,
+            due: None,
+            paid_by: None,
+            who: None,
+            split: Split::Equal,
+            label: None,
+            estimate: true,
+            owed_by: None,
+            settled: true,
+        };
+        let (mut line, allocation) =
+            line(trip, &spending_id(index), "spending", &cost, &people, false);
+        line.title.clone_from(&spending.label);
+        budget.add(trip, line, &allocation);
+    }
+
     for idea in &trip.ideas {
         let participants = trip.who(idea.who.as_deref());
         for cost in &idea.costs {
@@ -697,5 +729,43 @@ itinerary:
         assert_eq!(b.lines[1].shares.keys().collect::<Vec<_>>(), ["b", "c"]);
         assert!(!b.lines[1].committed);
         assert_eq!(b.by_currency["EUR"].total.committed, dec("100"));
+    }
+
+    #[test]
+    fn spending_is_planned_and_shared_equally() {
+        let yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+currency: { base: EUR }
+members: [{ name: A }, { name: B }, { name: C }]
+groups: [{ name: Duo, members: [a, b] }]
+spending:
+  - { label: Groceries, who: [Duo], amount: 1000, currency: EUR }
+  - { who: [c], amount: 0, currency: EUR }
+";
+        let files: Files = [("trip.yaml".to_owned(), yaml.to_owned())].into();
+        let trip = load_standalone_trip(&files, "trip.yaml")
+            .0
+            .unwrap()
+            .trips
+            .remove(0);
+        let b = compute(&trip);
+        // The zero plans nothing and shows nothing.
+        assert_eq!(b.lines.len(), 1);
+        let line = &b.lines[0];
+        assert_eq!(
+            (line.kind.as_str(), line.item.as_str()),
+            ("spending", "spending-0")
+        );
+        assert_eq!(line.title.as_deref(), Some("Groceries"));
+        assert!(line.unpaid && line.estimate && !line.committed);
+        assert_eq!(
+            line.shares,
+            IndexMap::from([("a".to_owned(), 0.5), ("b".to_owned(), 0.5)])
+        );
+        assert_eq!(b.by_currency["EUR"].total.planned, dec("1000"));
+        assert_eq!(b.by_currency["EUR"].total.committed, dec("0"));
+        assert!(b.by_currency["EUR"].settlements.is_empty());
     }
 }
