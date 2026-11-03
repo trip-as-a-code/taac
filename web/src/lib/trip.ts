@@ -180,6 +180,23 @@ export function partyLabel(trip: TripExport, partyId: string, everyone: string, 
   return memberNames(trip, party?.members ?? partyId.split('+'), and) || partyId
 }
 
+/** One colour per group on the map, in the order the trip lists them. */
+const GROUP_COLORS = ['var(--green)', 'var(--pink)', 'var(--orange)', 'var(--purple)', 'var(--teal)', 'var(--yellow)']
+
+/**
+ * A party's colour on the map: everyone together in blue, a group in its own,
+ * some of a group's people in that group's, anyone else in indigo.
+ */
+export function partyColor(trip: TripExport, partyId: string): string {
+  const party = trip.parties.find((p) => p.id === partyId)
+  const members = party?.members ?? partyId.split('+')
+  if (partyId === 'everyone' || members.length >= trip.members.length) return 'var(--blue)'
+  const index = trip.groups.findIndex((g) =>
+    party?.group ? g.id === party.group : members.every((m) => g.members.includes(m)),
+  )
+  return index >= 0 ? GROUP_COLORS[index % GROUP_COLORS.length]! : 'var(--indigo)'
+}
+
 export function partyEmoji(trip: TripExport, partyId: string): string | undefined {
   const party = trip.parties.find((p) => p.id === partyId)
   return party?.group ? trip.groups.find((g) => g.id === party.group)?.emoji : undefined

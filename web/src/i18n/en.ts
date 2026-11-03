@@ -381,6 +381,9 @@ export const en = {
 
   'map.places': 'Places',
   'map.fit': 'Whole trip',
+  'map.together': 'Together',
+  'map.trips': { one: '{n} trip', other: '{n} trips' },
+  'map.cluster': { one: '{n} place', other: '{n} places' },
   'map.showAll': 'Show all',
   'map.outside': { one: '{n} more place is off the map', other: '{n} more places are off the map' },
   'map.noPlaces': 'No places match.',
