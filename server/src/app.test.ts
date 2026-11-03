@@ -813,14 +813,24 @@ describe('deadline reminders', () => {
 
       await member.remind()
       await member.remind()
+      // One push per thing, each replacing only its own earlier reminders.
       expect(sent).toEqual([
         [
           'alex',
           {
-            title: 'Japan',
-            body: 'Tokyo Tower: Booking due tomorrow\nEntry form: Task due today',
-            url: '/notifications/',
-            tag: 'due:japan',
+            title: 'Tokyo Tower',
+            body: 'Booking due tomorrow',
+            url: '/trips/japan/itinerary/#item-tower',
+            tag: 'due:japan:booking:item:tower',
+          },
+        ],
+        [
+          'alex',
+          {
+            title: 'Entry form',
+            body: 'Task due today',
+            url: '/trips/japan/tasks/#task-vjw',
+            tag: 'due:japan:task:vjw',
           },
         ],
       ])
@@ -848,7 +858,7 @@ describe('deadline reminders', () => {
             title: 'Tokyo Tower',
             body: 'Booking due today',
             url: '/trips/japan/itinerary/#item-tower',
-            tag: 'due:japan',
+            tag: 'due:japan:booking:item:tower',
           },
         ],
       ])
