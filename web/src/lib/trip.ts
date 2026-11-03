@@ -211,12 +211,14 @@ export function inBase(trip: TripExport, base: Base, placeId: string | undefined
 /**
  * Ideas to suggest while staying at a base: its area's, or any whose area
  * (or, without one, a place) lies inside it, for someone staying there.
+ * A dated idea shows on its own day instead, never as a suggestion.
  * Must-dos first.
  */
 export function ideasAt(trip: TripExport, base: Base): Idea[] {
   return trip.ideas
     .filter(
       (idea) =>
+        !idea.local &&
         (idea.area ? inBase(trip, base, idea.area) : idea.places.some((p) => inBase(trip, base, p))) &&
         idea.members.some((m) => base.members.includes(m)) &&
         // Nobody chose who it's for yet: not suggested until someone does.
