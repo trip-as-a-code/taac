@@ -151,8 +151,8 @@ export interface Idea {
   duration?: 'hour' | 'halfDay' | 'day'
   /** When it is proposed for; absent without a date. */
   local?: Item['local']
-  /** Alternatives for one need share this label. */
-  option?: string
+  /** The choice (id into `TripExport.choices`) this is an alternative for. */
+  choice?: string
   transport?: Transport
   /** How to book it if chosen; never `booked`. */
   booking?: Booking
@@ -209,6 +209,8 @@ export interface Item {
   url?: string
   tags: string[]
   /** Blocker ids this plan may run through. */
+  /** The choice this plan settles. */
+  choice?: string
   overrides: string[]
   conflicts: { blocker: string; members: string[]; overridden: boolean }[]
 }
@@ -289,8 +291,8 @@ export interface CostLine {
   item: string
   /** Packing purchases only: the packing item's name. */
   title?: string
-  /** An idea's option group: only the cheapest alternative counts. */
-  option?: string
+  /** The choice an idea is an alternative for: only the cheapest it still picks count. */
+  choice?: string
   label?: string
   kind: string
   amount: number
@@ -322,6 +324,8 @@ export interface Budget {
   base: string
   lines: CostLine[]
   ideas: CostLine[]
+  /** For each choice, how many of its ideas still count as possible spend. */
+  choices: Record<string, number>
   byCurrency: Record<
     string,
     {
@@ -360,6 +364,8 @@ export interface TripExport {
   blockers: Blocker[]
   tasks: Task[]
   passes: Pass[]
+  /** Alternatives for one need, and the plans that settled them. */
+  choices: { id: string; name: string; pick: number; notes?: string; settledBy: string[] }[]
   days: { date: ISODate; items: string[]; stays: Presence[]; bases: Presence[]; blockers: DayBlocker[] }[]
   budget: Budget
   packing: {

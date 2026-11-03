@@ -25,6 +25,9 @@ pub struct Budget {
     pub lines: Vec<CostLine>,
     /// Estimated costs of ideas: possible spend, never planned.
     pub ideas: Vec<CostLine>,
+    /// For each choice, how many of its ideas still count as possible spend
+    /// (the cheapest ones): what it picks, less the plans that settled it.
+    pub choices: IndexMap<String, u32>,
     /// Totals, balances and settlements in each currency money moved in.
     pub by_currency: IndexMap<String, CurrencyBudget>,
 }
@@ -41,9 +44,9 @@ pub struct CostLine {
     /// Set for packing purchases, which have no itinerary item to name them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    /// An idea's option group: only the cheapest alternative counts.
+    /// The choice an idea is an alternative for: only the cheapest it picks count.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub option: Option<String>,
+    pub choice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     pub kind: String,
@@ -280,7 +283,7 @@ fn line(
     let line = CostLine {
         item: id.to_owned(),
         title: None,
-        option: None,
+        choice: None,
         label: cost.label.clone(),
         kind: kind.to_owned(),
         amount: cost.amount,
@@ -371,6 +374,22 @@ pub fn compute(trip: &Trip) -> Budget {
         base: trip.base_currency().to_owned(),
         lines: Vec::new(),
         ideas: Vec::new(),
+        choices: trip
+            .choices
+            .iter()
+            .map(|c| {
+                let settled = trip
+                    .itinerary
+                    .iter()
+                    .filter(|i| i.choice.as_deref() == Some(&c.id))
+                    .count();
+                (
+                    c.id.clone(),
+                    c.pick
+                        .saturating_sub(u32::try_from(settled).unwrap_or(u32::MAX)),
+                )
+            })
+            .collect(),
         by_currency: IndexMap::new(),
     };
 
@@ -480,7 +499,7 @@ pub fn compute(trip: &Trip) -> Budget {
                 &participants,
                 false,
             );
-            line.option.clone_from(&idea.option);
+            line.choice.clone_from(&idea.choice);
             budget.ideas.push(line);
         }
     }
@@ -805,5 +824,46 @@ spending:
         assert_eq!(b.by_currency["EUR"].total.planned, dec("1000"));
         assert_eq!(b.by_currency["EUR"].total.committed, dec("0"));
         assert!(b.by_currency["EUR"].settlements.is_empty());
+    }
+
+    #[test]
+    fn a_choice_counts_what_it_still_picks() {
+        let yaml = r"
+apiVersion: taac/v1alpha4
+kind: Trip
+metadata: { title: T, timezone: UTC }
+currency: { base: EUR }
+members: [{ name: A }]
+spending: [{ amount: 0, currency: EUR }]
+choices:
+  - { name: Dinner }
+  - { name: Days, pick: 2 }
+itinerary:
+  - { kind: meal, title: chosen, date: 2027-01-01, choice: dinner }
+ideas:
+  - { title: sushi, choice: Dinner, costs: [{ amount: 50, currency: EUR, estimate: true }] }
+  - { title: one, choice: Days, costs: [{ amount: 10, currency: EUR, estimate: true }] }
+  - { title: two, choice: Days, costs: [{ amount: 10, currency: EUR, estimate: true }] }
+  - { title: three, choice: Days, costs: [{ amount: 10, currency: EUR, estimate: true }] }
+";
+        let files: Files = [("trip.yaml".to_owned(), yaml.to_owned())].into();
+        let trip = load_standalone_trip(&files, "trip.yaml")
+            .0
+            .unwrap()
+            .trips
+            .remove(0);
+        let b = compute(&trip);
+        // Dinner is settled by a plan; of the days, two are still to pick.
+        assert_eq!(
+            b.choices,
+            IndexMap::from([("dinner".to_owned(), 0), ("days".to_owned(), 2)])
+        );
+        assert_eq!(
+            b.ideas
+                .iter()
+                .map(|l| l.choice.as_deref())
+                .collect::<Vec<_>>(),
+            [Some("dinner"), Some("days"), Some("days"), Some("days")]
+        );
     }
 }

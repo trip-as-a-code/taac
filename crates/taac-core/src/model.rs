@@ -48,6 +48,11 @@ pub struct TripFile {
     /// Unscheduled things to pick from on the spot.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ideas: Vec<Idea>,
+    /// Alternatives for one need, of which only some get done: two places for
+    /// one dinner, a hike on one of two days. Ideas name the choice they are
+    /// an alternative for; a plan that names one settles it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub choices: Vec<Choice>,
     /// Time someone is unavailable (work, a call): whole days or a window.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blockers: Vec<Blocker>,
@@ -283,11 +288,11 @@ pub struct Idea {
     pub date: Option<NaiveDate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<DayPart>,
-    /// Alternatives for the same need share a label (`option: Kyoto stay`):
-    /// they are compared side by side and only the cheapest counts as
-    /// possible spend.
+    /// The choice (in `choices`) this is one of the alternatives for: they are
+    /// compared side by side, and only the cheapest ones the choice picks
+    /// count as possible spend.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub option: Option<String>,
+    pub choice: Option<String>,
     /// Name of the area (in `places`) the idea belongs to; days spent in a base
     /// on that area surface it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -545,6 +550,9 @@ pub struct Item {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    /// The choice (in `choices`) this plan settles: its other ideas are not chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub choice: Option<String>,
     /// Titles of blockers this plan may run through, e.g. a train with good
     /// Wi-Fi during work hours.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1046,6 +1054,36 @@ impl Cost {
     pub fn owed_once_paid(&self) -> bool {
         self.paid_by.is_some() && !self.is_each() && !self.settled
     }
+}
+
+/// Alternatives for one need: of the ideas that name it, `pick` get done.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Choice {
+    #[serde(skip_deserializing)]
+    #[schemars(skip)]
+    pub id: String,
+    /// How ideas and plans refer to it, such as `Fado dinner`.
+    pub name: String,
+    /// How many of its ideas get done; one unless said.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    #[schemars(range(min = 1))]
+    pub pick: u32,
+    /// Markdown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+const fn one() -> u32 {
+    1
+}
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's skip_serializing_if passes a reference"
+)]
+const fn is_one(n: &u32) -> bool {
+    *n == 1
 }
 
 /// Money set aside for buying on the spot, shared equally by its people:

@@ -408,7 +408,7 @@ const downloads = files.map((d) => ({ ...d, one: d.one || t('trip.exportFor', { 
           ]),
         ],
       })),
-      budget: { base: trip.budget.base, lines: trip.budget.lines, ideas: trip.budget.ideas },
+      budget: { base: trip.budget.base, lines: trip.budget.lines, ideas: trip.budget.ideas, choices: trip.budget.choices },
     }).replace(/</g, '\\u003c')}
   />
 </TripLayout>

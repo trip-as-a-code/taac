@@ -16,11 +16,14 @@ interface Props {
   i18n: I18n
   /** On an itinerary day: marked as proposed, the date already given. */
   proposed?: boolean
-  /** Under its option's heading, which names the option already. */
+  /** Under its choice's heading, which names the choice already. */
   grouped?: boolean
+  /** Its choice was settled by a plan, and this wasn't it. */
+  notChosen?: boolean
 }
 
-const { trip, idea, i18n, proposed, grouped } = Astro.props
+const { trip, idea, i18n, proposed, grouped, notChosen } = Astro.props
+const choice = trip.choices.find((c) => c.id === idea.choice)
 const { t, date } = i18n
 // When it is proposed for, if at all: the date (unless the day says it) and
 // the time or rough part of the day.
@@ -54,7 +57,7 @@ const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.len
   data-facts={JSON.stringify(ideaFacts(trip, idea))}
   data-status={idea.priority}
   style={`--kind:${kindTint[idea.kind]}`}
-  class:list={['idea', { shared: everyone, proposed }]}
+  class:list={['idea', { shared: everyone, proposed, 'not-chosen': notChosen }]}
 >
   <div class="glyph" aria-hidden="true">
     <Icon name={kindIcon[idea.kind]} size={18} />
@@ -73,20 +76,22 @@ const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.len
       <div class="meta">
         {proposed && <span class="badge proposal">{t('ideas.proposed')}</span>}
         {when && <span class="footnote secondary">{when}</span>}
-        {idea.option && !grouped && (
-          <span class="badge" title={t('ideas.optionOf', { option: idea.option })}>
-            <span class="ellipsis">⇄ {idea.option}</span>
+        {notChosen && <span class="badge">{t('ideas.notChosen')}</span>}
+        {choice && !grouped && (
+          <span class="badge" title={t('ideas.choiceOf', { name: choice.name })} lang={trip.locale}>
+            <span class="ellipsis">⇄ {choice.name}</span>
           </span>
         )}
-        {idea.booking?.status === 'required' && (
+        {/* Not chosen: nothing left to book or to insist on. */}
+        {!notChosen && idea.booking?.status === 'required' && (
           <span class="badge" data-tone={statusTone.required}>
             {t('status.required')}
           </span>
         )}
-        {idea.booking?.status === 'required' && idea.booking.deadline && (
+        {!notChosen && idea.booking?.status === 'required' && idea.booking.deadline && (
           <time class="footnote deadline" data-relative={idea.booking.deadline} data-template={t('bookings.due')} />
         )}
-        {idea.priority === 'must' && (
+        {!notChosen && idea.priority === 'must' && (
           <span class="badge" data-tone="orange">
             ★ {t('ideas.must')}
           </span>
@@ -188,6 +193,11 @@ const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.len
 </article>
 
 <style>
+  /* An alternative that lost out: still there to look at, out of the way. */
+  .not-chosen {
+    opacity: 0.55;
+  }
+
   /* On an itinerary day: a dashed outline says "not decided yet". */
   .idea.proposed {
     border: 1px dashed var(--separator-strong);

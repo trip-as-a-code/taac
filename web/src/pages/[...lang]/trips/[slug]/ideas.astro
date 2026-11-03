@@ -18,15 +18,19 @@ const areas = [...ideasByArea(trip).entries()].sort(([a], [b]) => {
   const first = (key: string) => trip.bases.find((base) => base.place === key)?.from ?? (key ? '9998' : '9999')
   return first(a).localeCompare(first(b))
 })
-// Ideas without an option first, then each option's alternatives together.
+// Ideas without a choice first, then each choice's alternatives together.
+const choices = new Map(trip.choices.map((c) => [c.id, c]))
+const items = new Map(trip.items.map((i) => [i.id, i]))
 const groups = (ideas: Idea[]) => {
-  const out: { option?: string; ideas: Idea[] }[] = []
-  const loose = ideas.filter((i) => !i.option)
+  const out: { choice?: (typeof trip.choices)[number]; ideas: Idea[] }[] = []
+  const loose = ideas.filter((i) => !i.choice || !choices.has(i.choice))
   if (loose.length) out.push({ ideas: loose })
-  for (const option of new Set(ideas.flatMap((i) => (i.option ? [i.option] : []))))
-    out.push({ option, ideas: ideas.filter((i) => i.option === option) })
+  for (const id of new Set(ideas.flatMap((i) => (i.choice && choices.has(i.choice) ? [i.choice] : []))))
+    out.push({ choice: choices.get(id), ideas: ideas.filter((i) => i.choice === id) })
   return out
 }
+/** Plans have taken all a choice picks: its ideas are what wasn't chosen. */
+const settled = (choice: (typeof trip.choices)[number]) => choice.settledBy.length >= choice.pick
 // A starting point to copy, set in the first place the trip stays.
 const firstArea = trip.bases[0] ? trip.places[trip.bases[0].place]?.name : undefined
 const example = [
@@ -92,16 +96,36 @@ const visits = (area: string) =>
                 ))}
               </ul>
             )}
-            {/* Alternatives for one need sit together, to compare. */}
-            {groups(ideas).map(({ option, ideas: group }) => (
-              <div class="card list" data-option={option}>
-                {option && (
-                  <p class="option-head footnote" lang={trip.locale}>
-                    ⇄ {t('ideas.options', { option })}
-                  </p>
+            {/* A choice's alternatives sit together, to compare: how many to pick,
+                and once plans settled it, what was chosen. */}
+            {groups(ideas).map(({ choice, ideas: group }) => (
+              <div class="card list" data-choice={choice?.id}>
+                {choice && (
+                  <header class="choice-head">
+                    <p class="footnote choice-title" lang={trip.locale}>
+                      ⇄{' '}
+                      {settled(choice)
+                        ? t('ideas.chosen', {
+                            name: choice.name,
+                            plans: choice.settledBy.map((id) => items.get(id)?.title ?? id).join(', '),
+                          })
+                        : t('ideas.pick', {
+                            pick: choice.pick - choice.settledBy.length,
+                            total: group.length,
+                            name: choice.name,
+                          })}
+                    </p>
+                    {!settled(choice) && <p class="footnote tertiary">{t('ideas.pickCounts')}</p>}
+                  </header>
                 )}
                 {group.map((idea) => (
-                  <IdeaRow trip={trip} idea={idea} i18n={i18n} grouped={Boolean(option)} />
+                  <IdeaRow
+                    trip={trip}
+                    idea={idea}
+                    i18n={i18n}
+                    grouped={Boolean(choice)}
+                    notChosen={Boolean(choice && settled(choice))}
+                  />
                 ))}
               </div>
             ))}
@@ -194,14 +218,22 @@ const visits = (area: string) =>
     margin-top: var(--space-3);
   }
 
-  .option-head {
-    margin: 0;
+  .choice-head {
+    display: grid;
+    gap: 2px;
     padding: 10px var(--space-4) 0;
+  }
+
+  .choice-head p {
+    margin: 0;
+  }
+
+  .choice-title {
     font-weight: 600;
     color: var(--label-secondary);
   }
 
-  /* An option's whole card hides when the filters leave none of it. */
+  /* A choice's whole card hides when the filters leave none of it. */
   .card.list:not(:has([data-item]:not([hidden]))) {
     display: none;
   }

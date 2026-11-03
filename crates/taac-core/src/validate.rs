@@ -50,6 +50,7 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.items();
     v.bases();
     v.ideas();
+    v.choices();
     v.blockers();
     v.tasks();
     v.passes();
@@ -1464,6 +1465,73 @@ impl Validator<'_> {
         }
     }
 
+    /// A choice is between ideas: it names alternatives that exist, more of
+    /// them than it picks while still open.
+    fn choices(&mut self) {
+        let trip = self.trip;
+        let mut names = std::collections::HashSet::new();
+        for choice in &trip.choices {
+            if !names.insert(choice.name.to_lowercase()) {
+                self.error(
+                    "choice.duplicate",
+                    None,
+                    format!("two choices are called `{}`", choice.name),
+                );
+            }
+            if choice.pick == 0 {
+                self.error(
+                    "choice.pick",
+                    None,
+                    format!("`{}` picks none: `pick` is 1 or more", choice.name),
+                );
+            }
+        }
+        let known = |name: &str| trip.choices.iter().any(|c| c.id == name);
+        for idea in &trip.ideas {
+            if let Some(name) = idea.choice.as_deref().filter(|n| !known(n)) {
+                self.error(
+                    "choice.unknown",
+                    Some(&idea.id),
+                    format!("unknown choice `{name}`: add it under `choices`"),
+                );
+            }
+        }
+        for item in &trip.itinerary {
+            if let Some(name) = item.choice.as_deref().filter(|n| !known(n)) {
+                self.error(
+                    "choice.unknown",
+                    Some(&item.id),
+                    format!("unknown choice `{name}`: add it under `choices`"),
+                );
+            }
+        }
+        for choice in &trip.choices {
+            let settled = trip
+                .itinerary
+                .iter()
+                .filter(|i| i.choice.as_deref() == Some(&choice.id))
+                .count();
+            let open = usize::try_from(choice.pick)
+                .unwrap_or(usize::MAX)
+                .saturating_sub(settled);
+            let ideas = trip
+                .ideas
+                .iter()
+                .filter(|i| i.choice.as_deref() == Some(&choice.id))
+                .count();
+            if open > 0 && ideas <= open {
+                self.warn(
+                    "choice.alone",
+                    None,
+                    format!(
+                        "`{}` picks {open} of {ideas} idea(s): nothing to choose between; add alternatives or drop the choice",
+                        choice.name
+                    ),
+                );
+            }
+        }
+    }
+
     /// Everyone plans what they'll spend on the spot, if only to say nothing.
     fn spending(&mut self) {
         let base = self.trip.base_currency().to_owned();
@@ -1983,10 +2051,50 @@ ideas:
     }
 
     #[test]
+    fn choices_are_between_ideas_that_exist() {
+        let d = check_with(
+            "choices:
+  - { name: Dinner }
+  - { name: dinner }
+  - { name: Hike, pick: 0 }
+  - { name: Lonely }
+  - { name: Settled }
+ideas:
+  - { title: sushi, who: [a], choice: Dinner }
+  - { title: ramen, who: [a], choice: dinner }
+  - { title: solo, who: [a], choice: Lonely }
+  - { title: stray, who: [a], choice: Nowhere }
+  - { title: left over, who: [a], choice: Settled }",
+            "  - { kind: note, title: x, date: 2027-01-01, who: [everyone], choice: Settled }
+  - { kind: note, title: y, date: 2027-01-01, who: [everyone], choice: Elsewhere }",
+        );
+        let found: Vec<_> = d
+            .iter()
+            .filter(|d| d.code.starts_with("choice."))
+            .map(|d| (d.code, d.item.as_deref()))
+            .collect();
+        // Names match regardless of case, so `dinner` is the same choice, and a
+        // second choice of that name is one too many; `Settled` has a plan, so
+        // its left-over idea is fine.
+        assert_eq!(
+            found,
+            [
+                ("choice.duplicate", None),
+                ("choice.pick", None),
+                ("choice.unknown", Some("stray")),
+                ("choice.unknown", Some("y")),
+                ("choice.alone", None),
+                ("choice.alone", None),
+            ],
+            "{d:?}"
+        );
+    }
+
+    #[test]
     fn ideas_are_proposals_of_any_kind() {
         let d = check_with(
             "ideas:
-  - { title: stay, kind: lodging, who: [everyone], start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00, option: Stay,
+  - { title: stay, kind: lodging, who: [everyone], start: 2027-01-01T15:00:00+09:00, end: 2027-01-02T10:00:00+09:00,
       booking: { status: required, deadline: 2026-12-01 }, costs: [{ amount: 90, currency: EUR, estimate: true }] }
   - { title: flight, kind: flight, who: [a] }
   - { title: booked, who: [a], booking: { status: booked } }

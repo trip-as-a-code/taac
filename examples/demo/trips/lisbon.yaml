@@ -256,6 +256,10 @@ itinerary:
     end: 2027-05-17T17:10:00+01:00
     places: [Baixa-Chiado, Lisbon Airport (LIS)]
     transport: { carrier: Metro de Lisboa }
+# Alternatives for one need: ideas name the choice, and only `pick` of them get done.
+choices:
+  - name: Fado dinner
+
 ideas:
   - title: LX Factory market
     who: [everyone]
@@ -263,11 +267,11 @@ ideas:
     places: [{ name: LX Factory, geo: [38.7036, -9.1784], category: shopping }]
     duration: halfDay
     notes: Sunday market; bookshop in an old printing hall.
-  # Two options for one evening: compared side by side, only the cheaper counts as possible spend.
+  # Two alternatives for one evening (see `choices`): only the cheaper counts as possible spend.
   - title: Fado at Clube de Fado
     kind: meal
     who: [everyone]
-    option: Fado dinner
+    choice: Fado dinner
     area: Lisbon
     date: 2027-05-16
     part: evening
@@ -277,7 +281,7 @@ ideas:
   - title: Fado at Tasca do Chico
     kind: meal
     who: [everyone]
-    option: Fado dinner
+    choice: Fado dinner
     area: Lisbon
     date: 2027-05-16
     part: evening

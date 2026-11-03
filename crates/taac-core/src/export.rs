@@ -78,6 +78,8 @@ pub struct TripExport {
     pub blockers: Vec<BlockerExport>,
     pub tasks: Vec<TaskExport>,
     pub passes: Vec<PassExport>,
+    /// Alternatives for one need, and the plans that settled them.
+    pub choices: Vec<ChoiceExport>,
     pub days: Vec<DayExport>,
     pub budget: Budget,
     pub packing: Vec<PackingCategoryExport>,
@@ -157,7 +159,7 @@ pub struct IdeaExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub local: Option<LocalTimes>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub option: Option<String>,
+    pub choice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transport: Option<Transport>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -218,6 +220,9 @@ pub struct ItemExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     pub tags: Vec<String>,
+    /// The choice this plan settles.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub choice: Option<String>,
     pub overrides: Vec<String>,
     /// Blockers this plan runs into, for whom, and whether it may.
     pub conflicts: Vec<ConflictExport>,
@@ -322,6 +327,18 @@ pub struct TaskExport {
     pub done: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChoiceExport {
+    pub id: String,
+    pub name: String,
+    pub pick: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    /// Plans that name it: the alternatives that were chosen.
+    pub settled_by: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -617,6 +634,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 notes: item.notes.clone(),
                 url: item.url.clone(),
                 tags: item.tags.clone(),
+                choice: item.choice.clone(),
                 overrides: item.overrides.clone(),
                 conflicts: conflicts
                     .iter()
@@ -647,7 +665,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 local: idea
                     .day()
                     .map(|date| local_times(date, idea.start, idea.end, idea.part)),
-                option: idea.option.clone(),
+                choice: idea.choice.clone(),
                 transport: idea.transport.clone(),
                 booking: idea.booking.as_ref().map(booking_export),
                 area: idea.area.clone(),
@@ -802,6 +820,22 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                         .collect(),
                     notes: pass.notes.clone(),
                 }
+            })
+            .collect(),
+        choices: trip
+            .choices
+            .iter()
+            .map(|c| ChoiceExport {
+                id: c.id.clone(),
+                name: c.name.clone(),
+                pick: c.pick,
+                notes: c.notes.clone(),
+                settled_by: trip
+                    .itinerary
+                    .iter()
+                    .filter(|i| i.choice.as_deref() == Some(&c.id))
+                    .map(|i| i.id.clone())
+                    .collect(),
             })
             .collect(),
         days,
