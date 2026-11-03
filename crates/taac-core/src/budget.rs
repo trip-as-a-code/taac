@@ -75,6 +75,10 @@ pub struct CostLine {
     /// unpaid, so nothing is owed, until the charge is confirmed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due: Option<chrono::NaiveDate>,
+    /// Set aside, by kind (`groceries`, …, `unallocated` for what's left):
+    /// a spending budget's part, not an expense.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -295,6 +299,7 @@ fn line(
         paid: fractions(&allocation.paid, allocation.settled_amount),
         owed_by: cost.owed_by.clone(),
         due: cost.due.filter(|_| cost.charged.is_none()),
+        category: None,
     };
     (line, allocation)
 }
@@ -424,30 +429,44 @@ pub fn compute(trip: &Trip) -> Budget {
         }
     }
 
-    // Budgets for buying on the spot: planned, a guess, shared equally;
-    // an explicit zero plans nothing and shows nothing.
+    // Set aside for buying on the spot: planned, shared equally, one line per
+    // category and one for what's left; an explicit zero shows nothing.
     for (index, spending) in trip.spending.iter().enumerate() {
-        if spending.amount.is_zero() {
-            continue;
-        }
         let people = trip.who(spending.who.as_deref());
-        let cost = Cost {
-            amount: spending.amount,
-            currency: spending.currency.clone(),
-            charged: None,
-            due: None,
-            paid_by: None,
-            who: None,
-            split: Split::Equal,
-            label: None,
-            estimate: true,
-            owed_by: None,
-            settled: true,
-        };
-        let (mut line, allocation) =
-            line(trip, &spending_id(index), "spending", &cost, &people, false);
-        line.title.clone_from(&spending.label);
-        budget.add(trip, line, &allocation);
+        let allocated: Decimal = spending.categories.iter().map(|c| c.amount).sum();
+        let parts = spending
+            .categories
+            .iter()
+            .map(|c| (c.kind.as_str(), c.label.clone(), c.amount))
+            .chain(std::iter::once((
+                "unallocated",
+                None,
+                (spending.amount - allocated).max(Decimal::ZERO),
+            )));
+        for (category, title, amount) in parts {
+            if amount.is_zero() {
+                continue;
+            }
+            let cost = Cost {
+                amount,
+                currency: spending.currency.clone(),
+                charged: None,
+                due: None,
+                paid_by: None,
+                who: None,
+                split: Split::Equal,
+                label: None,
+                estimate: true,
+                owed_by: None,
+                settled: true,
+            };
+            let (mut line, allocation) =
+                line(trip, &spending_id(index), "spending", &cost, &people, false);
+            line.title = title;
+            line.label.clone_from(&spending.label);
+            line.category = Some(category.to_owned());
+            budget.add(trip, line, &allocation);
+        }
     }
 
     for idea in &trip.ideas {
@@ -732,7 +751,7 @@ itinerary:
     }
 
     #[test]
-    fn spending_is_planned_and_shared_equally() {
+    fn spending_is_set_aside_by_category_and_shared_equally() {
         let yaml = r"
 apiVersion: taac/v1alpha4
 kind: Trip
@@ -741,7 +760,13 @@ currency: { base: EUR }
 members: [{ name: A }, { name: B }, { name: C }]
 groups: [{ name: Duo, members: [a, b] }]
 spending:
-  - { label: Groceries, who: [Duo], amount: 1000, currency: EUR }
+  - label: On the spot
+    who: [Duo]
+    amount: 1000
+    currency: EUR
+    categories:
+      - { kind: groceries, amount: 700 }
+      - { kind: souvenirs, label: Gifts, amount: 100 }
   - { who: [c], amount: 0, currency: EUR }
 ";
         let files: Files = [("trip.yaml".to_owned(), yaml.to_owned())].into();
@@ -751,19 +776,32 @@ spending:
             .trips
             .remove(0);
         let b = compute(&trip);
-        // The zero plans nothing and shows nothing.
-        assert_eq!(b.lines.len(), 1);
-        let line = &b.lines[0];
+        // Each category, then what's left; the zero shows nothing.
+        let parts: Vec<_> = b
+            .lines
+            .iter()
+            .map(|l| (l.category.as_deref().unwrap(), l.title.as_deref(), l.amount))
+            .collect();
         assert_eq!(
-            (line.kind.as_str(), line.item.as_str()),
-            ("spending", "spending-0")
+            parts,
+            [
+                ("groceries", None, dec("700")),
+                ("souvenirs", Some("Gifts"), dec("100")),
+                ("unallocated", None, dec("200")),
+            ]
         );
-        assert_eq!(line.title.as_deref(), Some("Groceries"));
-        assert!(line.unpaid && line.estimate && !line.committed);
-        assert_eq!(
-            line.shares,
-            IndexMap::from([("a".to_owned(), 0.5), ("b".to_owned(), 0.5)])
-        );
+        for line in &b.lines {
+            assert_eq!(
+                (line.kind.as_str(), line.item.as_str()),
+                ("spending", "spending-0")
+            );
+            assert_eq!(line.label.as_deref(), Some("On the spot"));
+            assert!(line.unpaid && !line.committed && line.settled);
+            assert_eq!(
+                line.shares,
+                IndexMap::from([("a".to_owned(), 0.5), ("b".to_owned(), 0.5)])
+            );
+        }
         assert_eq!(b.by_currency["EUR"].total.planned, dec("1000"));
         assert_eq!(b.by_currency["EUR"].total.committed, dec("0"));
         assert!(b.by_currency["EUR"].settlements.is_empty());

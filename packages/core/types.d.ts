@@ -313,6 +313,8 @@ export interface CostLine {
   owedBy?: string
   /** Charged on this date: before it nobody has paid and nothing is owed. */
   due?: ISODate
+  /** A spending budget's part (`groceries`, …, `unallocated`): set aside, not an expense. */
+  category?: string
 }
 
 export interface Budget {

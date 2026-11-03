@@ -1,10 +1,21 @@
 ---
 import Avatar from '@/components/Avatar.astro'
+import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import Money from '@/components/Money.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { itemById, kindIcon, kindTint, memberName, people, type CostKind } from '@/lib/trip'
+import {
+  itemById,
+  kindIcon,
+  kindTint,
+  memberName,
+  people,
+  spendingIcon,
+  spendingTint,
+  type CostKind,
+  type SpendingCategory,
+} from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -26,9 +37,33 @@ const { budget } = trip
 const items = itemById(trip)
 const kinds = [...new Set(budget.lines.map((l) => l.kind))] as CostKind[]
 const currencies = [...new Set(budget.lines.map((l) => l.settledCurrency))]
+// What's set aside is not an expense: it has its own section, by budget.
 const lines = budget.lines
   .map((line, index) => ({ line, index }))
+  .filter(({ line }) => line.kind !== 'spending')
   .sort((a, b) => (items.get(a.line.item)?.start ?? '').localeCompare(items.get(b.line.item)?.start ?? ''))
+const reserves = [
+  ...Map.groupBy(
+    budget.lines.map((line, index) => ({ line, index })).filter(({ line }) => line.kind === 'spending'),
+    ({ line }) => line.item,
+  ),
+].map(([id, parts]) => {
+  const members = Object.keys(parts[0]!.line.shares)
+  const group = trip.groups.find(
+    (g) => g.members.length === members.length && g.members.every((m) => members.includes(m)),
+  )
+  return {
+    id,
+    parts,
+    members: members.flatMap((m) => trip.members.find((x) => x.id === m) ?? []),
+    name: group?.name
+      ? [group.emoji, group.name].filter(Boolean).join(' ')
+      : members.map((m) => memberName(trip, m)).join(', '),
+    label: parts[0]!.line.label,
+  }
+})
+const category = (l: { category?: string }) => (l.category ?? 'other') as SpendingCategory
+const partTitle = (l: { title?: string; category?: string }) => l.title ?? t(`spending.${category(l)}`)
 // Packing purchases have no date and sort first: they happen before the trip.
 // Everything with an amount is filled in by scripts/budget.ts in the
 // viewer's currency; the page ships the lines, not the totals.
@@ -55,6 +90,15 @@ const dash = '—'
           </span>
           <span class="footnote tertiary">{t('budget.committedHint')}</span>
         </div>
+        {reserves.length > 0 && (
+          <div class="total card card-pad">
+            <span class="footnote secondary label">{t('budget.reserved')}</span>
+            <span data-fit class="amount tabular reserved" data-total="reserved">
+              {dash}
+            </span>
+            <span class="footnote tertiary">{t('budget.reservedHint')}</span>
+          </div>
+        )}
         {budget.ideas.length > 0 && (
           <div class="total card card-pad">
             <span class="footnote secondary label">{t('budget.possible')}</span>
@@ -170,6 +214,73 @@ const dash = '—'
           </div>
         </section>
       </div>
+
+      {reserves.length > 0 && (
+        <section class="section" id="reserved">
+          <div class="section-header">
+            <h2>{t('budget.reserved')}</h2>
+          </div>
+          <p class="footnote secondary reserve-note">{t('budget.reservedNote')}</p>
+          <div class="reserves">
+            {reserves.map((reserve) => (
+              <article
+                class="reserve card card-pad"
+                id={reserve.id}
+                data-reserve
+                data-people={JSON.stringify(reserve.members.map((m) => m.id))}
+                data-each={reserve.members.length > 1 ? t('budget.reservedEach') : undefined}
+              >
+                <header>
+                  <Avatars members={reserve.members} size={28} />
+                  <span class="reserve-who">
+                    <span class="headline">{reserve.name}</span>
+                    {reserve.label && (
+                      <span class="footnote secondary" lang={trip.locale}>
+                        {reserve.label}
+                      </span>
+                    )}
+                  </span>
+                  <span class="reserve-total">
+                    <span class="title-3 tabular" data-reserve-total>
+                      {dash}
+                    </span>
+                    <span class="footnote tertiary tabular" data-reserve-each />
+                  </span>
+                </header>
+                {/* Like a storage bar: what each part takes of the whole. */}
+                <div class="reserve-bar" aria-hidden="true">
+                  {reserve.parts.map(({ line }) => (
+                    <span
+                      style={`--part:${spendingTint[category(line)]};flex:${line.amount}`}
+                      title={partTitle(line)}
+                    />
+                  ))}
+                </div>
+                <ul class="list reserve-parts">
+                  {reserve.parts.map(({ line, index }) => (
+                    <li
+                      style={`--part:${spendingTint[category(line)]}`}
+                      data-reserve-line={index}
+                      data-unallocated={line.category === 'unallocated' ? '' : undefined}
+                    >
+                      <span class="part-icon">
+                        <Icon name={spendingIcon[category(line)]} size={15} />
+                      </span>
+                      <span class="subhead part-name" lang={line.title ? trip.locale : undefined}>
+                        {partTitle(line)}
+                      </span>
+                      <span class="subhead tabular part-amount">
+                        <span data-part-amount>{dash}</span>
+                        <span class="tertiary" data-part-pct />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section class="section">
         <div class="section-header">
@@ -304,6 +415,32 @@ const dash = '—'
     set('[data-total="planned"]', approx + show(result.planned))
     set('[data-total="committed"]', (result.committedEstimated ? '≈ ' : '') + show(result.committed))
     set('[data-total="possible"]', '≈ ' + show(result.possible))
+    set('[data-total="reserved"]', (result.reservedEstimated ? '≈ ' : '') + show(result.reserved))
+
+    // Each budget set aside: hidden when the people in view have no part in it.
+    const whole = new Intl.NumberFormat(document.documentElement.lang, { style: 'percent' })
+    for (const card of document.querySelectorAll<HTMLElement>('[data-reserve]')) {
+      const members = JSON.parse(card.dataset.people ?? '[]') as string[]
+      card.hidden = lens.people.length > 0 && !members.some((m) => lens.people.includes(m))
+      const rows = [...card.querySelectorAll<HTMLElement>('[data-reserve-line]')]
+      const amounts = rows.map((row) => result.lines[Number(row.dataset.reserveLine)]?.total ?? 0)
+      const total = amounts.reduce((sum, a) => sum + a, 0)
+      card.querySelector('[data-reserve-total]')!.textContent = format(total, displayCurrency(), {
+        maximumFractionDigits: 0,
+      })
+      card.querySelector('[data-reserve-each]')!.textContent = card.dataset.each
+        ? card.dataset.each.replace(
+            '{amount}',
+            format(total / members.length, displayCurrency(), { maximumFractionDigits: 0 }),
+          )
+        : ''
+      rows.forEach((row, i) => {
+        row.querySelector('[data-part-amount]')!.textContent = format(amounts[i]!, displayCurrency(), {
+          maximumFractionDigits: 0,
+        })
+        row.querySelector('[data-part-pct]')!.textContent = total ? ` · ${whole.format(amounts[i]! / total)}` : ''
+      })
+    }
 
     for (const el of document.querySelectorAll<HTMLElement>('[data-moved]')) {
       const amount = result.byCurrency.get(el.dataset.moved!) ?? 0
@@ -447,6 +584,106 @@ const dash = '—'
 
   .committed {
     color: var(--green);
+  }
+
+  .reserved {
+    color: var(--indigo);
+  }
+
+  .reserve-note {
+    margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  }
+
+  .reserves {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: var(--space-4);
+  }
+
+  .reserve {
+    display: grid;
+    align-content: start;
+    gap: var(--space-4);
+  }
+
+  .reserve header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .reserve-who {
+    display: grid;
+    min-width: 0;
+  }
+
+  .reserve-who > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .reserve-total {
+    display: grid;
+    justify-items: end;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .reserve-total .title-3 {
+    color: var(--indigo);
+  }
+
+  .reserve-bar {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .reserve-bar span {
+    min-width: 4px;
+    background: var(--part);
+  }
+
+  .reserve-parts li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding-block: 7px;
+  }
+
+  .part-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    color: var(--part);
+    background: color-mix(in srgb, var(--part) 14%, transparent);
+  }
+
+  .part-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .part-amount {
+    flex: none;
+    margin-left: auto;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* What's left unassigned reads quieter than the parts. */
+  [data-unallocated] .part-name,
+  [data-unallocated] .part-amount {
+    color: var(--label-secondary);
+    font-weight: 400;
   }
 
   .possible {

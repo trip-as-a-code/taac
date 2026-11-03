@@ -1576,7 +1576,7 @@
       ]
     },
     "Spending": {
-      "description": "A budget for buying on the spot, shared equally by its people: planned\nspend, paid as it goes.",
+      "description": "Money set aside for buying on the spot, shared equally by its people:\nplanned spend, reserved rather than owed, paid as it goes.",
       "type": "object",
       "properties": {
         "label": {
@@ -1604,12 +1604,85 @@
         "currency": {
           "type": "string",
           "pattern": "^[A-Z]{3}$"
+        },
+        "categories": {
+          "description": "How it splits, in the same currency: what's left of `amount` is\nunallocated.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SpendingCategory"
+          }
         }
       },
       "additionalProperties": false,
       "required": [
         "amount",
         "currency"
+      ]
+    },
+    "SpendingCategory": {
+      "description": "A part of a spending budget set aside for one kind of thing.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SpendingKind"
+        },
+        "label": {
+          "description": "Its own name, instead of the kind's.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "amount": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "amount"
+      ]
+    },
+    "SpendingKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "souvenirs",
+            "other"
+          ]
+        },
+        {
+          "description": "Supermarkets, convenience stores.",
+          "type": "string",
+          "const": "groceries"
+        },
+        {
+          "description": "Meals out that aren't in the plan.",
+          "type": "string",
+          "const": "dining"
+        },
+        {
+          "description": "Coffee, drinks, street food.",
+          "type": "string",
+          "const": "snacks"
+        },
+        {
+          "description": "Clothes, gear, things for yourself.",
+          "type": "string",
+          "const": "shopping"
+        },
+        {
+          "description": "Taxis and fares beyond the passes.",
+          "type": "string",
+          "const": "transit"
+        },
+        {
+          "description": "Arcades, karaoke, entrance fees on a whim.",
+          "type": "string",
+          "const": "fun"
+        }
       ]
     },
     "MapConfig": {
