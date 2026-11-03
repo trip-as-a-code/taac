@@ -395,3 +395,32 @@ export function passUntil(pass: Pass): string {
       .at(-1) ?? ''
   )
 }
+
+/** Who sleeps in an area each night: its bases' nights, date by date, in order. */
+export function areaNights(trip: TripExport, area: string): { date: string; members: string[] }[] {
+  const nights = new Map<string, Set<string>>()
+  for (const base of trip.bases.filter((b) => inBase(trip, b, area)))
+    for (let d = base.from; d <= base.to; d = plusDay(d))
+      for (const m of base.members) nights.set(d, (nights.get(d) ?? new Set()).add(m))
+  return [...nights].sort(([a], [b]) => a.localeCompare(b)).map(([date, members]) => ({ date, members: [...members] }))
+}
+
+/**
+ * The stretches of nights anyone of `people` (anyone at all, if none) spends in
+ * an area: one run per unbroken stretch, however the people come and go in it.
+ */
+export function areaRuns(
+  nights: { date: string; members: string[] }[],
+  people: string[],
+): { from: string; to: string }[] {
+  const runs: { from: string; to: string }[] = []
+  for (const { date, members } of nights) {
+    if (people.length && !members.some((m) => people.includes(m))) continue
+    const last = runs.at(-1)
+    if (last && plusDay(last.to) === date) last.to = date
+    else runs.push({ from: date, to: date })
+  }
+  return runs
+}
+
+const plusDay = (date: string) => new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
