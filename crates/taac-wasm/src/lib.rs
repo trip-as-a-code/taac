@@ -19,6 +19,18 @@ pub fn export_site(files_json: &str, path: &str) -> Result<String, JsError> {
     serde_json::to_string(&value).map_err(|e| JsError::new(&e.to_string()))
 }
 
+/// Like `exportSite`, but whatever loads exports, errors and all: for past
+/// versions, which today's rules may not accept.
+#[wasm_bindgen(js_name = exportSiteLenient)]
+pub fn export_site_lenient(files_json: &str, path: &str) -> Result<String, JsError> {
+    let files = files(files_json)?;
+    let value = match taac_core::export_lenient(&files, path) {
+        Ok(export) => serde_json::json!({ "ok": true, "export": export }),
+        Err(diagnostics) => serde_json::json!({ "ok": false, "diagnostics": diagnostics }),
+    };
+    serde_json::to_string(&value).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// Diagnostics only.
 #[wasm_bindgen]
 pub fn validate(files_json: &str, path: &str) -> Result<String, JsError> {

@@ -26,6 +26,8 @@ export interface ChangeSet {
   login?: string
   pr?: number
   events: ChangeEvent[]
+  /** Things whose id changed because they were renamed: `[old anchor, new anchor]`. */
+  moves?: [string, string][]
 }
 
 const when = (i: Item) => [i.local.date, i.local.time].filter(Boolean).join(' ')
@@ -78,4 +80,63 @@ export function diffTrips(before: TripExport, after: TripExport): ChangeEvent[] 
   for (const idea of before.ideas.filter((i) => !kept.has(i.id)))
     events.push({ kind: 'ideaRemoved', id: idea.id, title: idea.title })
   return events
+}
+
+/**
+ * Ids made from titles change with them: for each kind of thing, one gone and
+ * one new in the same change that are otherwise alike is a rename, and
+ * whatever hangs on the old anchor (discussions, ticks, reminders, links)
+ * belongs to the new one. Plans: same kind and day; ideas: same kind, day and
+ * area; tasks: same due date, need and people; passes: same area and mode;
+ * packing: same place in a category whose items stayed as many, or a renamed
+ * category with the same items.
+ */
+export function renamesOf(before: TripExport, after: TripExport): [string, string][] {
+  const moves: [string, string][] = []
+  const pair = <T extends { id: string }>(prefix: string, was: T[], now: T[], alike: (a: T, b: T) => boolean) => {
+    const old = new Set(was.map((x) => x.id))
+    const kept = new Set(now.map((x) => x.id))
+    const gone = was.filter((x) => !kept.has(x.id))
+    const taken = new Set<string>()
+    for (const fresh of now.filter((x) => !old.has(x.id))) {
+      const match = gone.find((x) => !taken.has(x.id) && alike(x, fresh))
+      if (!match) continue
+      taken.add(match.id)
+      moves.push([`${prefix}:${match.id}`, `${prefix}:${fresh.id}`])
+    }
+  }
+  pair('item', before.items, after.items, (a, b) => a.kind === b.kind && a.local.date === b.local.date)
+  pair(
+    'idea',
+    before.ideas,
+    after.ideas,
+    (a, b) => a.kind === b.kind && a.local?.date === b.local?.date && a.area === b.area,
+  )
+  pair(
+    'task',
+    before.tasks,
+    after.tasks,
+    (a, b) => a.due === b.due && a.required === b.required && same(a.members, b.members),
+  )
+  pair('pass', before.passes, after.passes, (a, b) => a.area === b.area && a.mode === b.mode)
+  // Packing ids come from the category and the name: match by place instead.
+  const items = new Set(after.packing.flatMap((c) => c.items.map((i) => i.id)))
+  before.packing.forEach((was, index) => {
+    const now =
+      after.packing.find((c) => c.category === was.category) ??
+      after.packing.find(
+        (c, i) =>
+          i === index &&
+          same(
+            c.items.map((x) => x.name),
+            was.items.map((x) => x.name),
+          ),
+      )
+    if (!now || now.items.length !== was.items.length) return
+    was.items.forEach((item, i) => {
+      const fresh = now.items[i]!
+      if (fresh.id !== item.id && !items.has(item.id)) moves.push([`packing:${item.id}`, `packing:${fresh.id}`])
+    })
+  })
+  return moves
 }

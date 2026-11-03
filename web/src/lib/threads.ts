@@ -4,6 +4,7 @@
 import type { TripExport } from '@taac/core'
 
 import type { I18n } from '@/i18n'
+import type { ChangeSet } from '@/lib/changes'
 
 export interface ThreadTarget {
   /** What it is about, as the page names it. */
@@ -33,4 +34,24 @@ export function threadTargets(trip: TripExport, i18n: I18n): Record<string, Thre
     for (const item of category.items)
       targets[`packing:${item.id}`] = { title: item.name, href: `${page('packing')}#packing-${item.id}` }
   return targets
+}
+
+/**
+ * Where things renamed lately went: ids come from titles, so a rename gives a
+ * thing a new anchor. Each old anchor leads to its current one, through any
+ * number of renames; one that something else uses now stays.
+ */
+export function movedAnchors(sets: ChangeSet[], targets: Record<string, ThreadTarget>): Record<string, string> {
+  const next = new Map<string, string>()
+  for (const set of sets.toSorted((a, b) => a.date.localeCompare(b.date)))
+    for (const [from, to] of set.moves ?? []) if (from !== to) next.set(from, to)
+  const moved: Record<string, string> = {}
+  for (const from of next.keys()) {
+    if (targets[from]) continue
+    let to = from
+    const seen = new Set([from])
+    while (next.has(to) && !seen.has(next.get(to)!)) seen.add((to = next.get(to)!))
+    if (to !== from && targets[to]) moved[from] = to
+  }
+  return moved
 }

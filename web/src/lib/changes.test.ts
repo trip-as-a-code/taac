@@ -1,7 +1,7 @@
 import type { Item, TripExport } from '@taac/core'
 import { describe, expect, it } from 'vitest'
 
-import { diffTrips } from './changes'
+import { diffTrips, renamesOf } from './changes'
 
 const item = (id: string, over: Partial<Item> = {}): Item =>
   ({
@@ -56,5 +56,55 @@ describe('diffTrips', () => {
       ['ideaAdded', 'fado'],
       ['ideaRemoved', 'market'],
     ])
+  })
+})
+
+describe('renamesOf', () => {
+  it('pairs each kind of thing that lost its old id to a new title', () => {
+    const before = {
+      items: [item('hotel-robin')],
+      ideas: [{ id: 'arcade', kind: 'activity', area: 'tokyo' }],
+      tasks: [{ id: 'visa', due: '2026-11-01', required: true, members: ['a'] }],
+      passes: [{ id: 'suica', area: 'tokyo', mode: 'transit' }],
+      packing: [
+        {
+          category: 'Docs',
+          items: [
+            { id: 'p1', name: 'Passport' },
+            { id: 'p2', name: 'Cash' },
+          ],
+        },
+      ],
+    } as unknown as TripExport
+    const after = {
+      items: [item('hotel')],
+      ideas: [{ id: 'arcades', kind: 'activity', area: 'tokyo' }],
+      tasks: [{ id: 'japan-visa', due: '2026-11-01', required: true, members: ['a'] }],
+      passes: [{ id: 'suica-tokyo', area: 'tokyo', mode: 'transit' }],
+      packing: [
+        {
+          category: 'Docs',
+          items: [
+            { id: 'p1', name: 'Passport' },
+            { id: 'p3', name: 'Yen' },
+          ],
+        },
+      ],
+    } as unknown as TripExport
+    expect(renamesOf(before, after)).toEqual([
+      ['item:hotel-robin', 'item:hotel'],
+      ['idea:arcade', 'idea:arcades'],
+      ['task:visa', 'task:japan-visa'],
+      ['pass:suica', 'pass:suica-tokyo'],
+      ['packing:p2', 'packing:p3'],
+    ])
+  })
+
+  it('leaves things that changed in other ways, or were swapped for something else', () => {
+    const before = trip([item('a', { local: { date: '2026-12-20' } } as Partial<Item>)])
+    const after = trip([item('b', { local: { date: '2026-12-21' } } as Partial<Item>)])
+    expect(
+      renamesOf({ ...before, tasks: [], passes: [], packing: [] }, { ...after, tasks: [], passes: [], packing: [] }),
+    ).toEqual([])
   })
 })

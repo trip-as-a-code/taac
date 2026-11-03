@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
-import { currentReminder, dayIn, rungs, rungTime, stillTimely, zonedTime, type Deadline } from './reminders'
+import {
+  currentReminder,
+  dayIn,
+  movedDueId,
+  movedKey,
+  rungs,
+  rungTime,
+  stillTimely,
+  zonedTime,
+  type Deadline,
+} from './reminders'
 
 const booking: Deadline = {
   key: 'booking:item:tower',
@@ -52,5 +62,18 @@ describe('reminders', () => {
     expect(stillTimely({ rung: 14, at: at('2026-11-11T07:00:00Z') }, now)).toBe(false)
     expect(stillTimely({ rung: 14, at: at('2026-11-13T07:00:00Z') }, now)).toBe(true)
     expect(stillTimely({ rung: -1, at: at('2026-11-01T07:00:00Z') }, now)).toBe(true)
+  })
+})
+
+describe('renamed anchors in reminder keys', () => {
+  it('moves the anchor wherever a key or notification id holds it, and only there', () => {
+    expect(movedKey('task:visa', 'task:visa', 'task:japan-visa')).toBe('task:japan-visa')
+    expect(movedKey('booking:item:tower:1', 'item:tower', 'item:tokyo-tower')).toBe('booking:item:tokyo-tower:1')
+    expect(movedKey('payment:pass:jr:0:2', 'pass:jr', 'pass:jr-east')).toBe('payment:pass:jr-east:0:2')
+    expect(movedKey('booking:item:tower-2', 'item:tower', 'item:x')).toBeNull()
+    expect(movedDueId('due:booking:item:tower:2026-11-25:3', 'item:tower', 'item:tokyo-tower')).toBe(
+      'due:booking:item:tokyo-tower:2026-11-25:3',
+    )
+    expect(movedDueId('due:task:visa:2026-11-01:-1', 'item:tower', 'item:x')).toBeNull()
   })
 })

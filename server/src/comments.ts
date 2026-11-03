@@ -37,9 +37,15 @@ export interface CommentStore {
   deleteComment(id: string, now: number): Promise<void>
   /** The comment and its thread's trip, for permission checks. */
   comment(id: string): Promise<(Comment & { trip: string }) | null>
+  /**
+   * A renamed thing's new anchor: its discussions, packing ticks, reminders
+   * sent and notifications marked move from `from` to `to`; how many moved.
+   */
+  moveAnchor(trip: string, from: string, to: string): Promise<number>
 }
 
-const ANCHOR = /^[A-Za-z][\w:.+-]{0,119}$/
+// Ids are slugs of titles in any script: letters, marks and digits of any language.
+const ANCHOR = /^\p{L}[\p{L}\p{M}\p{N}_:.+-]{0,119}$/u
 const BODY_MAX = 4000
 export const MAX_THREADS = 2000
 

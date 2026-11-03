@@ -67,10 +67,13 @@ export function exportSite(inputPath) {
   return { ...JSON.parse(wasm.exportSite(JSON.stringify(files), key)), paths }
 }
 
-/** Exports files already in memory (keyed relative to one root), such as a past version from git. */
-export function exportFiles(files, key) {
+/**
+ * Exports files already in memory (keyed relative to one root), such as a past
+ * version from git; `lenient` exports whatever loads, errors and all.
+ */
+export function exportFiles(files, key, { lenient = false } = {}) {
   init()
-  return JSON.parse(wasm.exportSite(JSON.stringify(files), key))
+  return JSON.parse((lenient ? wasm.exportSiteLenient : wasm.exportSite)(JSON.stringify(files), key))
 }
 
 /** Diagnostics only. */

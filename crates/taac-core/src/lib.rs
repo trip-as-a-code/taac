@@ -49,3 +49,12 @@ pub fn export(files: &Files, path: &str) -> Result<SiteExport, Vec<Diagnostic>> 
         _ => Err(diagnostics),
     }
 }
+
+/// Exports whatever loads, errors and all: for a past version of a trip,
+/// which today's rules may not accept, read only to see what changed.
+pub fn export_lenient(files: &Files, path: &str) -> Result<SiteExport, Vec<Diagnostic>> {
+    match load(files, path) {
+        (Some(site), diagnostics) => Ok(export::export_site(&site, diagnostics)),
+        (None, diagnostics) => Err(diagnostics),
+    }
+}
