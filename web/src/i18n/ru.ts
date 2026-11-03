@@ -284,7 +284,7 @@ export const ru: Messages = {
   'spending.other': 'Прочее',
   'spending.unallocated': 'Не распределено',
   'budget.reserved': 'Отложено',
-  'budget.reservedHint': 'Входит в план, но не в оплаченное.',
+  'budget.reservedHint': 'Входит в план, но не в забронированное',
   'budget.reservedNote':
     'Деньги, отложенные на то, что покупается по ходу. Платится на месте, так что никто никому не должен.',
   'budget.reservedEach': 'по {amount}',

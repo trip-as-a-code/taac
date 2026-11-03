@@ -267,7 +267,7 @@ export const en = {
   'spending.other': 'Other',
   'spending.unallocated': 'Not allocated',
   'budget.reserved': 'Set aside',
-  'budget.reservedHint': 'Counted in planned, never in committed.',
+  'budget.reservedHint': 'Counted in planned, never in booked',
   'budget.reservedNote':
     'Money reserved for what gets bought along the way. It’s paid as it goes, so nobody owes anybody for it.',
   'budget.reservedEach': '{amount} each',

@@ -415,7 +415,7 @@ const dash = '—'
     set('[data-total="planned"]', approx + show(result.planned))
     set('[data-total="committed"]', (result.committedEstimated ? '≈ ' : '') + show(result.committed))
     set('[data-total="possible"]', '≈ ' + show(result.possible))
-    set('[data-total="reserved"]', approx + show(result.reserved))
+    set('[data-total="reserved"]', (result.reservedEstimated ? '≈ ' : '') + show(result.reserved))
 
     // Each budget set aside: hidden when the people in view have no part in it.
     const whole = new Intl.NumberFormat(document.documentElement.lang, { style: 'percent' })
