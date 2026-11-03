@@ -11,8 +11,8 @@ use crate::diagnostics::Diagnostic;
 use chrono::NaiveDate;
 
 use crate::model::{
-    Base, Blocker, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory, Pass,
-    Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Spending, Task,
+    Base, Blocker, Choice, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
+    Pass, Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Spending, Task,
     TripFile, TripKind, TripMetadata,
 };
 
@@ -41,6 +41,7 @@ pub struct Trip {
     pub declared_bases: Vec<Base>,
     pub itinerary: Vec<Item>,
     pub ideas: Vec<Idea>,
+    pub choices: Vec<Choice>,
     pub blockers: Vec<Blocker>,
     pub tasks: Vec<Task>,
     pub passes: Vec<Pass>,
@@ -439,6 +440,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         declared_bases: Vec::new(),
         itinerary: Vec::new(),
         ideas: Vec::new(),
+        choices: Vec::new(),
         blockers: Vec::new(),
         tasks: Vec::new(),
         passes: Vec::new(),
@@ -532,6 +534,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         }
         trip.itinerary.extend(doc.itinerary);
         trip.ideas.extend(doc.ideas);
+        trip.choices.extend(doc.choices);
         trip.blockers.extend(doc.blockers);
         trip.tasks.extend(doc.tasks);
         trip.passes.extend(doc.passes);
@@ -704,6 +707,29 @@ fn resolve_names(trip: &mut Trip) {
         task.id = unique(&[slug(&task.title)], &mut taken);
         who(&mut task.who);
     }
+    let mut taken = HashSet::new();
+    for choice in &mut trip.choices {
+        choice.id = unique(&[slug(&choice.name)], &mut taken);
+    }
+    // Ideas and plans name a choice as written, or by its id.
+    let choices: HashMap<String, String> = trip
+        .choices
+        .iter()
+        .flat_map(|c| {
+            [
+                (c.name.to_lowercase(), c.id.clone()),
+                (c.id.clone(), c.id.clone()),
+            ]
+        })
+        .collect();
+    let choice = |name: &mut Option<String>| {
+        if let Some(name) = name
+            && let Some(id) = choices.get(&name.to_lowercase())
+        {
+            name.clone_from(id);
+        }
+    };
+
     let blockers: HashMap<String, String> = trip
         .blockers
         .iter()
@@ -737,6 +763,7 @@ fn resolve_names(trip: &mut Trip) {
         place_refs(&mut item.places);
         who(&mut item.who);
         costs(&mut item.costs);
+        choice(&mut item.choice);
         for reservation in &mut item.bookings {
             who(&mut reservation.who);
             costs(&mut reservation.costs);
@@ -758,6 +785,7 @@ fn resolve_names(trip: &mut Trip) {
         place_refs(&mut idea.places);
         who(&mut idea.who);
         costs(&mut idea.costs);
+        choice(&mut idea.choice);
     }
 
     let mut taken = HashSet::new();

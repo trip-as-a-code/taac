@@ -71,6 +71,13 @@
         "$ref": "#/$defs/Idea"
       }
     },
+    "choices": {
+      "description": "Alternatives for one need, of which only some get done: two places for\none dinner, a hike on one of two days. Ideas name the choice they are\nan alternative for; a plan that names one settles it.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Choice"
+      }
+    },
     "blockers": {
       "description": "Time someone is unavailable (work, a call): whole days or a window.",
       "type": "array",
@@ -560,6 +567,13 @@
             "type": "string"
           }
         },
+        "choice": {
+          "description": "The choice (in `choices`) this plan settles: its other ideas are not chosen.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "overrides": {
           "description": "Titles of blockers this plan may run through, e.g. a train with good\nWi-Fi during work hours.",
           "type": "array",
@@ -1044,8 +1058,8 @@
             }
           ]
         },
-        "option": {
-          "description": "Alternatives for the same need share a label (`option: Kyoto stay`):\nthey are compared side by side and only the cheapest counts as\npossible spend.",
+        "choice": {
+          "description": "The choice (in `choices`) this is one of the alternatives for: they are\ncompared side by side, and only the cheapest ones the choice picks\ncount as possible spend.",
           "type": [
             "string",
             "null"
@@ -1154,6 +1168,33 @@
         "hour",
         "halfDay",
         "day"
+      ]
+    },
+    "Choice": {
+      "description": "Alternatives for one need: of the ideas that name it, `pick` get done.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "How ideas and plans refer to it, such as `Fado dinner`.",
+          "type": "string"
+        },
+        "pick": {
+          "description": "How many of its ideas get done; one unless said.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 1
+        },
+        "notes": {
+          "description": "Markdown.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
       ]
     },
     "Blocker": {

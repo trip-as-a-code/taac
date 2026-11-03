@@ -67,7 +67,14 @@ const trip = {
       ],
     },
   ],
+  choices: [{ id: 'dinner', name: 'Dinner', pick: 1, settledBy: ['tower'] }],
   ideas: [
+    {
+      id: 'sushi',
+      choice: 'dinner',
+      members: ['a'],
+      booking: { status: 'required', deadline: '2026-11-30', hasReference: false },
+    },
     {
       id: 'teamlab',
       members: ['a', 'b'],

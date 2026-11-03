@@ -82,8 +82,10 @@ export function deadlines(trip: TripExport): Deadline[] {
       payments(anchor, share.costs, `${anchor}:${index}`)
     })
   }
+  // An idea whose choice plans settled is not going to be booked.
+  const settled = new Set(trip.choices.filter((c) => c.settledBy.length >= c.pick).map((c) => c.id))
   for (const idea of trip.ideas)
-    if (idea.booking?.status === 'required' && idea.booking.deadline)
+    if (idea.booking?.status === 'required' && idea.booking.deadline && !(idea.choice && settled.has(idea.choice)))
       add(
         {
           key: `booking:idea:${idea.id}`,
