@@ -6,7 +6,7 @@ import TripLayout from '@/layouts/TripLayout.astro'
 import { ideaFacts, issuesOf, itemFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
 import { photoSrc } from '@/lib/photos'
-import { kindTint, placeEmoji } from '@/lib/trip'
+import { groupLabel, partyColor, placeEmoji } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -14,11 +14,11 @@ const { lang, i18n, trip } = tripPage(Astro.params, Astro.props)
 const { t, date, path, plural, number } = i18n
 // Plural forms for the browser, which fills in the count as the map moves.
 const rules = new Intl.PluralRules(lang)
-const outsideForms = JSON.stringify(
-  Object.fromEntries(
-    [0, 1, 2, 5, 1.5].map((n) => [rules.select(n), plural('map.outside', n).replace(number(n), '{n}')]),
-  ),
-)
+const forms = (key: 'map.outside' | 'map.trips' | 'map.cluster') =>
+  JSON.stringify(
+    Object.fromEntries([0, 1, 2, 5, 1.5].map((n) => [rules.select(n), plural(key, n).replace(number(n), '{n}')])),
+  )
+const outsideForms = forms('map.outside')
 
 // Only what the map needs, inlined as JSON in the page (never in a JS bundle).
 const used = new Map<string, { id: string; items: string[] }>()
@@ -73,6 +73,8 @@ const places = [...used.values()].map(({ id, items }) => {
     name: place.name,
     geo: place.geo,
     emoji: placeEmoji(place.category),
+    // Where journeys start and end: a dot, not a badge.
+    stop: ['station', 'stop', 'port'].includes(place.category ?? ''),
     photo: place.photo ? photoSrc(place.photo, 'wide') : undefined,
     items,
     idea,
@@ -96,9 +98,26 @@ const routes = trip.items
   .map((i) => ({
     item: i.id,
     flight: i.kind === 'flight',
-    color: kindTint[i.kind],
+    walk: i.kind === 'walk',
+    // Whose journey it is: on days the trip splits, each track keeps its colour.
+    color: partyColor(trip, i.party),
     coords: i.places.map((id) => [trip.places[id].geo[1], trip.places[id].geo[0]]),
   }))
+// The colours the routes use, for the legend: together first, then each group.
+const legend = [
+  ...new Map(
+    trip.items
+      .filter((i) => routes.some((r) => r.item === i.id))
+      .map((i) => {
+        const color = partyColor(trip, i.party)
+        const group = trip.groups.find((g) => partyColor(trip, g.id) === color && color !== 'var(--blue)')
+        return [
+          color,
+          group ? [group.emoji, groupLabel(trip, group, t('party.and'))].filter(Boolean).join(' ') : t('map.together'),
+        ]
+      }),
+  ),
+].sort(([a], [b]) => Number(b === 'var(--blue)') - Number(a === 'var(--blue)'))
 const overlays = trip.overlays.map((o) => ({ name: o.name, data: o.data }))
 const data = { places, routes, items: itemInfo, overlays, areas }
 const multiYear = new Set(trip.days.map((d) => d.date.slice(0, 4))).size > 1
@@ -106,7 +125,14 @@ const multiYear = new Set(trip.days.map((d) => d.date.slice(0, 4))).size > 1
 
 <TripLayout trip={trip} lang={lang} section="map" bare>
   <div class="map-shell">
-    <div class="map" data-map data-issues={t('issues.inList')} aria-label={t('nav.map')}></div>
+    <div
+      class="map"
+      data-map
+      data-issues={t('issues.inList')}
+      data-trips={forms('map.trips')}
+      data-cluster={forms('map.cluster')}
+      aria-label={t('nav.map')}
+    ></div>
     <aside class="panel" data-panel>
       <button class="grabber" type="button" data-sheet-toggle aria-expanded="false" aria-label={t('map.places')}>
         <span aria-hidden="true" />
@@ -125,6 +151,17 @@ const multiYear = new Set(trip.days.map((d) => d.date.slice(0, 4))).size > 1
             })),
           ]}
         />
+        {/* Whose journey each colour is, when the trip splits. */}
+        {legend.length > 1 && (
+          <ul class="legend footnote secondary" lang={trip.locale}>
+            {legend.map(([color, label]) => (
+              <li>
+                <span class="swatch" style={`--swatch:${color}`} aria-hidden="true" />
+                {label}
+              </li>
+            ))}
+          </ul>
+        )}
         <FilterBar
           i18n={i18n}
           trip={trip}
@@ -137,7 +174,7 @@ const multiYear = new Set(trip.days.map((d) => d.date.slice(0, 4))).size > 1
         <h2 class="headline">
           {t('map.places')} <span class="secondary tabular" data-place-count></span>
         </h2>
-        <button class="button button-plain" type="button" data-fit>
+        <button class="button button-plain" type="button" data-fit-trip>
           <Icon name="expand" size={15} />
           {t('map.fit')}
         </button>
@@ -272,6 +309,28 @@ const multiYear = new Set(trip.days.map((d) => d.date.slice(0, 4))).size > 1
     padding: var(--space-4) var(--space-4) var(--space-2);
   }
 
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 0;
+    padding: 0 4px;
+    list-style: none;
+  }
+
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .swatch {
+    width: 14px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--swatch);
+  }
+
   .panel-title {
     display: flex;
     align-items: center;
@@ -357,6 +416,54 @@ const multiYear = new Set(trip.days.map((d) => d.date.slice(0, 4))).size > 1
       0 0 0 2px var(--bg-elevated);
     cursor: pointer;
     transition: transform 200ms var(--ease);
+  }
+
+  /* A station is a waypoint: a small dot in its route's blue, a badge only
+     when it's the one open. */
+  :global(.marker[data-stop]:not([data-active])) {
+    width: 12px;
+    height: 12px;
+    font-size: 0;
+    background: var(--blue);
+    box-shadow:
+      0 0 0 2.5px var(--bg-elevated),
+      0 1px 4px rgb(0 0 0 / 0.3);
+  }
+
+  /* Places gathered when zoomed out: a bold count on the marker's own
+     background, so it reads apart from the coloured routes and dots. */
+  :global(.marker.bubble) {
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--label);
+  }
+
+  :global(.marker[data-clustered]) {
+    display: none !important;
+  }
+
+  :global(.route-hint .maplibregl-popup-content) {
+    padding: 4px 10px !important;
+    border-radius: 999px !important;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  :global(.route-hint .maplibregl-popup-tip) {
+    display: none;
+  }
+
+  /* Off the day in focus: still there, out of the way. */
+  :global(.marker[data-faded]) {
+    opacity: 0.3;
+    filter: grayscale(1);
+    transform: scale(0.7);
+  }
+
+  /* A station another day passed through says nothing about this one. */
+  :global(.marker[data-faded][data-stop]) {
+    display: none;
   }
 
   :global(.marker[data-idea]) {

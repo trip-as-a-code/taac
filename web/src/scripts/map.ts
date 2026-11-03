@@ -19,8 +19,10 @@ interface MapData {
     photo?: string
     items: string[]
     idea: boolean
+    /** A station, stop or port: drawn as a dot. */
+    stop: boolean
   }[]
-  routes: { item: string; flight: boolean; color: string; coords: [number, number][] }[]
+  routes: { item: string; flight: boolean; walk: boolean; color: string; coords: [number, number][] }[]
   items: Record<
     string,
     {
@@ -82,15 +84,15 @@ export async function setupMap() {
   const visibleItems = () => {
     const today = tripToday()
     return Object.entries(data.items)
-      .filter(
-        ([, item]) =>
-          (state.filters
-            ? matchesFacts(item.facts, item.people, state.filters, today)
-            : inLens(item.people, state.lens, item.facts.unassigned)) &&
-          (!state.day || item.date === state.day),
+      .filter(([, item]) =>
+        state.filters
+          ? matchesFacts(item.facts, item.people, state.filters, today)
+          : inLens(item.people, state.lens, item.facts.unassigned),
       )
       .map(([id]) => id)
   }
+  /** With a day picked, its plans are the focus; the rest of the trip stays as faint context. */
+  const focused = (items: string[]) => (state.day ? items.filter((id) => data.items[id]!.date === state.day) : items)
 
   // Overlays and routes are re-added whenever the style (light/dark) loads.
   const addLayers = () => {
@@ -127,7 +129,19 @@ export async function setupMap() {
       })
     }
     if (!instance.getSource('routes')) {
-      instance.addSource('routes', { type: 'geojson', data: routeData(data, visibleItems()) })
+      instance.addSource('routes-context', { type: 'geojson', data: routeData(data, []) })
+      instance.addLayer({
+        id: 'routes-context',
+        type: 'line',
+        source: 'routes-context',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': ['interpolate', ['linear'], ['get', 'count'], 1, 1.5, 6, 4],
+          'line-opacity': 0.16,
+        },
+      })
+      instance.addSource('routes', { type: 'geojson', data: routeData(data, focused(visibleItems())) })
       instance.addLayer({
         id: 'routes',
         type: 'line',
@@ -135,15 +149,24 @@ export async function setupMap() {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': ['get', 'color'],
-          'line-width': 3,
+          // The same leg travelled again is one line, thicker the more often.
+          'line-width': ['interpolate', ['linear'], ['get', 'count'], 1, 3, 6, 7],
           'line-opacity': 0.85,
-          'line-dasharray': ['case', ['get', 'flight'], ['literal', [1, 2]], ['literal', [1, 0]]],
+          // Flights dashed, walks dotted; colour says whose journey it is.
+          'line-dasharray': [
+            'case',
+            ['get', 'flight'],
+            ['literal', [1, 2]],
+            ['get', 'walk'],
+            ['literal', [0.1, 1.8]],
+            ['literal', [1, 0]],
+          ],
           // Each leg keeps to its right: there and back over the same ground are two lines.
           'line-offset': ROUTE_OFFSET,
         },
       })
       if (!instance.hasImage('route-arrow')) instance.addImage('route-arrow', arrowImage(), { sdf: true })
-      instance.addSource('route-arrows', { type: 'geojson', data: arrowData(data, visibleItems()) })
+      instance.addSource('route-arrows', { type: 'geojson', data: arrowData(data, focused(visibleItems())) })
       instance.addLayer({
         id: 'route-arrows',
         type: 'symbol',
@@ -163,6 +186,18 @@ export async function setupMap() {
     }
   }
   instance.on('style.load', addLayers)
+
+  // A leg travelled on several days says how often, under the pointer.
+  const tripsForms = container.dataset.trips ?? '{}'
+  const hover = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10, className: 'route-hint' })
+  for (const layer of ['routes', 'routes-context']) {
+    instance.on('mousemove', layer, (event) => {
+      const count = Number(event.features?.[0]?.properties?.count ?? 1)
+      if (count < 2) return void hover.remove()
+      hover.setLngLat(event.lngLat).setText(plural(tripsForms, count)).addTo(instance)
+    })
+    instance.on('mouseleave', layer, () => hover.remove())
+  }
   offTheme?.()
   offTheme = onTheme((theme) => instance.setStyle(STYLES[theme]))
 
@@ -206,6 +241,7 @@ export async function setupMap() {
     element.className = 'marker'
     element.textContent = place.emoji
     if (place.idea) element.dataset.idea = ''
+    if (place.stop) element.dataset.stop = ''
     element.setAttribute('aria-label', place.name)
     element.addEventListener('click', (event) => {
       event.stopPropagation()
@@ -214,6 +250,53 @@ export async function setupMap() {
     markers.set(place.id, new maplibregl.Marker({ element }).setLngLat([place.geo[1], place.geo[0]]).addTo(instance))
   }
   for (const [id, button] of listButtons) button.addEventListener('click', () => open(id, true))
+
+  // Places close together on screen gather into one bubble with a count, and
+  // split as the map zooms in; a tap zooms to them. Stations stay dots, and
+  // the day in focus and the rest gather apart.
+  const clusterForms = container.dataset.cluster ?? '{}'
+  const bubbles: Marker[] = []
+  const cluster = () => {
+    for (const bubble of bubbles.splice(0)) bubble.remove()
+    for (const marker of markers.values()) marker.getElement().removeAttribute('data-clustered')
+    if (instance.getZoom() >= 15) return
+    const candidates = data.places
+      .map((place) => ({ place, element: markers.get(place.id)!.getElement() }))
+      .filter(({ place, element }) => !place.stop && !element.hidden)
+      .map((c) => ({ ...c, at: instance.project([c.place.geo[1], c.place.geo[0]]) }))
+    const taken = new Set<string>()
+    for (const c of candidates) {
+      if (taken.has(c.place.id)) continue
+      const faded = c.element.hasAttribute('data-faded')
+      const near = candidates.filter(
+        (o) =>
+          !taken.has(o.place.id) &&
+          o.element.hasAttribute('data-faded') === faded &&
+          Math.hypot(o.at.x - c.at.x, o.at.y - c.at.y) < CLUSTER_PX,
+      )
+      if (near.length < 2) continue
+      for (const o of near) {
+        taken.add(o.place.id)
+        o.element.setAttribute('data-clustered', '')
+      }
+      const geos = near.map((o) => o.place.geo)
+      const element = document.createElement('button')
+      element.type = 'button'
+      element.className = 'marker bubble'
+      element.toggleAttribute('data-faded', faded)
+      element.textContent = String(near.length)
+      element.setAttribute('aria-label', plural(clusterForms, near.length))
+      element.title = near.map((o) => o.place.name).join('\n')
+      element.addEventListener('click', (event) => {
+        event.stopPropagation()
+        instance.fitBounds(bounds(geos), { padding: 80, maxZoom: Math.max(instance.getZoom() + 2, 15), duration: 600 })
+      })
+      const lat = geos.reduce((sum, g) => sum + g[0], 0) / geos.length
+      const lon = geos.reduce((sum, g) => sum + g[1], 0) / geos.length
+      bubbles.push(new maplibregl.Marker({ element }).setLngLat([lon, lat]).addTo(instance))
+    }
+  }
+  instance.on('zoomend', cluster)
 
   // The list names what is on the map right now; the rest is a tap away.
   let shown: MapData['places'] = []
@@ -244,7 +327,12 @@ export async function setupMap() {
     showCount(allowed.size, Object.keys(data.items).length)
     shown = data.places.filter((p) => p.items.some((i) => allowed.has(i)))
     const shownIds = new Set(shown.map((p) => p.id))
-    for (const [id, marker] of markers) marker.getElement().hidden = !shownIds.has(id)
+    const focus = new Set(focused([...allowed]))
+    for (const [id, marker] of markers) {
+      const place = data.places.find((p) => p.id === id)!
+      marker.getElement().hidden = !shownIds.has(id)
+      marker.getElement().toggleAttribute('data-faded', Boolean(state.day) && !place.items.some((i) => focus.has(i)))
+    }
     // Places whose plans in view have issues say how many kinds.
     for (const [id, button] of listButtons) {
       const place = data.places.find((p) => p.id === id)!
@@ -255,14 +343,19 @@ export async function setupMap() {
       badge.title = issuesLabel
     }
     listVisible()
-    ;(instance.getSource('routes') as GeoJSONSource | undefined)?.setData(routeData(data, [...allowed]))
-    ;(instance.getSource('route-arrows') as GeoJSONSource | undefined)?.setData(arrowData(data, [...allowed]))
+    cluster()
+    const context = state.day ? [...allowed].filter((id) => !focus.has(id)) : []
+    ;(instance.getSource('routes-context') as GeoJSONSource | undefined)?.setData(routeData(data, context))
+    ;(instance.getSource('routes') as GeoJSONSource | undefined)?.setData(routeData(data, [...focus]))
+    ;(instance.getSource('route-arrows') as GeoJSONSource | undefined)?.setData(arrowData(data, [...focus]))
     ;(instance.getSource('areas') as GeoJSONSource | undefined)?.setData(areaData(data, state))
     popup?.remove()
     // The trip's own area: a flight home from far away doesn't zoom the map
     // out to the whole world.
-    if (fit && shown.length)
-      instance.fitBounds(bounds(core(shown.map((p) => p.geo))), { padding: padding(), maxZoom: 14, duration: 700 })
+    // Framed on the day in focus, else on everything in view.
+    const framed = state.day ? shown.filter((p) => p.items.some((i) => focus.has(i))) : shown
+    if (fit && framed.length)
+      instance.fitBounds(bounds(core(framed.map((p) => p.geo))), { padding: padding(), maxZoom: 14, duration: 700 })
   }
 
   setupFilters((filters) => {
@@ -274,7 +367,7 @@ export async function setupMap() {
     state.day = (event.target as HTMLSelectElement).value
     apply(true)
   })
-  document.querySelector('[data-fit]')?.addEventListener('click', () => apply(true))
+  document.querySelector('[data-fit-trip]')?.addEventListener('click', () => apply(true))
   // First the trip's area; once that is all in view, the far-off rest too.
   document.querySelector('[data-show-all]')?.addEventListener('click', () => {
     if (!shown.length) return
@@ -352,38 +445,84 @@ export function bearing([x1, y1]: [number, number], [x2, y2]: [number, number]):
 }
 
 const ROUTE_OFFSET = 3
+/** How close on screen places gather into one bubble. */
+const CLUSTER_PX = 34
+
+/** The bend of a leg at most, on the ground: city legs fan apart, a long flight stays straight. */
+const BEND_M = 600
+
+/**
+ * A leg as a gentle curve bowed to the right of travel, so there and back over
+ * the same ground are two lines, and legs leaving one station fan apart. The
+ * bend is a sixth of the leg, but never more than `BEND_M`: a flight across
+ * the world bends no more than a walk.
+ */
+export function curve(from: [number, number], to: [number, number], steps = 20): [number, number][] {
+  // In Web Mercator, where the map draws it, with both axes in radians: a
+  // unit there is the Earth's radius times the cosine of the latitude.
+  const rad = Math.PI / 180
+  const [x1, y1] = [from[0] * rad, merc(from[1])]
+  const [x2, y2] = [to[0] * rad, merc(to[1])]
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const length = Math.hypot(dx, dy)
+  if (!length) return [from, to]
+  const metresPerUnit = 6_371_000 * Math.cos(((from[1] + to[1]) / 2) * rad) || 1
+  const bend = Math.min(length / 6, BEND_M / metresPerUnit)
+  const cx = (x1 + x2) / 2 + (dy / length) * bend
+  const cy = (y1 + y2) / 2 - (dx / length) * bend
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const t = i / steps
+    const u = 1 - t
+    return [(u * u * x1 + 2 * u * t * cx + t * t * x2) / rad, unmerc(u * u * y1 + 2 * u * t * cy + t * t * y2)]
+  })
+}
+
+/** A route's legs once each, however many times they were travelled: the key, how often, and one of them. */
+function merged(data: MapData, items: string[]) {
+  const allowed = new Set(items)
+  const legs = new Map<string, { route: MapData['routes'][number]; count: number }>()
+  for (const route of data.routes.filter((r) => allowed.has(r.item))) {
+    const key = [route.color, route.flight, route.walk, ...route.coords.flat()].join(',')
+    const leg = legs.get(key)
+    if (leg) leg.count++
+    else legs.set(key, { route, count: 1 })
+  }
+  return [...legs.values()]
+}
 
 function routeData(data: MapData, items: string[]): FeatureCollection {
-  const allowed = new Set(items)
   return {
     type: 'FeatureCollection',
-    features: data.routes
-      .filter((r) => allowed.has(r.item))
-      .map((r) => ({
-        type: 'Feature',
-        properties: { color: resolveColor(r.color), flight: r.flight },
-        geometry: { type: 'LineString', coordinates: r.coords },
-      })),
+    features: merged(data, items).map(({ route: r, count }) => ({
+      type: 'Feature',
+      properties: { color: resolveColor(r.color), flight: r.flight, walk: r.walk, count },
+      geometry: {
+        type: 'LineString',
+        coordinates: r.coords.flatMap((c, i) => (i === 0 ? [] : curve(r.coords[i - 1]!, c).slice(i === 1 ? 0 : 1))),
+      },
+    })),
   }
 }
 
-/** An arrowhead near the end of every leg: which way it goes, in or out. */
+/** An arrowhead near the end of every leg, on its curve: which way it goes, in or out. */
 function arrowData(data: MapData, items: string[]): FeatureCollection {
-  const allowed = new Set(items)
   return {
     type: 'FeatureCollection',
-    features: data.routes
-      .filter((r) => allowed.has(r.item))
-      .flatMap((r) =>
-        r.coords.slice(1).map((to, i) => {
-          const from = r.coords[i]!
-          return {
-            type: 'Feature' as const,
-            properties: { color: resolveColor(r.color), bearing: bearing(from, to) },
-            geometry: { type: 'Point' as const, coordinates: along(from, to, 0.82) },
-          }
-        }),
-      ),
+    features: merged(data, items).flatMap(({ route: r }) =>
+      r.coords.slice(1).map((to, i) => {
+        const points = curve(r.coords[i]!, to)
+        const at = Math.round((points.length - 1) * 0.82)
+        return {
+          type: 'Feature' as const,
+          properties: {
+            color: resolveColor(r.color),
+            bearing: bearing(points[at - 1]!, points[at + 1] ?? points[at]!),
+          },
+          geometry: { type: 'Point' as const, coordinates: points[at]! },
+        }
+      }),
+    ),
   }
 }
 

@@ -398,6 +398,9 @@ export const ru: Messages = {
 
   'map.places': 'Места',
   'map.fit': 'Вся поездка',
+  'map.together': 'Вместе',
+  'map.trips': { one: '{n} поездка', few: '{n} поездки', many: '{n} поездок', other: '{n} поездки' },
+  'map.cluster': { one: '{n} место', few: '{n} места', many: '{n} мест', other: '{n} места' },
   'map.showAll': 'Показать все',
   'map.outside': {
     one: 'Ещё {n} место за пределами карты',
