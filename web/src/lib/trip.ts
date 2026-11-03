@@ -206,11 +206,29 @@ export function baseById(trip: TripExport): Map<string, Base> {
   return new Map(trip.bases.map((b) => [b.id, b]))
 }
 
+/**
+ * The area an idea belongs to: its own, else the smallest area (a place with
+ * a radius) one of its places lies in; '' when neither says.
+ */
+export function ideaArea(trip: TripExport, idea: Idea): string {
+  if (idea.area) return idea.area
+  let best: { key: string; radius: number } | undefined
+  for (const [key, area] of Object.entries(trip.places)) {
+    if (!area.radius || (best && area.radius >= best.radius)) continue
+    const inside = idea.places.some((id) => {
+      const place = trip.places[id]
+      return place && id !== key && distanceM(place.geo, area.geo) <= area.radius!
+    })
+    if (inside) best = { key, radius: area.radius }
+  }
+  return best?.key ?? ''
+}
+
 /** Ideas per area key ('' for ideas without one), in declaration order. */
 export function ideasByArea(trip: TripExport): Map<string, Idea[]> {
   const out = new Map<string, Idea[]>()
   for (const idea of trip.ideas) {
-    const key = idea.area ?? ''
+    const key = ideaArea(trip, idea)
     out.set(key, [...(out.get(key) ?? []), idea])
   }
   return out

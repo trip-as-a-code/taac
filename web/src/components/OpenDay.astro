@@ -3,7 +3,7 @@ import type { Base, Presence, TripExport } from '@taac/core'
 
 import Icon from '@/components/Icon.astro'
 import type { I18n } from '@/i18n'
-import { anchor, ideasAt, partyEmoji, people } from '@/lib/trip'
+import { anchor, ideaArea, ideasAt, partyEmoji, people } from '@/lib/trip'
 
 interface Props {
   trip: TripExport
@@ -24,7 +24,7 @@ const SUGGESTED = 3
 const ideas = ideasAt(trip, base)
 const place = trip.places[base.place]?.name ?? base.title
 const allHref = path(
-  `/trips/${trip.slug}/ideas/${ideas.some((i) => i.area === base.place) ? `#area-${anchor(base.place)}` : ''}`,
+  `/trips/${trip.slug}/ideas/${ideas.some((i) => ideaArea(trip, i) === base.place) ? `#area-${anchor(base.place)}` : ''}`,
 )
 ---
 
