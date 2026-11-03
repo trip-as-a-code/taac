@@ -126,6 +126,17 @@ p {
   padding-inline: var(--gutter);
 }
 
+/* A trip's page gives up some width so the calendar (236px) and the
+   discussions (220px at least) float beside it, each a gutter from the text and
+   the window: 600px for both margins, and 20px for a scrollbar `100vw` counts.
+   Only where that keeps the text 860px wide or more; narrower, they step
+   aside as before. */
+@media (hover: hover) and (min-width: 1480px) {
+  :root:has(.trip) {
+    --content: min(1080px, calc(100vw - 620px));
+  }
+}
+
 .section {
   margin-top: var(--space-10);
 }
