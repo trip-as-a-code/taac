@@ -351,48 +351,37 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     }
   }
 
-  /** One push for what is due for someone on a trip: the thing itself, or a few of them and the rest in the bell. */
+  /**
+   * The push for one thing that's due: titled by it, saying when, opening it.
+   * Its tag is the thing's own, so a later reminder replaces the earlier one
+   * and never another thing's.
+   */
   async function dueMessage(
     slug: string,
-    due: Deadline[],
+    d: Deadline,
     lang: string,
     now: number,
     reader: Reader,
   ): Promise<PushMessage> {
     const trip = await describeTrip(slug, lang)
     const strings = pushStrings(lang)
-    const today = dayIn(now, reader.timeZone)
-    const phrase = (d: Deadline) => {
-      const days = Math.round((Date.parse(d.date) - Date.parse(today)) / 86_400_000)
-      const date = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
-        Date.parse(d.date),
-      )
-      const rel = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(days, 'day')
-      return (days < 0 ? strings.overdue : strings.due)[d.kind].replace('{rel}', rel).replace('{date}', date)
-    }
-    const first = due[0]!
-    if (due.length === 1) {
-      const target = trip?.targets[first.anchor]
-      return {
-        title: target?.title ?? trip?.title ?? slug,
-        body: phrase(first),
-        url: target?.href ?? `/trips/${slug}/`,
-        tag: `due:${slug}`,
-      }
-    }
-    const lines = due.slice(0, 3).map((d) => `${trip?.targets[d.anchor]?.title ?? d.anchor}: ${phrase(d)}`)
-    if (due.length > 3) lines.push(strings.more.replace('{n}', String(due.length - 3)))
+    const days = Math.round((Date.parse(d.date) - Date.parse(dayIn(now, reader.timeZone))) / 86_400_000)
+    const date = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
+      Date.parse(d.date),
+    )
+    const rel = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(days, 'day')
+    const target = trip?.targets[d.anchor]
     return {
-      title: trip?.title ?? slug,
-      body: lines.join('\n'),
-      url: `${localeRoot(lang === manifest.defaultLocale ? null : lang, manifest)}notifications/`,
-      tag: `due:${slug}`,
+      title: target?.title ?? trip?.title ?? slug,
+      body: (days < 0 ? strings.overdue : strings.due)[d.kind].replace('{rel}', rel).replace('{date}', date),
+      url: target?.href ?? `/trips/${slug}/`,
+      tag: `due:${slug}:${d.key}`,
     }
   }
 
   /**
    * Reminds each trip person of what is due now, by its ladder, at their time
-   * where they are: one push per trip, never the same reminder twice. Someone
+   * where they are: a push per thing, never the same reminder twice. Someone
    * whose browsers haven't said where they are waits until one does.
    */
   async function remind(): Promise<void> {
@@ -417,10 +406,14 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
         }
         if (!due.length) continue
         const lang = await store.userLang(login)
-        for (const sub of await store.subscriptionsFor([login])) {
-          const result = await push.send(sub, await dueMessage(slug, due, lang ?? sub.lang, now, reader))
-          if (result === 'gone') await store.removeSubscription(sub.endpoint)
-        }
+        for (const sub of await store.subscriptionsFor([login]))
+          for (const d of due) {
+            const result = await push.send(sub, await dueMessage(slug, d, lang ?? sub.lang, now, reader))
+            if (result === 'gone') {
+              await store.removeSubscription(sub.endpoint)
+              break
+            }
+          }
       }
     }
   }

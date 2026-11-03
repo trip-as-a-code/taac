@@ -103,8 +103,6 @@ export interface PushStrings {
   due: Record<'booking' | 'payment' | 'task', string>
   /** What is past due, `{date}` being the deadline. */
   overdue: Record<'booking' | 'payment' | 'task', string>
-  /** The rest of a push's list. */
-  more: string
 }
 
 const PUSH: Record<string, PushStrings> = {
@@ -122,7 +120,6 @@ const PUSH: Record<string, PushStrings> = {
       payment: 'Charged {date}? Add the amount',
       task: 'Task overdue since {date}',
     },
-    more: '+{n} more',
   },
   ru: {
     thread: '{name}: новое обсуждение',
@@ -138,7 +135,6 @@ const PUSH: Record<string, PushStrings> = {
       payment: 'Списано {date}? Укажите сумму',
       task: 'Задача просрочена с {date}',
     },
-    more: 'и ещё {n}',
   },
 }
 
