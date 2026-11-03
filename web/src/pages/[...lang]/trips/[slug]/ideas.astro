@@ -7,7 +7,7 @@ import IdeaRow from '@/components/IdeaRow.astro'
 import TripLayout from '@/layouts/TripLayout.astro'
 import { ideaFacts } from '@/lib/facts'
 import { tripPage, tripPaths } from '@/lib/paths'
-import { anchor, ideasByArea, inBase, people } from '@/lib/trip'
+import { anchor, areaNights, areaRuns, ideasByArea } from '@/lib/trip'
 
 export const getStaticPaths = tripPaths
 
@@ -40,11 +40,13 @@ const example = [
   ...(firstArea ? [`    area: ${firstArea}`] : []),
   '    duration: halfDay',
 ].join('\n')
-const visits = (area: string) =>
-  trip.bases
-    .filter((b) => inBase(trip, b, area))
-    .sort((a, b) => a.from.localeCompare(b.from))
-    .map((b) => ({ base: b, label: dateRange(b.from, b.to) }))
+// When the people its ideas are for are in an area, as unbroken stretches;
+// the script redraws them for whoever the lens picks among them.
+const visits = (area: string, ideas: Idea[]) => {
+  const nights = areaNights(trip, area)
+  const people = [...new Set(ideas.flatMap((i) => i.members))]
+  return { nights, people, runs: areaRuns(nights, people).map((r) => dateRange(r.from, r.to)) }
+}
 ---
 
 <TripLayout trip={trip} lang={lang} section="ideas">
@@ -86,10 +88,15 @@ const visits = (area: string) =>
               </h2>
               <span class="footnote secondary">{plural('ideas.count', ideas.length)}</span>
             </div>
-            {area && visits(area).length > 0 && (
-              <ul class="visits">
-                {visits(area).map(({ base, label }) => (
-                  <li class="footnote" data-presence data-people={people(base.members)}>
+            {/* Only while some idea still needs a day: dated ones say when themselves. */}
+            {area && visits(area, ideas).runs.length > 0 && ideas.some((i) => !i.local) && (
+              <ul
+                class="visits"
+                data-visits={JSON.stringify(visits(area, ideas).nights)}
+                data-visits-people={JSON.stringify(visits(area, ideas).people)}
+              >
+                {visits(area, ideas).runs.map((label) => (
+                  <li class="footnote">
                     <Icon name="calendar" size={13} />
                     {label}
                   </li>
@@ -140,14 +147,47 @@ const visits = (area: string) =>
 </TripLayout>
 
 <script>
+  import { areaRuns } from '@/lib/trip'
   import { onPage } from '@/scripts/page'
   import { revealTarget, setupFilters } from '@/scripts/filters'
+  import { getLens } from '@/scripts/lens'
+
+  /** As the page's `dateRange`: one day in full, a stretch as a short range. */
+  function range(from: string, to: string): string {
+    const lang = document.documentElement.lang
+    const day = (d: string) => new Date(`${d}T00:00:00Z`)
+    if (from === to)
+      return new Intl.DateTimeFormat(lang, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(
+        day(from),
+      )
+    return new Intl.DateTimeFormat(lang, {
+      timeZone: 'UTC',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).formatRange(day(from), day(to))
+  }
+
+  /** Each area's stretches for the people in view: its ideas' people, narrowed by the lens. */
+  function drawVisits() {
+    const picked = getLens().people
+    for (const list of document.querySelectorAll<HTMLElement>('[data-visits]')) {
+      const nights = JSON.parse(list.dataset.visits!) as { date: string; members: string[] }[]
+      const theirs = JSON.parse(list.dataset.visitsPeople ?? '[]') as string[]
+      const people = picked.length ? theirs.filter((p) => picked.includes(p)) : theirs
+      const runs = people.length ? areaRuns(nights, people) : []
+      const icon = list.querySelector('svg')?.outerHTML ?? ''
+      list.innerHTML = runs.map((r) => `<li class="footnote">${icon}${range(r.from, r.to)}</li>`).join('')
+      list.hidden = runs.length === 0
+    }
+  }
 
   // An area with nothing left in view folds away.
   onPage('ideas', () => {
     setupFilters(() => {
       for (const section of document.querySelectorAll<HTMLElement>('[data-day-section]'))
         section.hidden = !section.querySelector('[data-item]:not([hidden])')
+      drawVisits()
     })
     revealTarget()
   })
@@ -195,7 +235,7 @@ const visits = (area: string) =>
     padding: 0;
   }
 
-  .visits li {
+  .visits :global(li) {
     display: inline-flex;
     align-items: center;
     gap: 5px;
