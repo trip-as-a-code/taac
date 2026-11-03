@@ -1,7 +1,7 @@
 import type { TripExport } from '@taac/core'
 import { describe, expect, it } from 'vitest'
 
-import { ideaArea } from './trip'
+import { areaRuns, ideaArea } from './trip'
 
 const trip = {
   places: {
@@ -21,5 +21,29 @@ describe('ideaArea', () => {
     expect(ideaArea(trip, idea(['Tokyo Big Sight'], 'Asakusa'))).toBe('Asakusa')
     expect(ideaArea(trip, idea(['Nikko']))).toBe('')
     expect(ideaArea(trip, idea([]))).toBe('')
+  })
+})
+
+describe('areaRuns', () => {
+  // Like our Tokyo: everyone on the 11th to 13th, Alex & Sam alone on the 17th, everyone again on the 18th.
+  const nights = [
+    { date: '2026-12-11', members: ['r', 's', 'm'] },
+    { date: '2026-12-12', members: ['r', 's', 'm'] },
+    { date: '2026-12-13', members: ['r', 's', 'm'] },
+    { date: '2026-12-17', members: ['s', 'm'] },
+    { date: '2026-12-18', members: ['r', 's', 'm'] },
+  ]
+
+  it('joins nights into unbroken stretches for the people asked about', () => {
+    expect(areaRuns(nights, [])).toEqual([
+      { from: '2026-12-11', to: '2026-12-13' },
+      { from: '2026-12-17', to: '2026-12-18' },
+    ])
+    // robin was away on the 17th: the 18th stands alone.
+    expect(areaRuns(nights, ['r'])).toEqual([
+      { from: '2026-12-11', to: '2026-12-13' },
+      { from: '2026-12-18', to: '2026-12-18' },
+    ])
+    expect(areaRuns(nights, ['nobody'])).toEqual([])
   })
 })
