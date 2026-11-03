@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -149,6 +149,11 @@ function memoryStore(): Store {
       for (const id of ids) marks.set(id, read)
     },
     threads: async (trip) => structuredClone(threads.filter((t) => t.trip === trip)),
+    moveAnchor: async (trip, from, to) => {
+      const moving = threads.filter((t) => t.trip === trip && t.anchor === from)
+      for (const t of moving) t.anchor = to
+      return moving.length
+    },
     thread: async (id) => structuredClone(threads.find((t) => t.id === id) ?? null),
     createThread: async (thread) => void threads.push(structuredClone(thread)),
     addComment: async (id, comment) => void threads.find((t) => t.id === id)?.comments.push(comment),
@@ -472,6 +477,31 @@ describe('discussions', () => {
       }),
     )
   const threadsOf = async (response: Response) => ((await response.json()) as { threads: Thread[] }).threads
+
+  it('takes anchors in any script, and follows a renamed plan to its new one', async () => {
+    const store = memoryStore()
+    const member = handler('Alex', store)
+    const mine = await signIn(member)
+    for (const anchor of ['item:прогулка-у-пруда', 'item:東京タワー', 'item:café-crème'])
+      expect((await send(member, mine, '/threads', 'POST', { anchor, body: 'Hi' })).status).toBe(200)
+    for (const anchor of ['item:a b', 'item:<x>', '1item', 'item:"q"'])
+      expect((await send(member, mine, '/threads', 'POST', { anchor, body: 'Hi' })).status).toBe(400)
+
+    // The build saw `прогулка-у-пруда` renamed to `evening-walk`: its discussion follows.
+    const described = join(dist, 'trips/japan/threads.json')
+    const before = readFileSync(described, 'utf8')
+    writeFileSync(
+      described,
+      JSON.stringify({ ...JSON.parse(before), moved: { 'item:прогулка-у-пруда': 'item:evening-walk' } }),
+    )
+    try {
+      await handler('nobody', store).moveAnchors()
+    } finally {
+      writeFileSync(described, before)
+    }
+    const anchors = (await threadsOf(await send(member, mine, '/threads', 'GET'))).map((t) => t.anchor)
+    expect(anchors).toEqual(['item:evening-walk', 'item:東京タワー', 'item:café-crème'])
+  })
 
   it('lets the trip’s people start threads, reply, resolve, edit and delete their own words', async () => {
     const store = memoryStore()

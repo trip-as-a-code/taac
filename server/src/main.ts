@@ -79,6 +79,7 @@ async function main(): Promise<void> {
   }
   const handle = createHandler(config, manifest)
   void handle.announceChanges().catch((error: unknown) => console.error(error))
+  void handle.moveAnchors().catch((error: unknown) => console.error(error))
   // Reminders go out at each person's chosen minute, so look often; a look is cheap.
   const remind = () => void handle.remind().catch((error: unknown) => console.error(error))
   remind()

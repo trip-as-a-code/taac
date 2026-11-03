@@ -11,7 +11,7 @@ import { dirname, relative, resolve, sep } from 'node:path'
 
 import { exportFiles, type SiteExport, type TripExport } from '@taac/core'
 
-import { diffTrips, type ChangeSet } from '../lib/changes'
+import { diffTrips, renamesOf, type ChangeSet } from '../lib/changes'
 
 const LIMIT = 30
 const WANTED = /\.(ya?ml|json|geojson)$/i
@@ -32,7 +32,8 @@ function tripAt(root: string, sha: string, path: string): TripExport | undefined
     .filter((n) => WANTED.test(n))
   if (!names.length) return undefined
   const files = Object.fromEntries(names.map((n) => [n, git(root, ['show', `${sha}:${n}`])]))
-  const result = exportFiles(files, path)
+  // Today's rules may reject an old version; it only has to load to compare.
+  const result = exportFiles(files, path, { lenient: true })
   return result.ok ? result.export.trips[0] : undefined
 }
 
@@ -148,7 +149,8 @@ export async function tripChanges(sitePath: string, site: SiteExport): Promise<R
         const before = versions[i + 1]
         if (!after || !before) continue
         const events = diffTrips(before, after)
-        if (events.length) sets.push({ ...log[i]!, events })
+        const moves = renamesOf(before, after)
+        if (events.length || moves.length) sets.push({ ...log[i]!, events, ...(moves.length ? { moves } : {}) })
       }
       out[trip.slug] = sets
     } catch {

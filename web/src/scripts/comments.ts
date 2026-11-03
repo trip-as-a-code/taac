@@ -9,6 +9,7 @@ import { markNotifications } from '@/scripts/notifications'
 import { composeField, iconButton } from '@/scripts/compose'
 import { showThreads, updateRail } from '@/scripts/rail'
 import { me } from '@/scripts/session'
+import { currentAnchor } from '@/scripts/renames'
 
 interface Comment {
   id: string
@@ -325,8 +326,10 @@ export async function setupComments() {
   } else refresh()
 
   // Arrived from a notification: open that discussion, then forget the parameter.
-  const asked = new URL(location.href).searchParams.get('thread')
-  if (asked) {
+  const linked = new URL(location.href).searchParams.get('thread')
+  if (linked) {
+    // A notification from before a rename names the old anchor.
+    const asked = await currentAnchor(linked)
     const button = document.querySelector<HTMLElement>(`[data-thread="${CSS.escape(asked)}"]`)
     openThreads(asked, button?.dataset.threadTitle ?? '')
     const url = new URL(location.href)

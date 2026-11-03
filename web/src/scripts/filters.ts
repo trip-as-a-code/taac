@@ -6,6 +6,7 @@
 import type { Facts } from '@/lib/facts'
 import { fold, issueGroup } from '@/lib/facts'
 import { getLens, inLens, onLens, peopleOf, setLens, type Lens } from '@/scripts/lens'
+import { currentHash } from '@/scripts/renames'
 
 /** Several values match any of them; single ones replace each other. */
 const MULTI = ['issue', 'status', 'kind', 'priority', 'payer', 'place', 'tag'] as const
@@ -296,7 +297,16 @@ export function revealTarget() {
   const target = id ? document.getElementById(id) : null
   // A day folded into a run of free days points at the run.
   const el = target?.hasAttribute('data-run-anchor') ? target.closest<HTMLElement>('[data-day-section]') : target
-  if (!el) return
+  if (!el) {
+    // A link from before a rename: go where the thing is now.
+    if (id)
+      void currentHash(id).then((now) => {
+        if (!now || !document.getElementById(now)) return
+        history.replaceState(history.state, '', `#${encodeURIComponent(now)}`)
+        revealTarget()
+      })
+    return
+  }
   const card = el.hasAttribute('data-item')
   if (!card && !el.hasAttribute('data-day-section')) return
   const hidden = () => el.hidden || Boolean(el.closest('[hidden]'))

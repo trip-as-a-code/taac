@@ -148,3 +148,21 @@ export function currentReminder(deadline: Deadline, now: number, tripZone: strin
  * or a server that was down, starts at the next rung instead of a burst of old ones.
  */
 export const stillTimely = (reminder: Reminder, now: number) => reminder.rung <= 1 || now - reminder.at < DAY
+
+/**
+ * A deadline key (`task:<id>`, `booking:item:<id>:1`, `payment:pass:<id>:0:2`, …)
+ * with the anchor `from` in it changed to `to`, or null when it isn't about `from`.
+ */
+export function movedKey(key: string, from: string, to: string): string | null {
+  for (const prefix of ['', 'booking:', 'payment:'])
+    if (key === prefix + from || key.startsWith(`${prefix}${from}:`))
+      return prefix + to + key.slice(prefix.length + from.length)
+  return null
+}
+
+/** A deadline notification's id (`due:<key>:<date>:<rung>`) moved the same way, or null. */
+export function movedDueId(id: string, from: string, to: string): string | null {
+  const match = /^due:(.+)(:\d{4}-\d{2}-\d{2}:-?\d+)$/.exec(id)
+  const key = match && movedKey(match[1]!, from, to)
+  return key ? `due:${key}${match[2]}` : null
+}

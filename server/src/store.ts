@@ -16,6 +16,7 @@ import type { LinkStore, ShareLink } from './links'
 import type { NotificationStore } from './notifications'
 import type { PhotoStore } from './photos'
 import type { PushStore } from './push'
+import { movedDueId, movedKey } from './reminders'
 import { MAX_TICKS, validChanges, type Ticks } from './packing'
 
 export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore, PushStore, PhotoStore {
@@ -238,6 +239,65 @@ export async function openStore(connectionString: string): Promise<Store> {
         [id],
       )
       return rows[0] ? { ...fromComment(rows[0]), trip: rows[0].trip } : null
+    },
+    async moveAnchor(trip, from, to) {
+      const client = await pool.connect()
+      try {
+        await client.query('begin')
+        let moved =
+          (await client.query('update threads set anchor = $3 where trip = $1 and anchor = $2', [trip, from, to]))
+            .rowCount ?? 0
+        // Packing ticks go by the item's id, the anchor without `packing:`; ticks
+        // already on the new id win.
+        if (from.startsWith('packing:') && to.startsWith('packing:')) {
+          const [was, now] = [from.slice(8), to.slice(8)]
+          moved +=
+            (
+              await client.query(
+                `insert into packing_ticks (trip, item, member, packed, at, by_login)
+                 select trip, $3, member, packed, at, by_login from packing_ticks where trip = $1 and item = $2
+                 on conflict do nothing`,
+                [trip, was, now],
+              )
+            ).rowCount ?? 0
+          await client.query('delete from packing_ticks where trip = $1 and item = $2', [trip, was])
+        }
+        // Reminders sent, and deadline notifications marked, by keys with the anchor in them.
+        const sent = await client.query<{ login: string; key: string }>(
+          'select login, key from deadline_reminders where key like $1',
+          [`${trip}/%`],
+        )
+        for (const row of sent.rows) {
+          const key = movedKey(row.key.slice(trip.length + 1), from, to)
+          if (!key) continue
+          await client.query(
+            `update deadline_reminders set key = $3 where login = $1 and key = $2
+             and not exists (select 1 from deadline_reminders where login = $1 and key = $3)`,
+            [row.login, row.key, `${trip}/${key}`],
+          )
+          moved++
+        }
+        const marks = await client.query<{ login: string; id: string }>(
+          "select login, id from notification_marks where id like 'due:%'",
+        )
+        for (const row of marks.rows) {
+          const id = movedDueId(row.id, from, to)
+          if (!id) continue
+          await client.query(
+            `update notification_marks set id = $3 where login = $1 and id = $2
+             and not exists (select 1 from notification_marks where login = $1 and id = $3)`,
+            [row.login, row.id, id],
+          )
+          moved++
+        }
+        await client.query('commit')
+        return moved
+      } catch (error) {
+        await client.query('rollback')
+        throw error
+      } finally {
+        client.release()
+      }
     },
     async notificationsSeen(login) {
       const { rows } = await pool.query<{ seen_at: string }>(

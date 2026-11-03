@@ -94,6 +94,8 @@ interface TripDescription {
   targets: Record<string, { title: string; href: string }>
   /** Member names by lowercase GitHub login. */
   people: Record<string, string>
+  /** Renamed things' old anchors and their current ones. */
+  moved?: Record<string, string>
 }
 
 export interface Config {
@@ -145,6 +147,8 @@ export type Handler = ((request: Request) => Promise<Response>) & {
   announceChanges: () => Promise<void>
   /** Pushes the reminders that are due now; for every few minutes. */
   remind: () => Promise<void>
+  /** Carries what hangs on renamed things over to their new anchors; for once the server has started. */
+  moveAnchors: () => Promise<void>
 }
 
 export function createHandler(config: Config, manifest: AccessManifest): Handler {
@@ -429,6 +433,22 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
       return text('Bad request\n', 400)
     await config.store.setUserReminders(login, { timeZone, remindAt })
     return json(await config.store.userReminders(login))
+  }
+
+  /**
+   * After a deploy: anchors come from titles, so a renamed thing's discussions,
+   * ticks, reminders and marks move to its new one, as the build worked out
+   * from history.
+   */
+  async function moveAnchors(): Promise<void> {
+    const store = config.store
+    if (!store) return
+    for (const slug of manifest.slugs)
+      for (const [from, to] of Object.entries((await describeTrip(slug, manifest.defaultLocale))?.moved ?? {}))
+        if (validAnchor(from) && validAnchor(to)) {
+          const moved = await store.moveAnchor(slug, from, to)
+          if (moved) console.log(`taac: ${slug}: ${moved} record(s) moved from ${from} to ${to}`)
+        }
   }
 
   /** `POST /api/me/notifications`: the notification kinds the account turned off (`{muted}`). */
@@ -889,5 +909,5 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
       underProtection,
     })
   }
-  return Object.assign(handle, { announceChanges, remind })
+  return Object.assign(handle, { announceChanges, remind, moveAnchors })
 }
