@@ -20,7 +20,15 @@ groups:
     members: [Alex, Sam]
 # Set aside for what gets bought on the spot; everyone needs one, 0 if nothing.
 spending:
-  - { label: Groceries and souvenirs, who: [Early birds], amount: 300, currency: EUR }
+  - label: Groceries and souvenirs
+    who: [Early birds]
+    amount: 300
+    currency: EUR
+    # What the categories leave is shown as not allocated.
+    categories:
+      - { kind: groceries, amount: 120 }
+      - { kind: snacks, amount: 60 }
+      - { kind: souvenirs, amount: 80 }
   - { who: [Robin], amount: 0, currency: USD }
 bases:
   - { title: Lisbon, place: Lisbon, from: 2027-05-14, to: 2027-05-16 }

@@ -44,6 +44,34 @@ export const kindTint: Record<CostKind, string> = {
   spending: 'var(--indigo)',
 }
 
+/** What a spending budget sets money aside for, and what's left of it. */
+export type SpendingCategory =
+  'groceries' | 'dining' | 'snacks' | 'souvenirs' | 'shopping' | 'transit' | 'fun' | 'other' | 'unallocated'
+
+export const spendingIcon: Record<SpendingCategory, IconName> = {
+  groceries: 'cart',
+  dining: 'meal',
+  snacks: 'cup',
+  souvenirs: 'gift',
+  shopping: 'bag',
+  transit: 'taxi',
+  fun: 'sparkle',
+  other: 'wallet',
+  unallocated: 'wallet',
+}
+
+export const spendingTint: Record<SpendingCategory, string> = {
+  groceries: 'var(--green)',
+  dining: 'var(--pink)',
+  snacks: 'var(--orange)',
+  souvenirs: 'var(--purple)',
+  shopping: 'var(--blue)',
+  transit: 'var(--teal)',
+  fun: 'var(--yellow)',
+  other: 'var(--indigo)',
+  unallocated: 'var(--gray)',
+}
+
 export const statusTone: Record<BookingStatus, string | undefined> = {
   required: 'orange',
   booked: 'green',

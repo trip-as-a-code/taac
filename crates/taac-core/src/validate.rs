@@ -1480,6 +1480,33 @@ impl Validator<'_> {
                     );
                 }
             }
+            let allocated: rust_decimal::Decimal =
+                spending.categories.iter().map(|c| c.amount).sum();
+            if !spending.categories.is_empty() && allocated > spending.amount {
+                self.error(
+                    "spending.categories",
+                    None,
+                    format!(
+                        "a spending budget's categories add up to {allocated} {currency}, more than its {} {currency}",
+                        spending.amount,
+                        currency = spending.currency
+                    ),
+                );
+            }
+            if spending
+                .categories
+                .iter()
+                .any(|c| c.amount.is_sign_negative())
+            {
+                self.error(
+                    "spending.amount",
+                    None,
+                    format!(
+                        "a spending budget's category can't be negative ({})",
+                        spending.currency
+                    ),
+                );
+            }
             if spending.amount.is_sign_negative() {
                 self.error(
                     "spending.amount",
@@ -2054,6 +2081,12 @@ ideas:
             ["spending.amount", "spending.member"]
         );
         assert_eq!(codes(&load("")), ["spending.missing"; 3]);
+        assert_eq!(
+            codes(&load(
+                "spending: [{ amount: 100, currency: EUR, categories: [{ kind: groceries, amount: 80 }, { kind: fun, amount: 30 }] }]"
+            )),
+            ["spending.categories"]
+        );
     }
 
     #[test]

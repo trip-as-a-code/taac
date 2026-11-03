@@ -18,6 +18,8 @@ export interface Computed {
   planned: number
   committed: number
   possible: number
+  /** Set aside for buying on the spot: part of planned, never committed. */
+  reserved: number
   /** Some amounts were converted at today's rate rather than charged. */
   estimated: boolean
   /** Same, among booked costs only. */
@@ -47,6 +49,7 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     planned: 0,
     committed: 0,
     possible: 0,
+    reserved: 0,
     estimated: false,
     committedEstimated: false,
     missing: 0,
@@ -77,6 +80,7 @@ export function computeBudget(data: BudgetData, lens: Lens, members: string[]): 
     if (!visible) continue
     result.estimated ||= !shown.exact
     result.planned += mine
+    if (line.kind === 'spending') result.reserved += mine
     if (line.committed) {
       result.committed += mine
       result.committedEstimated ||= !shown.exact

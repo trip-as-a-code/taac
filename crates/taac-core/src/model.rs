@@ -1048,8 +1048,8 @@ impl Cost {
     }
 }
 
-/// A budget for buying on the spot, shared equally by its people: planned
-/// spend, paid as it goes.
+/// Money set aside for buying on the spot, shared equally by its people:
+/// planned spend, reserved rather than owed, paid as it goes.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Spending {
@@ -1064,6 +1064,57 @@ pub struct Spending {
     pub amount: Decimal,
     #[schemars(regex(pattern = r"^[A-Z]{3}$"))]
     pub currency: String,
+    /// How it splits, in the same currency: what's left of `amount` is
+    /// unallocated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub categories: Vec<SpendingCategory>,
+}
+
+/// A part of a spending budget set aside for one kind of thing.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SpendingCategory {
+    pub kind: SpendingKind,
+    /// Its own name, instead of the kind's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[schemars(with = "f64")]
+    pub amount: Decimal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum SpendingKind {
+    /// Supermarkets, convenience stores.
+    Groceries,
+    /// Meals out that aren't in the plan.
+    Dining,
+    /// Coffee, drinks, street food.
+    Snacks,
+    Souvenirs,
+    /// Clothes, gear, things for yourself.
+    Shopping,
+    /// Taxis and fares beyond the passes.
+    Transit,
+    /// Arcades, karaoke, entrance fees on a whim.
+    Fun,
+    Other,
+}
+
+impl SpendingKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Groceries => "groceries",
+            Self::Dining => "dining",
+            Self::Snacks => "snacks",
+            Self::Souvenirs => "souvenirs",
+            Self::Shopping => "shopping",
+            Self::Transit => "transit",
+            Self::Fun => "fun",
+            Self::Other => "other",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
