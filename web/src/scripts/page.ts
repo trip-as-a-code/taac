@@ -102,13 +102,21 @@ function setupAnchors() {
   window.addEventListener('hashchange', () => revealTarget())
 }
 
+/**
+ * The language switch. Signed in, the account's language is the one: saved
+ * first, then the page opens in it (the server serves every page in it). Signed
+ * out, this browser remembers it.
+ */
 function rememberLanguageOnSwitch() {
   for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-set-lang]')) {
-    link.addEventListener('click', () => {
+    link.addEventListener('click', (event) => {
       const lang = link.dataset.setLang!
+      if (document.documentElement.hasAttribute('data-auth')) {
+        event.preventDefault()
+        void saveLanguage(lang).then(() => location.assign(link.href + location.search + location.hash))
+        return
+      }
       document.cookie = `${LANG_COOKIE}=${lang}; Path=/; Max-Age=31536000; SameSite=Lax`
-      // Signed in: kept for the account, so other browsers and its notifications follow.
-      if (document.documentElement.hasAttribute('data-auth')) saveLanguage(lang)
       try {
         localStorage.setItem(LANG_COOKIE, lang)
       } catch {
@@ -118,8 +126,8 @@ function rememberLanguageOnSwitch() {
   }
 }
 
-function saveLanguage(lang: string) {
-  void fetch('/api/me/lang', {
+async function saveLanguage(lang: string): Promise<void> {
+  await fetch('/api/me/lang', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
@@ -128,39 +136,17 @@ function saveLanguage(lang: string) {
   }).catch(() => undefined)
 }
 
-/** The language this browser was set to with the switch, if it ever was. */
-function chosenLanguage(): string | null {
-  const cookie = document.cookie.match(new RegExp(`(?:^|; )${LANG_COOKIE}=(\\w+)`))?.[1]
-  if (cookie) return cookie
-  try {
-    return localStorage.getItem(LANG_COOKIE)
-  } catch {
-    return null
-  }
-}
-
 /**
- * Signed in, the account's language and this browser's agree. A browser that
- * never chose one (a new device) follows the account; an account without one
- * takes what this browser chose. A language that only came from the browser's
- * defaults is never saved: that is how a new phone turned accounts English.
+ * Signed in, the account's language from the database is the one this page
+ * should be in: an account without one takes the language being read now,
+ * and a page in another (one kept offline, say) moves to the account's.
  */
 async function followAccountLanguage() {
   const session = await me()
   if (!session?.login) return
-  const chosen = chosenLanguage()
-  if (session.lang === null) {
-    if (chosen) saveLanguage(chosen)
-    return
-  }
-  if (chosen) return
-  document.cookie = `${LANG_COOKIE}=${session.lang}; Path=/; Max-Age=31536000; SameSite=Lax`
-  try {
-    localStorage.setItem(LANG_COOKIE, session.lang)
-  } catch {
-    // Storage can be unavailable (private mode); the cookie still works.
-  }
-  if (session.lang === document.documentElement.lang) return
+  const here = document.documentElement.lang
+  if (session.lang === null) return void saveLanguage(here)
+  if (session.lang === here) return
   const there = document.querySelector<HTMLAnchorElement>(`[data-set-lang="${session.lang}"]`)
   if (there) location.replace(there.href + location.search + location.hash)
 }

@@ -777,6 +777,31 @@ describe('change notifications', () => {
   })
 })
 
+describe('account language', () => {
+  it('serves a signed-in member’s pages in the account’s language, and a change at once', async () => {
+    const store = memoryStore()
+    const member = handler('Alex', store)
+    const cookies = await signIn(member)
+    const open = (path: string) =>
+      member(new Request(`https://trips.example${path}`, { headers: { ...page, Cookie: `${cookies}; taac_lang=en` } }))
+    // No language on the account: the page as asked.
+    expect((await open('/trips/japan/')).status).toBe(200)
+    await member(
+      new Request('https://trips.example/api/me/lang', {
+        method: 'POST',
+        headers: { Cookie: cookies },
+        body: JSON.stringify({ lang: 'ru' }),
+      }),
+    )
+    // Russian on the account wins over this browser's English, right away.
+    const redirected = await open('/trips/japan/')
+    expect(redirected.status).toBe(302)
+    expect(redirected.headers.get('Location')).toBe('/ru/trips/japan/')
+    // Already in it: served, not sent on again.
+    expect((await open('/ru/trips/japan/')).headers.get('Location')).toBeNull()
+  })
+})
+
 describe('deadline reminders', () => {
   it('reminds each person at their time where they are, once a rung, one push per trip, and lists it in the bell', async () => {
     writeFileSync(
