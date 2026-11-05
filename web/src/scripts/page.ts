@@ -42,7 +42,7 @@ export function setupPage() {
   void setupComments()
   void setupNotifications()
   void me().then(offerPush)
-  void adoptLanguage()
+  void followAccountLanguage()
   setupPickers()
   setupPhotos()
   setupTooltips()
@@ -128,10 +128,41 @@ function saveLanguage(lang: string) {
   }).catch(() => undefined)
 }
 
-/** An account without a language yet takes the one it is reading in. */
-async function adoptLanguage() {
+/** The language this browser was set to with the switch, if it ever was. */
+function chosenLanguage(): string | null {
+  const cookie = document.cookie.match(new RegExp(`(?:^|; )${LANG_COOKIE}=(\\w+)`))?.[1]
+  if (cookie) return cookie
+  try {
+    return localStorage.getItem(LANG_COOKIE)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Signed in, the account's language and this browser's agree. A browser that
+ * never chose one (a new device) follows the account; an account without one
+ * takes what this browser chose. A language that only came from the browser's
+ * defaults is never saved: that is how a new phone turned accounts English.
+ */
+async function followAccountLanguage() {
   const session = await me()
-  if (session?.login && session.lang === null) saveLanguage(document.documentElement.lang)
+  if (!session?.login) return
+  const chosen = chosenLanguage()
+  if (session.lang === null) {
+    if (chosen) saveLanguage(chosen)
+    return
+  }
+  if (chosen) return
+  document.cookie = `${LANG_COOKIE}=${session.lang}; Path=/; Max-Age=31536000; SameSite=Lax`
+  try {
+    localStorage.setItem(LANG_COOKIE, session.lang)
+  } catch {
+    // Storage can be unavailable (private mode); the cookie still works.
+  }
+  if (session.lang === document.documentElement.lang) return
+  const there = document.querySelector<HTMLAnchorElement>(`[data-set-lang="${session.lang}"]`)
+  if (there) location.replace(there.href + location.search + location.hash)
 }
 
 function forgetOfflineCopiesOnLogout() {
