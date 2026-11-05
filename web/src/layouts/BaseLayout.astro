@@ -91,10 +91,12 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
       })()
     </script>
     <script is:inline>
-      // Without the edge worker (plain `astro dev`/static hosting) honour a
-      // remembered language here; the worker redirects before HTML loads.
+      // Without the server (plain `astro dev`/static hosting) honour a
+      // remembered language here. Signed in, the server already serves the
+      // account's language and this browser keeps none of its own.
       ;(() => {
         try {
+          if (/(?:^|; )taac_signed_in=1/.test(document.cookie)) return
           const saved = document.cookie.match(/(?:^|; )taac_lang=(\w+)/)?.[1] ?? localStorage.getItem('taac_lang')
           const path = location.pathname
           const prefixed = /^\/ru(\/|$)/.test(path)

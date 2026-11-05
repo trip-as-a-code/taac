@@ -82,7 +82,7 @@ import {
 import { handleFx } from './fx'
 import { authorizeUrl, userFor, type GithubApp } from './github'
 import { robotsTxt, secureResponse } from './headers'
-import { LANG_COOKIE, languageRedirect, pageLanguage, pushStrings } from './i18n'
+import { languageRedirect, pageLanguage, pushStrings } from './i18n'
 import { renderForbiddenPage, renderLinkGonePage, renderLoginPage, type Theme } from './login-page'
 import { packingSlug } from './packing'
 import { serveStatic } from './static'
@@ -174,6 +174,18 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     return session?.login ?? null
   }
 
+  /** Accounts' languages, read from the database at most every few seconds per account. */
+  const accountLangs = new Map<string, { lang: string | null; until: number }>()
+  async function accountLang(login: string | null): Promise<string | null> {
+    if (!login || !config.store) return null
+    const now = config.now?.() ?? Date.now()
+    const hit = accountLangs.get(login)
+    if (hit && hit.until > now) return hit.lang
+    const lang = await config.store.userLang(login).catch(() => null)
+    accountLangs.set(login, { lang, until: now + 5_000 })
+    return lang
+  }
+
   const language = (request: Request, path: string) =>
     pageLanguage(path, request.headers.get('Cookie'), request.headers.get('Accept-Language'), manifest)
 
@@ -201,14 +213,9 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     )
     if (!user) return failed()
     const value = await signSession(config.sessionSecret, { login: user.login, exp: nowSec(config) + SESSION_MAX_AGE })
-    // Their language follows them to this browser.
-    const lang = await config.store?.userLang(user.login).catch(() => null)
-    const langCookie = lang
-      ? [`${LANG_COOKIE}=${lang}; Path=/; Max-Age=31536000; SameSite=Lax${secure(request) ? '; Secure' : ''}`]
-      : []
+    // Their language comes from the account on every page from now on.
     return redirect(next, 303, [
       ...sessionCookies(value, secure(request)),
-      ...langCookie,
       clearedCookie(STATE_COOKIE, secure(request)),
     ])
   }
@@ -471,6 +478,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     const body = (await request.json().catch(() => ({}))) as { lang?: unknown }
     if (typeof body.lang !== 'string' || !manifest.locales.includes(body.lang)) return text('Bad request\n', 400)
     await config.store.setUserLang(login, body.lang)
+    accountLangs.set(login, { lang: body.lang, until: (config.now?.() ?? Date.now()) + 5_000 })
     return json({ lang: body.lang })
   }
 
@@ -794,6 +802,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     const token = linkToken(path)
     if (token) return plain(await openLink(request, token))
 
+    const pageRequest = request.method === 'GET' && Boolean(request.headers.get('Accept')?.includes('text/html'))
     const languageTarget = languageRedirect(
       {
         method: request.method,
@@ -804,6 +813,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
         acceptLanguage: request.headers.get('Accept-Language'),
       },
       manifest,
+      pageRequest ? await accountLang(await loginOf(request)) : null,
     )
     if (languageTarget) return plain(redirect(languageTarget, 302))
 

@@ -31,6 +31,17 @@ describe('languageRedirect', () => {
     expect(languageRedirect({ ...base, acceptLanguage: 'de' }, manifest)).toBeNull()
   })
 
+  it('signed in, serves every page in the account’s language, whatever the address or the browser says', () => {
+    const signedIn = { ...base, cookie: 'taac_lang=en', acceptLanguage: 'en-GB' }
+    expect(languageRedirect(signedIn, manifest, 'ru')).toBe('/ru/trips/japan/?day=1')
+    expect(languageRedirect({ ...signedIn, path: '/ru/trips/japan/' }, manifest, 'en')).toBe('/trips/japan/?day=1')
+    expect(languageRedirect({ ...signedIn, path: '/ru', search: '' }, manifest, 'en')).toBe('/')
+    expect(languageRedirect({ ...signedIn, path: '/ru/trips/japan/' }, manifest, 'ru')).toBeNull()
+    expect(languageRedirect({ ...signedIn, accept: 'application/json' }, manifest, 'ru')).toBeNull()
+    // No language on the account yet: the browser's, as signed out.
+    expect(languageRedirect({ ...base, cookie: 'taac_lang=ru' }, manifest, null)).toBe('/ru/trips/japan/?day=1')
+  })
+
   it('never redirects explicit locale paths, assets or non-navigations', () => {
     const ru = { ...base, cookie: 'taac_lang=ru' }
     expect(languageRedirect({ ...ru, path: '/ru/trips/japan/' }, manifest)).toBeNull()

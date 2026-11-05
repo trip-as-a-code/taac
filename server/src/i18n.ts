@@ -25,10 +25,24 @@ function isPage(path: string): boolean {
   return !last.includes('.') || last.endsWith('.html')
 }
 
-/** Where to send an unprefixed page request, or null to serve it as is. */
-export function languageRedirect(input: RedirectInput, manifest: AccessManifest): string | null {
+/**
+ * Where to send a page request for its language, or null to serve it as is.
+ * Signed in, the account's language (`account`, from the database) decides,
+ * whatever the address says; signed out, an unprefixed page follows the
+ * remembered choice, then Accept-Language.
+ */
+export function languageRedirect(
+  input: RedirectInput,
+  manifest: AccessManifest,
+  account?: string | null,
+): string | null {
   if (input.method !== 'GET' || !input.accept?.includes('text/html') || !isPage(input.path)) return null
-  if (splitLocale(input.path, manifest).locale) return null
+  const { locale, rest } = splitLocale(input.path, manifest)
+  if (account && manifest.locales.includes(account)) {
+    if ((locale ?? manifest.defaultLocale) === account) return null
+    return `${account === manifest.defaultLocale ? '' : `/${account}`}${rest}${input.search}`
+  }
+  if (locale) return null
   const supported = manifest.locales.filter((l) => l !== manifest.defaultLocale)
   const remembered = readCookie(input.cookie, LANG_COOKIE)
   const lang = remembered ?? primaryLanguage(input.acceptLanguage)
