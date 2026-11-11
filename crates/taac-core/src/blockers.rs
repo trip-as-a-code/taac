@@ -124,7 +124,10 @@ pub fn conflicts(trip: &Trip) -> Vec<Conflict<'_>> {
         .collect();
     let mut out: Vec<Conflict<'_>> = Vec::new();
     for item in &trip.itinerary {
-        if matches!(item.kind, ItemKind::Lodging | ItemKind::Note | ItemKind::Free) {
+        if matches!(
+            item.kind,
+            ItemKind::Lodging | ItemKind::Note | ItemKind::Free
+        ) {
             continue;
         }
         let Some((start, end)) = item_span(trip, item) else {
