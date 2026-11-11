@@ -314,6 +314,7 @@ export const ru: Messages = {
   'item.pricedWith': 'Цена — в брони {title}',
   'item.copyLink': 'Скопировать ссылку',
   'item.inItinerary': 'Открыть в маршруте',
+  'idea.inIdeas': 'Открыть в идеях',
   'item.copyFailed': 'Не удалось скопировать — ссылка в адресной строке',
   'item.localTime': 'Местное время ({offset})',
   'part.morning': 'Утро',

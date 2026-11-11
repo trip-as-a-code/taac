@@ -297,6 +297,7 @@ export const en = {
   'item.pricedWith': 'Price in the {title} booking',
   'item.copyLink': 'Copy link',
   'item.inItinerary': 'Open in the itinerary',
+  'idea.inIdeas': 'Open in ideas',
   'item.copyFailed': 'Could not copy — the link is in the address bar',
   'item.localTime': 'Local time ({offset})',
   'part.morning': 'Morning',

@@ -46,7 +46,10 @@ const emoji = partyEmoji(trip, idea.party)
 const issues = [...new Map(issuesOf(trip, idea.id).map((d) => [d.code, d])).values()]
 const unassigned = issues.some((d) => d.code === 'item.unassigned')
 const issueLabel = (code: string) => (isLabelled(code) ? t(`issue.${code}`) : t('issue.other'))
-const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.length || sourceHref(idea.source))
+// Dated ideas show on their day in the itinerary: a link there, and back.
+const hasDetails = Boolean(
+  issues.length || idea.notes || idea.url || idea.local || places.length || sourceHref(idea.source),
+)
 ---
 
 <article
@@ -143,6 +146,18 @@ const hasDetails = Boolean(issues.length || idea.notes || idea.url || places.len
         )}
         {idea.notes && <div class="prose" lang={trip.locale} set:html={markdown(idea.notes)} />}
         <div class="links">
+          {idea.local &&
+            (proposed ? (
+              <a class="button" href={i18n.path(`/trips/${trip.slug}/ideas/#idea-${idea.id}`)}>
+                <Icon name="sparkle" size={15} />
+                <span>{t('idea.inIdeas')}</span>
+              </a>
+            ) : (
+              <a class="button" href={i18n.path(`/trips/${trip.slug}/itinerary/#idea-${idea.id}`)}>
+                <Icon name="itinerary" size={15} />
+                <span>{t('item.inItinerary')}</span>
+              </a>
+            ))}
           {places.length > 0 && (
             <a class="button" href={i18n.path(`/trips/${trip.slug}/map/#item-${idea.id}`)}>
               <Icon name="map" size={15} />
