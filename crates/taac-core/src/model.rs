@@ -505,6 +505,8 @@ pub struct Item {
     #[schemars(skip)]
     pub source: Option<Source>,
     pub kind: ItemKind,
+    /// Optional for `free`: it is then called free time, in the trip's language.
+    #[serde(default)]
     pub title: String,
     /// RFC 3339 with the local offset of where it happens. Set this, or
     /// `date` for plans without a fixed time.
@@ -646,6 +648,9 @@ pub enum ItemKind {
     Activity,
     Meal,
     Note,
+    /// Time left to decide on the spot, somewhere (`places`) or anywhere: its
+    /// ideas nearby are suggested in it. Never booked or paid for.
+    Free,
 }
 
 impl ItemKind {
@@ -662,6 +667,7 @@ impl ItemKind {
             Self::Activity => "activity",
             Self::Meal => "meal",
             Self::Note => "note",
+            Self::Free => "free",
         }
     }
 

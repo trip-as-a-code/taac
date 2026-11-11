@@ -606,6 +606,14 @@ fn unique(candidates: &[String], taken: &mut std::collections::HashSet<String>) 
     id
 }
 
+/// What a `free` plan without a title is called, in the trip's language.
+fn free_time_title(locale: Option<&str>) -> &'static str {
+    match locale.and_then(|l| l.split(['-', '_']).next()) {
+        Some("ru") => "Свободное время",
+        _ => "Free time",
+    }
+}
+
 /// YAML names people, groups, places and blockers the way humans do; the
 /// rest of the crate works on ids. This derives every id and rewrites each
 /// reference to one. A name that matches nothing stays as written, for
@@ -754,7 +762,11 @@ fn resolve_names(trip: &mut Trip) {
 
     // Plans and ideas share one namespace: both are anchors on the site.
     let mut taken = HashSet::new();
+    let free_time = free_time_title(trip.metadata.locale.as_deref());
     for item in &mut trip.itinerary {
+        if item.kind == crate::model::ItemKind::Free && item.title.trim().is_empty() {
+            item.title = free_time.to_string();
+        }
         let title = slug(&item.title);
         item.id = unique(
             &[title.clone(), format!("{title}-{}", item.day())],

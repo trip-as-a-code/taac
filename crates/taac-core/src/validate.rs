@@ -745,6 +745,23 @@ impl Validator<'_> {
                     None,
                 );
             }
+            if item.title.trim().is_empty() {
+                self.error(
+                    "item.untitled",
+                    id,
+                    "a plan without a `title`: only `free` time goes without one".into(),
+                );
+            }
+            // Free time is decided on the spot: what it costs comes out of `spending`.
+            if item.kind == ItemKind::Free
+                && (item.booking.is_some() || !item.bookings.is_empty() || !item.costs.is_empty())
+            {
+                self.error(
+                    "free.booked",
+                    id,
+                    "free time is never booked or paid for: drop `booking`, `bookings` and `costs`, or make it an `activity`".into(),
+                );
+            }
             if item.kind == ItemKind::Lodging && item.places.is_empty() {
                 self.warn(
                     "item.unlocated",
@@ -950,7 +967,7 @@ impl Validator<'_> {
                 // Without `who` it's everyone's only by default: no proof of
                 // where anyone is (`item.unassigned` asks).
                 .filter(|i| i.who.is_some() || trip.members.len() == 1)
-                .filter(|i| !trip.item_places(i).is_empty())
+                .filter(|i| i.kind == ItemKind::Free || !trip.item_places(i).is_empty())
                 .collect();
             mine.sort_by_key(|i| i.sort_key());
             let lodgings: Vec<&Item> = mine
@@ -970,6 +987,11 @@ impl Validator<'_> {
             let mut last: Option<(&Item, &crate::model::Place)> = None;
             for item in mine {
                 let places = trip.item_places(item);
+                // Free time anywhere: where it leaves them is decided on the spot.
+                if places.is_empty() {
+                    last = None;
+                    continue;
+                }
                 let (first, end) = (places[0].1, places[places.len() - 1].1);
                 // A new day starts from wherever the night was spent.
                 if let Some((prev, at)) = last
@@ -1018,7 +1040,8 @@ impl Validator<'_> {
                         }
                     }
                 }
-                last = Some((item, end));
+                // Free time somewhere: getting there is a plan, moving on isn't.
+                last = (item.kind != ItemKind::Free).then_some((item, end));
             }
         }
         let find = |id: &str| trip.itinerary.iter().find(|i| i.id == id);
@@ -1890,6 +1913,37 @@ ideas:
             !fine.iter().any(|d| d.code.starts_with("route.")),
             "{fine:?}"
         );
+    }
+
+    #[test]
+    fn free_time_is_decided_on_the_spot() {
+        let d = check(
+            "  - { kind: activity, title: museum, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T12:00:00+09:00, who: [everyone], places: [tokyo] }
+  - { kind: walk, title: stroll, start: 2027-01-01T12:00:00+09:00, end: 2027-01-01T12:30:00+09:00, who: [everyone], places: [tokyo, flat] }
+  - { kind: free, start: 2027-01-01T12:30:00+09:00, end: 2027-01-01T17:00:00+09:00, who: [everyone], places: [flat] }
+  - { kind: meal, title: dinner, start: 2027-01-01T18:00:00+09:00, end: 2027-01-01T20:00:00+09:00, who: [everyone], places: [kyoto] }
+  - { kind: free, start: 2027-01-02T10:00:00+09:00, end: 2027-01-02T12:00:00+09:00, who: [everyone] }
+  - { kind: activity, title: temple, start: 2027-01-02T13:00:00+09:00, end: 2027-01-02T15:00:00+09:00, who: [everyone], places: [tokyo] }
+  - { kind: free, start: 2027-01-03T10:00:00+09:00, end: 2027-01-03T12:00:00+09:00, who: [everyone], places: [ryokan] }",
+        );
+        let at = |code: &str| {
+            d.iter()
+                .filter(|x| x.code == code)
+                .map(|x| x.item.as_deref().unwrap_or(""))
+                .collect::<Vec<_>>()
+        };
+        // Into free time somewhere takes a way there; out of it, and out of
+        // free time anywhere, is decided on the spot.
+        assert_eq!(at("route.jump"), ["free-time-2027-01-03"], "{d:?}");
+        assert!(at("item.untitled").is_empty(), "{d:?}");
+
+        let wrong = check(
+            "  - { kind: free, date: 2027-01-01, who: [everyone], costs: [{ amount: 10, currency: EUR }] }
+  - { kind: note, date: 2027-01-02, who: [everyone] }",
+        );
+        let codes: Vec<_> = wrong.iter().map(|d| d.code).collect();
+        assert!(codes.contains(&"free.booked"), "{wrong:?}");
+        assert!(codes.contains(&"item.untitled"), "{wrong:?}");
     }
 
     #[test]

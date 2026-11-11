@@ -22,6 +22,7 @@ import {
   people,
   statusTone,
   type RowItem,
+  freeIdeas,
 } from '@/lib/trip'
 
 interface Props {
@@ -62,6 +63,11 @@ const names = (ids: string[]) => ids.map((id) => memberName(trip, id)).join(', '
 const tone = statusTone[item.booking.status]
 const priceHolder = item.pricedWith ? trip.items.find((i) => i.id === item.pricedWith) : undefined
 const isStay = item.kind === 'lodging'
+// Free time: its ideas show under it, the nearby ones to pick from and those already proposed within it.
+const free = item.kind === 'free'
+const SUGGESTED = 3
+const ideas = free ? freeIdeas(trip, item as Item) : undefined
+const ideaHref = (id: string) => i18n.path(`/trips/${trip.slug}/ideas/#idea-${id}`)
 const transport = [item.transport?.carrier, item.transport?.number].filter(Boolean).join(' ')
 // Blocker clashes already have their own badge.
 // One entry per kind of issue, as in the overview's list, which has the
@@ -93,6 +99,7 @@ const offsetLabel =
   data-party={item.party}
   data-status={item.booking.status}
   data-day={item.local.date}
+  data-kind={item.kind}
   data-facts={JSON.stringify(itemFacts(trip, item as Item))}
   style={`--kind:${kindTint[item.kind]}`}
   class:list={['item', { shared: everyone || grouped, 'with-photo': shownPhoto }]}
@@ -161,7 +168,7 @@ const offsetLabel =
         </p>
       )}
       <div class="meta">
-        <span class="kind footnote">
+        <span class="kind footnote" hidden={free && item.title === t('kind.free')}>
           {item.transport?.vehicle === 'bicycle'
             ? t('vehicle.bicycle')
             : item.transport?.vehicle === 'scooter'
@@ -386,6 +393,40 @@ const offsetLabel =
       </div>
     )}
   </details>
+  {ideas && (ideas.within.length > 0 || ideas.nearby.length > 0) && (
+    <ul class="free-ideas footnote">
+      {ideas.within.map((idea) => (
+        <li>
+          <a href={`#idea-${idea.id}`}>
+            <Icon name="sparkle" size={14} />
+            <span class="ellipsis" lang={trip.locale}>
+              {idea.title}
+            </span>
+            <span class="secondary tabular">{idea.local!.time ?? t(`part.${idea.local!.part ?? 'anytime'}`)}</span>
+          </a>
+        </li>
+      ))}
+      {ideas.nearby.slice(0, SUGGESTED).map((idea) => (
+        <li>
+          <a href={ideaHref(idea.id)}>
+            <Icon name="sparkle" size={14} />
+            <span class="ellipsis" lang={trip.locale}>
+              {idea.priority === 'must' && '★ '}
+              {idea.title}
+            </span>
+            {idea.duration && <span class="secondary">{t(`ideas.duration.${idea.duration}`)}</span>}
+          </a>
+        </li>
+      ))}
+      {ideas.nearby.length > SUGGESTED && (
+        <li>
+          <a class="all" href={i18n.path(`/trips/${trip.slug}/ideas/`)}>
+            {t('free.moreIdeas', { n: ideas.nearby.length - SUGGESTED })}
+          </a>
+        </li>
+      )}
+    </ul>
+  )}
   {/* Outside the summary: a link inside the toggle would be a control
      within a control. Positioned beside the title. */}
   <div class="card-tools">
@@ -412,6 +453,48 @@ const offsetLabel =
     gap: 0 var(--space-3);
     padding: 14px var(--space-4);
     align-items: start;
+  }
+
+  /* Free time: an open slot, outlined like an open day rather than filled. */
+  .item[data-kind='free'] .glyph {
+    background: transparent;
+    border: 1.5px dashed color-mix(in srgb, var(--kind) 55%, transparent);
+  }
+
+  .item[data-kind='free'] .headline {
+    color: var(--label-secondary);
+  }
+
+  /* Under the title, in whichever column it has (phones drop the glyph's). */
+  .free-ideas {
+    grid-column: -2 / -1;
+    list-style: none;
+    display: grid;
+    gap: 2px;
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px dashed var(--separator-strong);
+    border-radius: var(--radius);
+  }
+
+  .free-ideas a {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 32px;
+    font-weight: 500;
+  }
+
+  .free-ideas :global(svg),
+  .free-ideas .secondary {
+    flex: none;
+  }
+
+  .free-ideas .secondary {
+    margin-left: auto;
+    padding-left: var(--space-2);
   }
 
   .when {

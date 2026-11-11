@@ -1,7 +1,7 @@
 import type { TripExport } from '@taac/core'
 import { describe, expect, it } from 'vitest'
 
-import { areaRuns, ideaArea } from './trip'
+import { areaRuns, freeIdeas, ideaArea } from './trip'
 
 const trip = {
   places: {
@@ -45,5 +45,35 @@ describe('areaRuns', () => {
       { from: '2026-12-18', to: '2026-12-18' },
     ])
     expect(areaRuns(nights, ['nobody'])).toEqual([])
+  })
+})
+
+describe('freeIdeas', () => {
+  const at = (id: string, places: string[], local?: object, members = ['a']) =>
+    ({ id, places, members, local, priority: 'maybe' }) as unknown as TripExport['ideas'][number]
+  const free = {
+    places: ['Senso-ji'],
+    members: ['a'],
+    local: { date: '2027-01-01', time: '12:00', endTime: '17:00' },
+  } as unknown as TripExport['items'][number]
+  const planned = {
+    ...trip,
+    bases: [],
+    diagnostics: [],
+    ideas: [
+      at('temple', ['Senso-ji']),
+      at('far', ['Nikko']),
+      at('theirs', ['Senso-ji'], undefined, ['b']),
+      at('lunch', ['Senso-ji'], { date: '2027-01-01', time: '13:00' }),
+      at('evening', ['Senso-ji'], { date: '2027-01-01', part: 'evening' }),
+      at('afternoon', ['Senso-ji'], { date: '2027-01-01', part: 'afternoon' }),
+    ],
+  } as unknown as TripExport
+
+  it('suggests what is around it, and lists what is proposed within it', () => {
+    const { nearby, within } = freeIdeas(planned, free)
+    // The smallest area holding Senso-ji is Asakusa: Nikko is out, so are others' ideas.
+    expect(nearby.map((i) => i.id)).toEqual(['temple'])
+    expect(within.map((i) => i.id)).toEqual(['lunch', 'afternoon'])
   })
 })

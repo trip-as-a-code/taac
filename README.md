@@ -59,7 +59,7 @@ places: # by name; everything else refers to them by it
     category: historic
     photo: https://example.org/castelo.jpg # any https image; the server serves it resized
 itinerary:
-  - kind: flight # flight, train, bus, ferry, transfer, walk, ride, lodging, activity, meal, note
+  - kind: flight # flight, train, bus, ferry, transfer, walk, ride, lodging, activity, meal, note, free
     title: London → Lisbon
     who: [everyone] # names of members and/or groups, or everyone
     start: 2027-05-14T07:05:00+01:00 # always with the local offset
@@ -91,6 +91,11 @@ itinerary:
     who: [everyone]
     date: 2027-05-14 # no fixed time
     part: evening # morning, afternoon, evening
+  - kind: free # time decided on the spot: ideas around it are suggested in it
+    who: [everyone] # the title is optional: "Free time" in the trip's language
+    start: 2027-05-15T10:00:00+01:00
+    end: 2027-05-15T15:00:00+01:00
+    places: [Belém] # optional: getting there is a leg, moving on from it isn't
   - kind: ride # or walk, metro, bus: every move between two places is a leg
     title: Bike to Belém
     who: [everyone]

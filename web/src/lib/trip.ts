@@ -21,6 +21,7 @@ export const kindIcon: Record<CostKind, IconName> = {
   activity: 'activity',
   meal: 'meal',
   note: 'note',
+  free: 'sparkle',
   pass: 'pass',
   packing: 'packing',
   spending: 'wallet',
@@ -39,6 +40,7 @@ export const kindTint: Record<CostKind, string> = {
   activity: 'var(--orange)',
   meal: 'var(--pink)',
   note: 'var(--gray)',
+  free: 'var(--indigo)',
   pass: 'var(--teal)',
   packing: 'var(--yellow)',
   spending: 'var(--indigo)',
@@ -260,6 +262,61 @@ export function ideasAt(trip: TripExport, base: Base): Idea[] {
         !issuesOf(trip, idea.id).some((d) => d.code === 'item.unassigned'),
     )
     .sort((a, b) => Number(b.priority === 'must') - Number(a.priority === 'must'))
+}
+
+/** Around a free slot: near its place (in the smallest area holding it, else within this), or that day's base. */
+const NEAR_M = 5000
+
+/**
+ * Ideas for free time: undated ones around where it is, must-dos first, and
+ * dated ones proposed within it, by time.
+ */
+export function freeIdeas(trip: TripExport, item: Item): { nearby: Idea[]; within: Idea[] } {
+  const shares = (idea: Idea) => idea.members.some((m) => item.members.includes(m))
+  const place = trip.places[item.places[0] ?? '']
+  const base = trip.bases.find(
+    (b) => b.members.some((m) => item.members.includes(m)) && b.from <= item.local.date && item.local.date <= b.to,
+  )
+  const holder = place
+    ? Object.values(trip.places)
+        .filter((a) => a.radius && distanceM(place.geo, a.geo) <= a.radius)
+        .sort((a, b) => a.radius! - b.radius!)[0]
+    : trip.places[base?.place ?? '']
+  const center = holder ?? place
+  const radius = holder?.radius ?? NEAR_M
+  const near = (id: string) => {
+    const p = trip.places[id]
+    return Boolean(center && p && distanceM(p.geo, center.geo) <= radius)
+  }
+  const nearby = trip.ideas
+    .filter(
+      (idea) =>
+        !idea.local &&
+        shares(idea) &&
+        (idea.area ? near(idea.area) : idea.places.some(near)) &&
+        !issuesOf(trip, idea.id).some((d) => d.code === 'item.unassigned'),
+    )
+    .sort((a, b) => Number(b.priority === 'must') - Number(a.priority === 'must'))
+  // Its window in minutes; an idea with a rough part counts by that part's usual hour.
+  const minute = (time?: string) => (time ? Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) : undefined)
+  const PART = { morning: 9 * 60, afternoon: 14 * 60, evening: 19 * 60 } as const
+  const from = minute(item.local.time) ?? (item.local.part ? PART[item.local.part] : 0)
+  const to =
+    item.local.endDate && item.local.endDate !== item.local.date ? 24 * 60 : (minute(item.local.endTime) ?? from)
+  const at = (idea: Idea) => minute(idea.local?.time) ?? (idea.local?.part ? PART[idea.local.part] : undefined)
+  const within = trip.ideas
+    .filter((idea) => {
+      const when = at(idea)
+      return (
+        idea.local?.date === item.local.date &&
+        shares(idea) &&
+        when !== undefined &&
+        from <= when &&
+        when < Math.max(to, from + 1)
+      )
+    })
+    .sort((a, b) => at(a)! - at(b)!)
+  return { nearby, within }
 }
 
 /**

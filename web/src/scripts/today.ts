@@ -14,6 +14,8 @@ export interface TodayItem {
   kind: string
   /** Local wall time, `HH:MM`. */
   time?: string
+  /** When it ends, local, on the same day. */
+  endTime?: string
   part?: string
   /** Absolute instants, for "now" and countdowns. */
   start?: string

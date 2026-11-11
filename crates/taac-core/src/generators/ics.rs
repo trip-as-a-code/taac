@@ -141,6 +141,10 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
         line(format!("DESCRIPTION:{}", escape(&description.join("\n\n"))));
         line(format!("CATEGORIES:{}", item.kind.as_str().to_uppercase()));
         line(format!("STATUS:{status}"));
+        // Free time doesn't make anyone busy.
+        if item.kind == ItemKind::Free {
+            line("TRANSP:TRANSPARENT".into());
+        }
         if let Some(url) = item
             .url
             .as_ref()

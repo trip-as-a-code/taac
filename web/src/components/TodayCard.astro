@@ -34,6 +34,7 @@ const data: TodayData = {
           title: item.title,
           kind: item.kind,
           time: item.local.date === day.date ? item.local.time : undefined,
+          endTime: item.local.endDate && item.local.endDate !== day.date ? undefined : item.local.endTime,
           part: item.local.part,
           start: item.start,
           end: item.end,
@@ -67,6 +68,7 @@ const strings = {
   until: t('today.until'),
   tomorrow: t('today.tomorrow'),
   free: t('today.free'),
+  freeUntil: t('today.freeUntil'),
   and: t('party.and'),
   done: t('today.done'),
   map: t('today.map'),
@@ -196,7 +198,17 @@ const strings = {
     const itemRow = (item: TodayItem, live: boolean) =>
       fill(root.querySelector('[data-today-item]')!, {
         title: item.title,
-        sub: [live ? s.now : item.start && now !== undefined ? fromNow(item.start) : '', item.place?.name]
+        sub: [
+          // Free time says how long it lasts rather than that it's on.
+          live && item.kind === 'free' && item.endTime
+            ? s.freeUntil.replace('{time}', item.endTime)
+            : live
+              ? s.now
+              : item.start && now !== undefined
+                ? fromNow(item.start)
+                : '',
+          item.place?.name,
+        ]
           .filter(Boolean)
           .join(' · '),
         href: item.href,

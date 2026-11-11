@@ -454,7 +454,9 @@
           "$ref": "#/$defs/ItemKind"
         },
         "title": {
-          "type": "string"
+          "description": "Optional for `free`: it is then called free time, in the trip's language.",
+          "type": "string",
+          "default": ""
         },
         "start": {
           "description": "RFC 3339 with the local offset of where it happens. Set this, or\n`date` for plans without a fixed time.",
@@ -584,8 +586,7 @@
       },
       "additionalProperties": false,
       "required": [
-        "kind",
-        "title"
+        "kind"
       ]
     },
     "ItemKind": {
@@ -613,6 +614,11 @@
           "description": "By bicycle or scooter (`transport.vehicle`), own or rented.",
           "type": "string",
           "const": "ride"
+        },
+        {
+          "description": "Time left to decide on the spot, somewhere (`places`) or anywhere: its\nideas nearby are suggested in it. Never booked or paid for.",
+          "type": "string",
+          "const": "free"
         }
       ]
     },

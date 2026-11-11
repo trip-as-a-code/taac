@@ -48,7 +48,18 @@ export interface SiteExport {
 }
 
 export type ItemKind =
-  'flight' | 'train' | 'bus' | 'ferry' | 'transfer' | 'walk' | 'ride' | 'lodging' | 'activity' | 'meal' | 'note'
+  | 'flight'
+  | 'train'
+  | 'bus'
+  | 'ferry'
+  | 'transfer'
+  | 'walk'
+  | 'ride'
+  | 'lodging'
+  | 'activity'
+  | 'meal'
+  | 'note'
+  | 'free'
 export type BookingStatus = 'required' | 'booked' | 'notRequired'
 
 export interface Member {
