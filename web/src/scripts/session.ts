@@ -20,6 +20,8 @@ export interface Me {
   lang: string | null
   /** The VAPID public key to subscribe to browser notifications with, when they can be had. */
   push: string | null
+  /** How many of the account's browsers get notifications, this one included. */
+  browsers: number
   /** The view-only link this browser came by, while it works. */
   link: { trip: string; label: string; expiresAt: number | null } | null
   calendars: Record<string, string>

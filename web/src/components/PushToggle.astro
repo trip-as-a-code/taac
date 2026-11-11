@@ -8,7 +8,7 @@ interface Props {
 const { t } = useI18n(Astro.props.lang)
 ---
 
-{/* Browser notifications on this device (scripts/notifications.ts): a switch, or why there is none, and a test. */}
+{/* Browser notifications on this device (scripts/notifications.ts): a switch, or why there is none. */}
 <ul
   class="list push-settings"
   data-push-toggle
@@ -16,8 +16,6 @@ const { t } = useI18n(Astro.props.lang)
   data-denied={t('push.denied')}
   data-unsupported={t('push.unsupported')}
   data-home-screen={t('push.homeScreen')}
-  data-sent={t('push.sent')}
-  data-failed={t('push.sendFailed')}
 >
   <li class="row">
     <span class="label">
@@ -37,15 +35,6 @@ const { t } = useI18n(Astro.props.lang)
       hidden
     >
       <span class="knob"></span>
-    </button>
-  </li>
-  <li class="row" data-push-test-row hidden>
-    <span class="label">
-      <span>{t('push.test')}</span>
-      <span class="footnote secondary" data-push-test-status></span>
-    </span>
-    <button class="button" type="button" data-push-test>
-      {t('push.send')}
     </button>
   </li>
 </ul>

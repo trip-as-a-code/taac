@@ -39,6 +39,8 @@ interface Person {
 const state = {
   slug: '',
   threads: [] as Thread[],
+  /** Signed in: the threads with something new for the account, as the server keeps it. */
+  unread: null as Set<string> | null,
   fetchedAt: 0,
   login: null as string | null,
   writer: false,
@@ -67,14 +69,21 @@ function writeSeen(seen: Record<string, number>) {
 
 const latest = (thread: Thread) => Math.max(...thread.comments.map((c) => c.editedAt ?? c.createdAt), thread.createdAt)
 
-/** Someone else wrote since this device last showed the thread. */
+/**
+ * Someone else wrote since the account last read the thread, on any device;
+ * without an account (a view-only link), since this device last showed it.
+ */
 function unread(thread: Thread, seen: Record<string, number>): boolean {
+  if (state.unread) return state.unread.has(thread.id)
   return thread.comments.some((c) => c.author !== state.login && c.createdAt > (seen[thread.id] ?? 0))
 }
 
 function markSeen(threads: Thread[]) {
   const seen = readSeen() ?? {}
-  for (const thread of threads) seen[thread.id] = latest(thread)
+  for (const thread of threads) {
+    seen[thread.id] = latest(thread)
+    state.unread?.delete(thread.id)
+  }
   writeSeen(seen)
 }
 
@@ -88,7 +97,9 @@ async function api(path = '', init?: RequestInit): Promise<boolean> {
       headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
     })
     if (!response.ok) throw new Error(String(response.status))
-    state.threads = ((await response.json()) as { threads: Thread[] }).threads
+    const answer = (await response.json()) as { threads: Thread[]; unread?: string[] }
+    state.threads = answer.threads
+    state.unread = answer.unread ? new Set(answer.unread) : null
     state.fetchedAt = Date.now()
     if (error) error.hidden = true
     // A change made here redraws the panel; a refresh in the background spares what is being typed.

@@ -21,7 +21,7 @@ export interface NotificationStore {
   markNotifications(login: string, ids: string[], read: boolean): Promise<void>
 }
 
-export function isRead(n: Notification, seenAt: number, marks: Map<string, boolean>): boolean {
+export function isRead(n: Pick<Notification, 'id' | 'at'>, seenAt: number, marks: Map<string, boolean>): boolean {
   return marks.get(n.id) ?? n.at <= seenAt
 }
 
@@ -113,6 +113,9 @@ export function changeEvents(trip: string, sets: ChangeSet[], login: string): No
  * What is due for someone: each thing once, from its first reminder on, as of
  * its latest one, which makes it unread again.
  */
+/** A deadline's reminder in the list: one per rung, so a later one is new again. */
+export const dueId = (d: { key: string; date: string }, rung: number) => `due:${d.key}:${d.date}:${rung}`
+
 export function deadlineEvents(
   trip: string,
   file: DeadlineFile,
@@ -126,7 +129,7 @@ export function deadlineEvents(
     if (!reminder) return []
     return [
       {
-        id: `due:${d.key}:${d.date}:${reminder.rung}`,
+        id: dueId(d, reminder.rung),
         trip,
         kind: d.kind,
         anchor: d.anchor,

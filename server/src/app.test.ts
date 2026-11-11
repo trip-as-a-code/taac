@@ -271,6 +271,7 @@ describe('signing in', () => {
       comments: ['japan'],
       link: null,
       push: null,
+      browsers: 0,
       lang: null,
       muted: [],
       timeZone: null,
@@ -931,6 +932,67 @@ describe('deadline reminders', () => {
       expect((await bell()).notifications.filter((n) => n.due).map((n) => n.id)).toEqual([
         'due:booking:item:tower:2026-11-25:0',
       ])
+    } finally {
+      rmSync(join(dist, 'trips/japan/deadlines.json'))
+    }
+  })
+
+  it('doesn’t push what was already read in the bell before a browser said where they are', async () => {
+    writeFileSync(
+      join(dist, 'trips/japan/deadlines.json'),
+      JSON.stringify({
+        timezone: 'Asia/Tokyo',
+        deadlines: [
+          {
+            key: 'task:vjw',
+            kind: 'task',
+            anchor: 'task:vjw',
+            date: '2026-11-24',
+            logins: ['alex'],
+            until: '2026-12-10',
+            ladder: 'full',
+          },
+        ],
+      }),
+    )
+    try {
+      const store = memoryStore()
+      const sent: string[] = []
+      const push = {
+        publicKey: 'key',
+        send: async (_: PushSubscription, message: PushMessage) => {
+          sent.push(message.body)
+          return 'ok' as const
+        },
+      }
+      // Tuesday 24 November, 10:00 in Helsinki: the task's day, shown in the
+      // bell since 9:00 in Tokyo, hours before 9:00 in Helsinki.
+      let now = Date.parse('2026-11-24T08:00:00Z')
+      const member = handler('Alex', store, () => now, push)
+      const cookies = await signIn(member)
+      const post = (path: string, body: unknown) =>
+        member(
+          new Request(`https://trips.example${path}`, {
+            method: 'POST',
+            headers: { Cookie: cookies },
+            body: JSON.stringify(body),
+          }),
+        )
+      // Freshly signed in: everything read at 3:00 in Helsinki, then notifications turned on.
+      now = Date.parse('2026-11-24T01:00:00Z')
+      await post('/api/notifications/read', { all: true })
+      now = Date.parse('2026-11-24T08:00:00Z')
+      await post('/api/push/subscribe', {
+        subscription: { endpoint: 'https://push.example/s', keys: { p256dh: 'p', auth: 'a' } },
+      })
+      await post('/api/me/reminders', { timeZone: 'Europe/Helsinki' })
+      await member.remind()
+      expect(sent).toEqual([])
+
+      // The next rung is new, and pushed.
+      now = Date.parse('2026-11-25T07:30:00Z')
+      await member.remind()
+      expect(sent).toEqual(['Task overdue since Nov 24'])
     } finally {
       rmSync(join(dist, 'trips/japan/deadlines.json'))
     }

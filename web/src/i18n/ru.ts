@@ -506,11 +506,13 @@ export const ru: Messages = {
   'push.homeScreen': 'На iPhone и iPad: «Поделиться» → «На экран „Домой“», откройте сайт оттуда и включите здесь.',
   'push.test': 'Пробное уведомление',
   'push.send': 'Отправить',
+  'push.testNote': 'Придёт во все браузеры, где у этого аккаунта включены уведомления.',
   'push.sent': 'Отправлено: появится через пару секунд.',
   'push.sendFailed': 'Не дошло. Выключите уведомления и включите снова.',
   'notifications.settings': 'Настройки',
 
   'settings.browser': 'В этом браузере',
+  'settings.allBrowsers': 'Все браузеры',
 
   'notifications.change': '{name}: изменения в плане',
   'notifications.changeAnon': 'Изменения в плане',

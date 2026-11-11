@@ -484,11 +484,13 @@ export const en = {
   'push.homeScreen': 'On iPhone and iPad: Share → Add to Home Screen, open the site from there, and turn them on here.',
   'push.test': 'Test notification',
   'push.send': 'Send',
+  'push.testNote': 'Goes to every browser where notifications are on for this account.',
   'push.sent': 'Sent: it should appear in a few seconds.',
   'push.sendFailed': 'It didn’t arrive. Turn notifications off and on again.',
   'notifications.settings': 'Settings',
 
   'settings.browser': 'In this browser',
+  'settings.allBrowsers': 'All browsers',
 
   'notifications.change': '{name} changed the plan',
   'notifications.changeAnon': 'The plan changed',

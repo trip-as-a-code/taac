@@ -47,6 +47,7 @@ import { parseSubscription, type PushMessage, type PushSender } from './push'
 import {
   changeEvents,
   deadlineEvents,
+  dueId,
   discussionEvents,
   isRead,
   KINDS,
@@ -59,6 +60,7 @@ import {
   currentReminder,
   dayIn,
   DEFAULT_REMIND_AT,
+  rungTime,
   stillTimely,
   validRemindAt,
   validTimeZone,
@@ -408,12 +410,21 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
         const reader = await readerOf(login, file.timezone)
         if (!reader.known) continue
         const muted = await store.userMuted(login)
+        const [seenAt, marks] = await Promise.all([store.notificationsSeen(login), store.notificationMarks(login)])
         const due: Deadline[] = []
         for (const d of theirs) {
           if (muted.includes(d.kind)) continue
           const reminder = currentReminder(d, now, file.timezone, reader)
           if (!reminder || !stillTimely(reminder, now)) continue
-          if (await store.claimReminder(login, `${slug}/${d.key}`, d.date, reminder.rung, now)) due.push(d)
+          // Already read in the list, which showed it as soon as it came: by
+          // the trip's clock until this account's browser said where it is,
+          // so reading everything then covers it too. Claimed, not pushed.
+          const shown = Math.min(
+            reminder.at,
+            rungTime(d, reminder.rung, file.timezone, { ...reader, timeZone: file.timezone }),
+          )
+          const read = isRead({ id: dueId(d, reminder.rung), at: shown }, seenAt, marks)
+          if ((await store.claimReminder(login, `${slug}/${d.key}`, d.date, reminder.rung, now)) && !read) due.push(d)
         }
         if (!due.length) continue
         const lang = await store.userLang(login)
@@ -554,6 +565,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
       calendars,
       link: link ? { trip: link.trip, label: link.label, expiresAt: link.expiresAt } : null,
       push: config.push && config.store && login && comments.length ? config.push.publicKey : null,
+      browsers: config.push && config.store && login ? (await config.store.subscriptionsFor([login])).length : 0,
       lang,
       muted: login && config.store ? await config.store.userMuted(login).catch(() => []) : [],
       ...(login && config.store
@@ -598,7 +610,19 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     const writer = mayComment(route.slug, login)
     const reader = writer || (await linkOf(request))?.trip === route.slug
     if (!reader) return text(login ? 'Forbidden\n' : 'Unauthorized\n', login ? 403 : 401)
-    const all = async () => json({ threads: await store.threads(route.slug) })
+    // Signed in, which threads have something new from others for this
+    // account: read is the same as on the notifications page, on every device.
+    const all = async () => {
+      const threads = await store.threads(route.slug)
+      if (!writer || !login) return json({ threads })
+      const [seenAt, marks] = await Promise.all([store.notificationsSeen(login), store.notificationMarks(login)])
+      const unread = new Set(
+        discussionEvents(route.slug, threads, login)
+          .filter((n) => n.kind !== 'resolved' && !isRead(n, seenAt, marks))
+          .map((n) => n.thread),
+      )
+      return json({ threads, unread: [...unread] })
+    }
     if (request.method === 'GET' && route.kind === 'threads') return all()
     if (!writer || !login) return text('Only the trip’s people comment\n', 403)
     const now = config.now?.() ?? Date.now()

@@ -526,14 +526,19 @@ p {
   opacity: 0.7;
 }
 
-/* Something new from someone else since this device last read it. */
+/* Something new from someone else since the account last read it: a badge
+   on the bubble's corner, clear of the count, never faded with the button. */
+.thread-button[data-unread] {
+  opacity: 1;
+}
+
 .thread-button[data-unread]::after {
   content: '';
   position: absolute;
-  top: 1px;
-  right: 1px;
-  width: 7px;
-  height: 7px;
+  top: 3px;
+  left: 13px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--tint);
   box-shadow: 0 0 0 1.5px var(--bg-grouped);

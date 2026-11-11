@@ -103,6 +103,22 @@ const groups = [
           <PushToggle lang={lang} />
         </div>
       </section>
+      {/* A test goes to every browser with notifications on: shown while there is one. */}
+      <section class="group" data-push-test-section hidden>
+        <h2 class="title-3">{t('settings.allBrowsers')}</h2>
+        <ul class="card list push-test" data-sent={t('push.sent')} data-failed={t('push.sendFailed')}>
+          <li class="row">
+            <span class="grow label">
+              <span>{t('push.test')}</span>
+              <span class="footnote secondary" data-push-test-status></span>
+            </span>
+            <button class="button" type="button" data-push-test>
+              {t('push.send')}
+            </button>
+          </li>
+        </ul>
+        <p class="footnote secondary note">{t('push.testNote')}</p>
+      </section>
     </div>
   </div>
 </BaseLayout>
@@ -193,6 +209,11 @@ const groups = [
   .grow {
     flex: 1;
     min-width: 0;
+  }
+
+  /* The test's name over what came of it, as the switch's rows have. */
+  .push-test .label {
+    display: grid;
   }
 
   /* A time like the switches' rows: plain, tinted, no box until focused. */

@@ -249,7 +249,11 @@ async function renderItem(n: Notification, ctx: Context, withToggle: boolean): P
   return item
 }
 
-/** A `[data-push-toggle]`: this device's browser notifications: a switch, or why there is none; and a test. */
+/**
+ * A `[data-push-toggle]`: this device's browser notifications: a switch, or
+ * why there is none; and the test, which goes to all the account's browsers,
+ * shown while any of them has notifications on.
+ */
 async function setupToggle(toggle: HTMLElement, session: Me) {
   const publicKey = session.push
   const section = toggle.closest<HTMLElement>('[data-push-section]')
@@ -258,10 +262,13 @@ async function setupToggle(toggle: HTMLElement, session: Me) {
   if (!publicKey) return
   const status = toggle.querySelector<HTMLElement>('[data-push-status]')!
   const button = toggle.querySelector<HTMLButtonElement>('[data-push-switch]')!
-  const testRow = toggle.querySelector<HTMLElement>('[data-push-test-row]')!
-  const test = toggle.querySelector<HTMLButtonElement>('[data-push-test]')!
-  const testStatus = toggle.querySelector<HTMLElement>('[data-push-test-status]')!
+  const testSection = document.querySelector<HTMLElement>('[data-push-test-section]')
+  const test = testSection?.querySelector<HTMLButtonElement>('[data-push-test]')
+  const testStatus = testSection?.querySelector<HTMLElement>('[data-push-test-status]')
   const d = toggle.dataset
+  const initial = await pushState().catch(() => 'unsupported' as const)
+  // The account's other browsers with notifications on: this one is counted apart.
+  const others = Math.max(0, (session.browsers ?? 0) - (initial === 'on' ? 1 : 0))
   const show = (now: Awaited<ReturnType<typeof pushState>>) => {
     button.hidden = now === 'unsupported' || now === 'home-screen'
     button.setAttribute('aria-checked', String(now === 'on'))
@@ -274,21 +281,23 @@ async function setupToggle(toggle: HTMLElement, session: Me) {
           : now === 'home-screen'
             ? d.homeScreen!
             : d.hint!
-    testRow.hidden = now !== 'on'
+    if (testSection) testSection.hidden = now !== 'on' && others === 0
   }
-  show(await pushState().catch(() => 'unsupported' as const))
+  show(initial)
   button.onclick = async () => {
     button.disabled = true
     if (button.getAttribute('aria-checked') === 'true') await turnOff()
     else await turnOn(publicKey).catch(() => undefined)
     show(await pushState().catch(() => 'unsupported' as const))
   }
-  test.onclick = async () => {
-    test.disabled = true
-    const result = await testPush()
-    test.disabled = false
-    testStatus.textContent = result && result.sent > 0 ? d.sent! : d.failed!
-  }
+  if (test && testStatus)
+    test.onclick = async () => {
+      test.disabled = true
+      const result = await testPush()
+      test.disabled = false
+      const t = testSection!.querySelector<HTMLElement>('[data-sent]')!.dataset
+      testStatus.textContent = result && result.sent > 0 ? t.sent! : t.failed!
+    }
 }
 
 /** Tells the server where this browser is, for reminders at the right hour, when it moved. */
