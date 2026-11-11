@@ -42,7 +42,7 @@ interface Context {
 }
 
 /** Anything read or unread anywhere on the page (the bell, the full page, a discussion). */
-const CHANGED = 'taac:notifications'
+export const CHANGED = 'taac:notifications'
 
 /** Trip titles and where each anchor is, fetched once per trip. */
 const targets = new Map<

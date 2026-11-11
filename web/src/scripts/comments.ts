@@ -5,7 +5,7 @@
 
 import { closeOnBackdrop } from '@/scripts/sheet'
 import { avatarPhoto } from '@/scripts/avatars'
-import { markNotifications } from '@/scripts/notifications'
+import { CHANGED, markNotifications } from '@/scripts/notifications'
 import { composeField, iconButton } from '@/scripts/compose'
 import { showThreads, updateRail } from '@/scripts/rail'
 import { me } from '@/scripts/session'
@@ -78,11 +78,12 @@ function unread(thread: Thread, seen: Record<string, number>): boolean {
   return thread.comments.some((c) => c.author !== state.login && c.createdAt > (seen[thread.id] ?? 0))
 }
 
-function markSeen(threads: Thread[]) {
+/** Read here: this device's record, and the account's until the server says again. */
+function markSeen(threads: Thread[], account = true) {
   const seen = readSeen() ?? {}
   for (const thread of threads) {
     seen[thread.id] = latest(thread)
-    state.unread?.delete(thread.id)
+    if (account) state.unread?.delete(thread.id)
   }
   writeSeen(seen)
 }
@@ -122,7 +123,7 @@ function refresh(redraw = true) {
   // The first look on this device takes everything so far as read.
   let seen = readSeen()
   if (!seen) {
-    markSeen(state.threads)
+    markSeen(state.threads, false)
     seen = readSeen() ?? {}
   }
   const byAnchor = new Map<string, Thread[]>()
@@ -376,6 +377,11 @@ export async function setupComments() {
     })
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && state.slug) void api('/threads')
+    })
+    // Read or unread in the bell or on the notifications page: the dots follow
+    // now, not when the threads next come back (a minute, across pages).
+    document.addEventListener(CHANGED, () => {
+      if (state.slug && state.login) void api('/threads')
     })
   }
 }
