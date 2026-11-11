@@ -611,14 +611,19 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     const reader = writer || (await linkOf(request))?.trip === route.slug
     if (!reader) return text(login ? 'Forbidden\n' : 'Unauthorized\n', login ? 403 : 401)
     // Signed in, which threads have something new from others for this
-    // account: read is the same as on the notifications page, on every device.
+    // account, as the bell has it: on every device, and nothing of a kind
+    // they turned off (the bell never lists it, so it could never be read).
     const all = async () => {
       const threads = await store.threads(route.slug)
       if (!writer || !login) return json({ threads })
-      const [seenAt, marks] = await Promise.all([store.notificationsSeen(login), store.notificationMarks(login)])
+      const [seenAt, marks, muted] = await Promise.all([
+        store.notificationsSeen(login),
+        store.notificationMarks(login),
+        store.userMuted(login),
+      ])
       const unread = new Set(
         discussionEvents(route.slug, threads, login)
-          .filter((n) => n.kind !== 'resolved' && !isRead(n, seenAt, marks))
+          .filter((n) => n.kind !== 'resolved' && !muted.includes(n.kind) && !isRead(n, seenAt, marks))
           .map((n) => n.thread),
       )
       return json({ threads, unread: [...unread] })
@@ -721,9 +726,16 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
       else {
         const threads = new Set(strings(body.threads))
         const known = new Set(events.map((n) => n.id))
+        // A thread that was read is read whole, kinds turned off included:
+        // turned back on, they don't come back as new.
+        const discussed = threads.size
+          ? (
+              await Promise.all(trips.map(async (slug) => discussionEvents(slug, await store.threads(slug), login)))
+            ).flat()
+          : []
         const ids = [
           ...strings(body.ids).filter((id) => known.has(id)),
-          ...events.filter((n) => threads.has(n.thread)).map((n) => n.id),
+          ...discussed.filter((n) => threads.has(n.thread)).map((n) => n.id),
         ]
         await store.markNotifications(login, ids, path === '/api/notifications/read')
       }

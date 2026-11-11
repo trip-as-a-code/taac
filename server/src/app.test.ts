@@ -515,6 +515,46 @@ describe('discussions', () => {
     expect(anchors).toEqual(['item:evening-walk', 'item:東京タワー', 'item:café-crème'])
   })
 
+  it('marks threads unread as the bell has them, and reads a thread whole', async () => {
+    const store = memoryStore()
+    const member = handler('Alex', store)
+    const mine = await signIn(member)
+    const other = handler('grandma', store)
+    const theirs = await signIn(other)
+    const unread = async () =>
+      ((await (await send(member, mine, '/threads', 'GET')).json()) as { unread: string[] }).unread
+    const [thread] = await threadsOf(await send(member, mine, '/threads', 'POST', { anchor: 'trip', body: 'Tea?' }))
+    expect(await unread()).toEqual([])
+    await send(other, theirs, `/threads/${thread!.id}/comments`, 'POST', { body: 'Yes' })
+    expect(await unread()).toEqual([thread!.id])
+
+    // Replies turned off: the bell doesn't list them, so no dot either.
+    await member(
+      new Request('https://trips.example/api/me/notifications', {
+        method: 'POST',
+        headers: { Cookie: mine },
+        body: JSON.stringify({ muted: ['reply'] }),
+      }),
+    )
+    expect(await unread()).toEqual([])
+    // Opened meanwhile: read whole, so turning replies back on doesn't bring it back.
+    await member(
+      new Request('https://trips.example/api/notifications/read', {
+        method: 'POST',
+        headers: { Cookie: mine },
+        body: JSON.stringify({ threads: [thread!.id] }),
+      }),
+    )
+    await member(
+      new Request('https://trips.example/api/me/notifications', {
+        method: 'POST',
+        headers: { Cookie: mine },
+        body: JSON.stringify({ muted: [] }),
+      }),
+    )
+    expect(await unread()).toEqual([])
+  })
+
   it('lets the trip’s people start threads, reply, resolve, edit and delete their own words', async () => {
     const store = memoryStore()
     const member = handler('Alex', store)
