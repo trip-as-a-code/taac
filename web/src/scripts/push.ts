@@ -7,6 +7,10 @@ import type { Me } from '@/scripts/session'
 const ASK_KEY = 'taac:push-ask'
 const DAY = 24 * 60 * 60 * 1000
 
+/** The offer, once a page: shown (or no longer needed), and the one waiting to show. */
+let shown = false
+let timer: ReturnType<typeof setTimeout> | undefined
+
 /** `home-screen`: an iPhone or iPad, where only a site added to the Home Screen gets notifications. */
 export type PushState = 'unsupported' | 'home-screen' | 'denied' | 'on' | 'off'
 
@@ -47,6 +51,9 @@ export async function pushState(): Promise<PushState> {
 /** Asks the browser, subscribes, and tells the server; whether they are on now. */
 export async function turnOn(publicKey: string): Promise<boolean> {
   if (!pushSupported()) return false
+  // Turned on before the offer came up (from the settings): no offer now.
+  clearTimeout(timer)
+  shown = true
   if ((await Notification.requestPermission()) !== 'granted') return false
   const worker = await registration()
   const sub =
@@ -92,9 +99,6 @@ export function postpone(never: boolean) {
   }
 }
 
-let shown = false
-let timer: ReturnType<typeof setTimeout> | undefined
-
 /** Shows the prompt on the page as it is then, wiring its buttons for this page. */
 function showPrompt(publicKey: string): boolean {
   const prompt = document.querySelector<HTMLDialogElement>('[data-push-prompt]')
@@ -135,6 +139,9 @@ export async function offerPush(session: Me | null) {
   const state = asked()
   if (state.never || (state.until ?? 0) > Date.now()) return
   timer = setTimeout(() => {
+    // Answered meanwhile: in the browser's own question, or put off in another tab.
+    const now = asked()
+    if (Notification.permission !== 'default' || now.never || (now.until ?? 0) > Date.now()) return
     if (showPrompt(publicKey)) shown = true
   }, 4000)
 }
