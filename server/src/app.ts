@@ -574,6 +574,8 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
           title: localizedText(manifest.title, lang),
           signIn: loginPath(lang === manifest.defaultLocale ? null : lang, manifest),
           theme: themeOf(request),
+          // One address in every language: the cookie picks it.
+          switches: { langs: manifest.locales.map((l) => ({ lang: l, href: new URL(request.url).pathname })) },
         }),
         410,
       )
@@ -851,6 +853,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
             next,
             error: url.searchParams.get('error') === '1',
             theme: themeOf(request),
+            switches: { langs: manifest.locales.map((l) => ({ lang: l, href: loginPath(l, manifest) + url.search })) },
           }),
         ),
       )
@@ -893,6 +896,13 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
               trip: slug !== null,
               home: localeRoot(locale, manifest),
               theme: themeOf(request),
+              switches: {
+                langs: manifest.locales.map((l) => ({
+                  lang: l,
+                  href: localeRoot(l, manifest) + rest.slice(1) + url.search,
+                })),
+                account: true,
+              },
             }),
             403,
           ),

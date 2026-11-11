@@ -75,6 +75,9 @@ export interface LoginStrings {
   switch: string
   linkGone: string
   linkGoneLead: string
+  /** The corner switches, as the site's nav names them. */
+  language: string
+  theme: string
 }
 
 const STRINGS: Record<string, LoginStrings> = {
@@ -88,6 +91,8 @@ const STRINGS: Record<string, LoginStrings> = {
     switch: 'Use another account',
     linkGone: 'This link no longer works',
     linkGoneLead: 'It expired or was revoked. Ask whoever sent it for a new one, or sign in.',
+    language: 'Language',
+    theme: 'Light or dark',
   },
   ru: {
     lead: 'Этот сайт закрыт. Войдите через GitHub, чтобы продолжить.',
@@ -99,6 +104,8 @@ const STRINGS: Record<string, LoginStrings> = {
     switch: 'Войти в другой аккаунт',
     linkGone: 'Ссылка больше не работает',
     linkGoneLead: 'Срок её действия истёк, или её отозвали. Попросите новую у того, кто её прислал, или войдите.',
+    language: 'Язык',
+    theme: 'Светлая или тёмная тема',
   },
 }
 

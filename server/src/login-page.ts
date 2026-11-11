@@ -12,9 +12,9 @@ export function escapeHtml(value: string): string {
 }
 
 const STYLE = `
-:root{color-scheme:light;--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7;
+:root{color-scheme:light;--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7;--fill:rgb(120 120 128/.12);
 --field:#fff;--accent:#0071e3;--accent-press:#0062c4;--danger:#d70015;--shadow:0 12px 40px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.04)}
-:root[data-theme=dark]{color-scheme:dark;--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#38383a;
+:root[data-theme=dark]{color-scheme:dark;--bg:#000;--card:#1c1c1e;--text:#f5f5f7;--muted:#98989d;--line:#38383a;--fill:rgb(120 120 128/.24);
 --field:#2c2c2e;--accent:#0a84ff;--accent-press:#409cff;--danger:#ff453a;--shadow:0 12px 40px rgba(0,0,0,.5)}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%}
@@ -40,6 +40,17 @@ button:hover,.button:hover{background:var(--accent-press)}
 button:active,.button:active{transform:scale(.98)}
 button:focus-visible,.button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.switches{position:fixed;top:12px;right:16px;display:flex;align-items:center;gap:8px}
+.lang{display:inline-flex;padding:2px;border-radius:999px;background:var(--fill)}
+.lang a{min-width:34px;padding:3px 8px;border-radius:999px;font-size:12px;font-weight:600;line-height:1.47;letter-spacing:.02em;
+text-align:center;color:var(--muted);text-decoration:none}
+.lang a[aria-current]{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.switches .theme{display:grid;place-items:center;width:34px;height:34px;margin:0;padding:0;border-radius:50%;
+background:transparent;color:var(--accent)}
+.switches .theme:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.theme .to-light,:root[data-theme=dark] .theme .to-dark{display:none}
+:root[data-theme=dark] .theme .to-light{display:block}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 `
 
 const LOCK = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" fill="currentColor"/><path d="M8 10.5V7.75a4 4 0 0 1 8 0v2.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
@@ -47,12 +58,58 @@ const LOCK = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-h
 /** The theme the viewer picked on the site (`taac_theme` cookie). */
 export type Theme = 'light' | 'dark'
 
-function page(lang: string, title: string, body: string, theme: Theme = 'dark'): string {
+/** The site's language and theme switches, in the corner. */
+export interface Switches {
+  /** Each language and where it opens this page. */
+  langs: { lang: string; href: string }[]
+  /** Signed in: the language is the account's, saved before the page changes. */
+  account?: boolean
+}
+
+const icon = (paths: string, className: string) =>
+  `<svg class="${className}" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
+const MOON = icon('<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>', 'to-dark')
+const SUN = icon(
+  '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  'to-light',
+)
+
+// As the site's own: the theme in this browser and a cookie, the language in
+// the account when signed in, else in a cookie.
+const SWITCHES_SCRIPT = `(()=>{const root=document.documentElement,box=document.querySelector('[data-switches]');
+box.querySelector('[data-theme-toggle]').addEventListener('click',()=>{const theme=root.dataset.theme==='dark'?'light':'dark';
+root.dataset.theme=theme;try{localStorage.setItem('taac:theme',theme)}catch{}
+document.cookie='taac_theme='+theme+'; Path=/; Max-Age=31536000; SameSite=Lax'});
+for(const link of box.querySelectorAll('[data-set-lang]'))link.addEventListener('click',(event)=>{const lang=link.dataset.setLang;
+if(box.hasAttribute('data-account')){event.preventDefault();fetch('/api/me/lang',{method:'POST',credentials:'same-origin',
+headers:{'Content-Type':'application/json'},body:JSON.stringify({lang}),keepalive:true}).catch(()=>{}).finally(()=>location.assign(link.href));return}
+document.cookie='taac_lang='+lang+'; Path=/; Max-Age=31536000; SameSite=Lax';try{localStorage.setItem('taac_lang',lang)}catch{}})})()`
+
+function languageName(lang: string): string {
+  const name = new Intl.DisplayNames([lang], { type: 'language' }).of(lang) ?? lang
+  return name.charAt(0).toLocaleUpperCase(lang) + name.slice(1)
+}
+
+function switches(lang: string, s: Switches): string {
+  const t = loginStrings(lang)
+  const langs = s.langs
+    .map(
+      (l) =>
+        `<a href="${escapeHtml(l.href)}" hreflang="${escapeHtml(l.lang)}" lang="${escapeHtml(l.lang)}" data-set-lang="${escapeHtml(l.lang)}" title="${escapeHtml(languageName(l.lang))}"${l.lang === lang ? ' aria-current="true"' : ''}>${escapeHtml(l.lang.toUpperCase())}</a>`,
+    )
+    .join('')
+  return `<div class="switches" data-switches${s.account ? ' data-account' : ''}>
+<nav class="lang" aria-label="${escapeHtml(t.language)}">${langs}</nav>
+<button class="theme" type="button" data-theme-toggle title="${escapeHtml(t.theme)}">${MOON}${SUN}<span class="visually-hidden">${escapeHtml(t.theme)}</span></button>
+</div><script>${SWITCHES_SCRIPT}</script>`
+}
+
+function page(lang: string, title: string, body: string, theme: Theme = 'dark', s?: Switches): string {
   return `<!doctype html><html lang="${escapeHtml(lang)}" data-theme="${theme}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <title>${escapeHtml(title)}</title><style>${STYLE}</style></head>
-<body><main>${body}</main></body></html>`
+<body><main>${body}</main>${s ? switches(lang, s) : ''}</body></html>`
 }
 
 const GITHUB = `<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`
@@ -64,6 +121,7 @@ export interface LoginPageOptions {
   /** Signing in went wrong last time. */
   error: boolean
   theme?: Theme
+  switches?: Switches
 }
 
 export function renderLoginPage(o: LoginPageOptions): string {
@@ -76,6 +134,7 @@ export function renderLoginPage(o: LoginPageOptions): string {
     `<div class="glyph">${LOCK}</div><h1>${escapeHtml(o.title)}</h1><p>${escapeHtml(t.lead)}</p>${error}
 <a class="button" href="${escapeHtml(start)}">${GITHUB}<span>${escapeHtml(t.github)}</span></a>`,
     o.theme,
+    o.switches,
   )
 }
 
@@ -87,6 +146,7 @@ export interface ForbiddenPageOptions {
   trip: boolean
   home: string
   theme?: Theme
+  switches?: Switches
 }
 
 export interface LinkGonePageOptions {
@@ -94,6 +154,7 @@ export interface LinkGonePageOptions {
   title: string
   signIn: string
   theme?: Theme
+  switches?: Switches
 }
 
 /** A view-only link that expired or was revoked. */
@@ -105,6 +166,7 @@ export function renderLinkGonePage(o: LinkGonePageOptions): string {
     `<div class="glyph">${LOCK}</div><h1>${escapeHtml(t.linkGone)}</h1><p>${escapeHtml(t.linkGoneLead)}</p>
 <a class="button" href="${escapeHtml(o.signIn)}">${GITHUB}<span>${escapeHtml(t.github)}</span></a>`,
     o.theme,
+    o.switches,
   )
 }
 
@@ -119,5 +181,6 @@ export function renderForbiddenPage(o: ForbiddenPageOptions): string {
 ${o.trip ? `<a class="button" href="${escapeHtml(o.home)}">${escapeHtml(t.home)}</a>` : ''}
 <form method="post" action="/api/logout" data-astro-reload><button type="submit"${o.trip ? ' class="secondary"' : ''}>${escapeHtml(t.switch)}</button></form>`,
     o.theme,
+    o.switches,
   )
 }

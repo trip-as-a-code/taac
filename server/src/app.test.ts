@@ -249,6 +249,11 @@ describe('signing in', () => {
     // The site's icon, which needs no sign-in to load.
     expect(loginPage).toContain('<link rel="icon" href="/favicon.svg"')
     expect((await handle(new Request('https://trips.example/favicon.svg'))).status).not.toBe(302)
+    // The site's language and theme switches, each language keeping where to go next.
+    expect(loginPage).toContain('href="/ru/login?next=/trips/japan/" hreflang="ru"')
+    expect(loginPage).toContain('href="/login?next=/trips/japan/" hreflang="en"')
+    expect(loginPage).toContain('data-theme-toggle')
+    expect(loginPage).not.toContain('data-switches data-account')
 
     const cookies = await signIn(handle)
     expect(cookies).toContain('taac_signed_in=1')
@@ -295,6 +300,9 @@ describe('signing in', () => {
     const body = await trip.text()
     expect(body).toContain('<strong>@stranger</strong>')
     expect(body).toContain('action="/api/logout"')
+    // Signed in, a language switch goes to the account.
+    expect(body).toContain('data-switches data-account')
+    expect(body).toContain('href="/ru/trips/japan/" hreflang="ru"')
   })
 
   it('signs out', async () => {
@@ -449,7 +457,10 @@ describe('view-only links', () => {
     let now = Date.now()
     const { link } = await makeLink(store, '1d', () => now)
     now += 2 * 24 * 60 * 60 * 1000
-    expect((await handler('nobody', store, () => now)(new Request(link.url))).status).toBe(410)
+    const gone = await handler('nobody', store, () => now)(new Request(link.url))
+    expect(gone.status).toBe(410)
+    // One address in every language: the switch sets the cookie and reloads it.
+    expect(await gone.text()).toContain(`href="${new URL(link.url).pathname}" hreflang="ru"`)
   })
 
   it('is made by members only', async () => {
