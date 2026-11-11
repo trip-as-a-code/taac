@@ -122,8 +122,15 @@ for (const set of (changes[trip.slug] ?? []).toReversed())
     for (const [id, when] of Object.entries(at)) {
       if (when <= since) continue
       for (const el of document.querySelectorAll<HTMLElement>(`#item-${CSS.escape(id)}, #idea-${CSS.escape(id)}`)) {
+        const tools = el.querySelector(':scope > .card-tools')
+        if (!tools || el.hasAttribute('data-changed')) continue
         el.dataset.changed = ''
-        el.querySelector('h3')?.setAttribute('data-tip', data.dataset.label!)
+        const mark = document.createElement('span')
+        mark.className = 'changed-mark'
+        mark.setAttribute('role', 'img')
+        mark.setAttribute('aria-label', data.dataset.label!)
+        mark.dataset.tip = data.dataset.label!
+        tools.prepend(mark)
       }
     }
   })

@@ -272,12 +272,12 @@ const hasDetails = Boolean(
   /* The title makes room for the copy-link button and, when the card
      opens, the chevron; the rows below keep the full width. */
   summary h3 {
-    padding-right: 28px;
+    padding-right: calc(28px + var(--changed-room, 0px));
   }
 
   /* And for the discussions button, once it shows. */
   .idea:has(> .card-tools :global(.thread-button:not([hidden]))) summary h3 {
-    padding-right: 56px;
+    padding-right: calc(56px + var(--changed-room, 0px));
   }
 
   [data-expandable] > summary {
@@ -285,11 +285,11 @@ const hasDetails = Boolean(
   }
 
   [data-expandable] > summary h3 {
-    padding-right: 50px;
+    padding-right: calc(50px + var(--changed-room, 0px));
   }
 
   .idea:has(> .card-tools :global(.thread-button:not([hidden]))) [data-expandable] > summary h3 {
-    padding-right: 78px;
+    padding-right: calc(78px + var(--changed-room, 0px));
   }
 
   .card-tools {

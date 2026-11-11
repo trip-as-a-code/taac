@@ -845,33 +845,20 @@ p {
   }
 }
 
-/* Changed since the last visit (TripLayout): a still dot to the left of the
-   card's controls (copy link, disclosure arrow), never in the arrow's place. */
-[data-changed][data-item] summary {
-  position: relative;
-}
-
-[data-changed][data-item] summary > h3 {
-  padding-right: 42px;
-}
-
-[data-changed][data-item] [data-expandable] > summary > h3 {
-  padding-right: 64px;
-}
-
-[data-changed][data-item] summary > h3::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  right: 28px;
+/* Changed since the last visit (TripLayout): a still dot first in the card's
+   controls (discussions, copy link), so it never sits on one of them; the
+   card's title makes that much more room (ItemRow, IdeaRow). */
+.changed-mark {
+  align-self: center;
   width: 8px;
   height: 8px;
+  margin-right: 5px;
   border-radius: 50%;
   background: var(--tint);
 }
 
-[data-changed][data-item] [data-expandable] > summary > h3::before {
-  right: 50px;
+[data-changed][data-item] {
+  --changed-room: 17px;
 }
 
 /* Skeletons (components/Skeleton.astro): a placeholder shaped like what it
