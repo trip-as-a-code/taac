@@ -111,9 +111,12 @@ const example = [
 
 <script>
   import { onPage } from '@/scripts/page'
-  import { setupFilters } from '@/scripts/filters'
+  import { revealTarget, setupFilters } from '@/scripts/filters'
 
-  onPage('tasks', () => setupFilters(() => {}))
+  onPage('tasks', () => {
+    setupFilters(() => {})
+    revealTarget()
+  })
 </script>
 
 <style>

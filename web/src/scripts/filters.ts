@@ -289,8 +289,10 @@ export function applyFilters(state: FilterState) {
 }
 
 /**
- * A link to one card (`#item-…`, `#idea-…`, `#packing-…`) or day section shows
- * it even when the people lens hid it, opens it and brings it into view.
+ * A link to one card (`#item-…`, `#idea-…`, `#packing-…`), row (`#task-…`) or
+ * day section shows it even when the people lens hid it, opens it and brings
+ * it into view: after the lens and filters have laid the page out, so the
+ * browser's own jump to it (made before) doesn't leave it under the bar.
  */
 export function revealTarget() {
   const id = decodeURIComponent(location.hash.slice(1))
@@ -308,7 +310,8 @@ export function revealTarget() {
     return
   }
   const card = el.hasAttribute('data-item')
-  if (!card && !el.hasAttribute('data-day-section')) return
+  const row = !card && el.hasAttribute('data-presence')
+  if (!card && !row && !el.hasAttribute('data-day-section')) return
   const hidden = () => el.hidden || Boolean(el.closest('[hidden]'))
   // First widen the people lens (to "not assigned" for a plan nobody has),
   // then drop the filters if that was not enough.
@@ -317,11 +320,11 @@ export function revealTarget() {
     setLens({ people: [], unassigned: Boolean(facts?.unassigned) })
   }
   if (hidden()) clear?.()
-  if (card) {
+  if (card || row) {
     el.querySelector('details')?.setAttribute('open', '')
     el.classList.remove('flash')
     void el.offsetWidth
     el.classList.add('flash')
   }
-  requestAnimationFrame(() => el.scrollIntoView({ block: card ? 'center' : 'start' }))
+  requestAnimationFrame(() => el.scrollIntoView({ block: card || row ? 'center' : 'start' }))
 }
