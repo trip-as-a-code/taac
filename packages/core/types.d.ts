@@ -277,7 +277,10 @@ export interface Task {
   members: string[]
   party: string
   required: boolean
+  /** Each of its people does it for themselves: ticked per person. */
+  each: boolean
   due?: ISODate
+  /** Done in the trip files; the site's ticks come on top. */
   done?: ISODate
   notes?: string
 }

@@ -423,11 +423,15 @@ pub struct Task {
     /// the latest.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub required: bool,
+    /// Each of its people does it for themselves (a visa, an account): ticked
+    /// per person on the site. Otherwise one tick by anyone of them does it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub each: bool,
     /// Get it done by this date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
     pub due: Option<NaiveDate>,
-    /// When it got done; omitted means still open.
+    /// When it got done; omitted means still open, to be ticked on the site.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
     pub done: Option<NaiveDate>,

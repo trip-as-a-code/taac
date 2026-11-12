@@ -321,6 +321,7 @@ pub struct TaskExport {
     /// Id into [`TripExport::parties`].
     pub party: String,
     pub required: bool,
+    pub each: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due: Option<NaiveDate>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -777,6 +778,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     party: party_of(trip, &members),
                     members,
                     required: task.required,
+                    each: task.each,
                     due: task.due,
                     done: task.done,
                     notes: task.notes.clone(),

@@ -977,6 +977,73 @@ describe('deadline reminders', () => {
     }
   })
 
+  it('stops reminding of a task once it is ticked done on the site, per person for one each does', async () => {
+    const task = (id: string, each: boolean) => ({
+      key: `task:${id}`,
+      kind: 'task',
+      anchor: `task:${id}`,
+      date: '2026-11-24',
+      logins: ['alex'],
+      until: '2026-12-10',
+      ladder: 'full',
+      tick: { item: `task-${id}`, each, members: { alex: 'alex' } },
+    })
+    writeFileSync(
+      join(dist, 'trips/japan/deadlines.json'),
+      JSON.stringify({ timezone: 'Asia/Tokyo', deadlines: [task('vjw', false), task('visa', true)] }),
+    )
+    try {
+      const store = memoryStore()
+      const sent: string[] = []
+      const push = {
+        publicKey: 'key',
+        send: async (_: PushSubscription, message: PushMessage) => {
+          sent.push(message.tag ?? '')
+          return 'ok' as const
+        },
+      }
+      const now = Date.parse('2026-11-24T08:00:00Z')
+      const member = handler('Alex', store, () => now, push)
+      const cookies = await signIn(member)
+      const post = (path: string, body: unknown) =>
+        member(
+          new Request(`https://trips.example${path}`, {
+            method: 'POST',
+            headers: { Cookie: cookies },
+            body: JSON.stringify(body),
+          }),
+        )
+      await post('/api/push/subscribe', {
+        subscription: { endpoint: 'https://push.example/s', keys: { p256dh: 'p', auth: 'a' } },
+      })
+      await post('/api/me/reminders', { timeZone: 'Europe/Helsinki' })
+      // The shared task by anyone (`_`), the other by Alex themselves.
+      await post('/trips/japan/_packing', {
+        changes: [
+          { item: 'task-vjw', member: '_', packed: true, at: now },
+          { item: 'task-visa', member: 'robin', packed: true, at: now },
+        ],
+      })
+      await member.remind()
+      expect(sent).toEqual(['due:japan:task:visa'])
+      const bell = (await (
+        await member(new Request('https://trips.example/api/notifications', { headers: { Cookie: cookies } }))
+      ).json()) as { notifications: { id: string }[] }
+      expect(bell.notifications.map((n) => n.id).filter((id) => id.startsWith('due:'))).toEqual([
+        'due:task:visa:2026-11-24:0',
+      ])
+      await post('/trips/japan/_packing', {
+        changes: [{ item: 'task-visa', member: 'alex', packed: true, at: now + 1 }],
+      })
+      const after = (await (
+        await member(new Request('https://trips.example/api/notifications', { headers: { Cookie: cookies } }))
+      ).json()) as { notifications: { id: string }[] }
+      expect(after.notifications.filter((n) => n.id.startsWith('due:'))).toEqual([])
+    } finally {
+      rmSync(join(dist, 'trips/japan/deadlines.json'))
+    }
+  })
+
   it('doesn’t push what was already read in the bell before a browser said where they are', async () => {
     writeFileSync(
       join(dist, 'trips/japan/deadlines.json'),

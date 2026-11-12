@@ -17,7 +17,7 @@ import type { NotificationStore } from './notifications'
 import type { PhotoStore } from './photos'
 import type { PushStore } from './push'
 import { movedDueId, movedKey } from './reminders'
-import { MAX_TICKS, validChanges, type Ticks } from './packing'
+import { MAX_TICKS, tickItem, validChanges, type Ticks } from './packing'
 
 export interface Store extends AvatarStore, LinkStore, CommentStore, NotificationStore, PushStore, PhotoStore {
   /** The language an account chose, or null. */
@@ -247,10 +247,11 @@ export async function openStore(connectionString: string): Promise<Store> {
         let moved =
           (await client.query('update threads set anchor = $3 where trip = $1 and anchor = $2', [trip, from, to]))
             .rowCount ?? 0
-        // Packing ticks go by the item's id, the anchor without `packing:`; ticks
-        // already on the new id win.
-        if (from.startsWith('packing:') && to.startsWith('packing:')) {
-          const [was, now] = [from.slice(8), to.slice(8)]
+        // Ticks go by the item's id: a packing anchor without `packing:`, a
+        // task's as `task-<id>`; ticks already on the new id win.
+        const was = tickItem(from)
+        const now = tickItem(to)
+        if (was && now) {
           moved +=
             (
               await client.query(

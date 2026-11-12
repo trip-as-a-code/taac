@@ -124,7 +124,10 @@ tasks: # to do before, during or after the trip; the date says which
     who: [Robin]
     required: true # the trip can't go ahead without it: due by the start
     due: 2027-04-01
-    done: 2027-03-20 # omit while open
+    done: 2027-03-20 # or leave it out and tick it on the site, like packing
+  - title: Fill in the arrival form
+    who: [everyone]
+    each: true # everyone does it for themselves: ticked per person
 ideas: # proposals: anything that could become a plan, never booked or paid yet
   - title: Fado night in Alfama # no date: suggested on free days nearby
     who: [everyone] # like plans, ideas say who they're for

@@ -9,7 +9,7 @@
  */
 
 import type { Thread } from './comments'
-import { currentReminder, type DeadlineFile, type Reader } from './reminders'
+import { currentReminder, ticked, type DeadlineFile, type Reader } from './reminders'
 
 export interface NotificationStore {
   /** Epoch milliseconds read up to, or 0. */
@@ -122,9 +122,11 @@ export function deadlineEvents(
   login: string,
   now: number,
   reader: Reader,
+  ticks: Record<string, { packed: boolean }> = {},
 ): Notification[] {
   return file.deadlines.flatMap((d) => {
-    if (!d.logins.includes(login)) return []
+    // A task ticked done on the site no longer reminds.
+    if (!d.logins.includes(login) || ticked(d, login, ticks)) return []
     const reminder = currentReminder(d, now, file.timezone, reader)
     if (!reminder) return []
     return [

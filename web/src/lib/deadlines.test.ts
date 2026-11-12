@@ -94,6 +94,7 @@ describe('deadlines', () => {
         until: '2026-12-10',
         ladder: 'full',
         logins: ['alice', 'bob'],
+        tick: { item: 'task-vjw', each: undefined, members: { alice: 'a', bob: 'b' } },
       },
       {
         key: 'task:visa',
@@ -103,6 +104,7 @@ describe('deadlines', () => {
         until: '2027-01-13',
         ladder: 'full',
         logins: ['bob'],
+        tick: { item: 'task-visa', each: undefined, members: { bob: 'b' } },
       },
       {
         key: 'booking:item:tower',

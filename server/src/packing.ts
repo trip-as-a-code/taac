@@ -48,6 +48,16 @@ export function merge(ticks: Ticks, changes: unknown, now: number, by: string | 
   return applied
 }
 
+/**
+ * The ticks' item for an anchor: a packing item by its id, a task as
+ * `task-<id>` (one tick for everyone as member `_`, or one per member).
+ */
+export function tickItem(anchor: string): string | null {
+  if (anchor.startsWith('packing:')) return anchor.slice(8)
+  if (anchor.startsWith('task:')) return `task-${anchor.slice(5)}`
+  return null
+}
+
 /** `/trips/<slug>/_packing` → the slug. */
 export function packingSlug(path: string): string | null {
   const match = /^\/trips\/([^/]+)\/_packing$/.exec(path)

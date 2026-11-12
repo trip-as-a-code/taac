@@ -23,6 +23,16 @@ export interface Deadline {
   until?: string
   /** `light`: an idea's booking, only if it is chosen; `payment`: money charged later. */
   ladder: 'full' | 'light' | 'payment'
+  /** A task ticked on the site is done: the tick's item, whether each person ticks their own, and whose member id each login is. */
+  tick?: { item: string; each: boolean; members: Record<string, string> }
+}
+
+/** Whether a task's ticks say it's done for `login`: their own tick, or anyone's on a shared task. */
+export function ticked(deadline: Deadline, login: string, ticks: Record<string, { packed: boolean }>): boolean {
+  const tick = deadline.tick
+  if (!tick) return false
+  const member = tick.each ? tick.members[login] : '_'
+  return Boolean(member && ticks[`${tick.item}|${member}`]?.packed)
 }
 
 export interface DeadlineFile {

@@ -1342,6 +1342,10 @@
           "description": "The trip can't go ahead without it, such as a visa: due by the start at\nthe latest.",
           "type": "boolean"
         },
+        "each": {
+          "description": "Each of its people does it for themselves (a visa, an account): ticked\nper person on the site. Otherwise one tick by anyone of them does it.",
+          "type": "boolean"
+        },
         "due": {
           "description": "Get it done by this date.",
           "type": [
@@ -1351,7 +1355,7 @@
           "format": "date"
         },
         "done": {
-          "description": "When it got done; omitted means still open.",
+          "description": "When it got done; omitted means still open, to be ticked on the site.",
           "type": [
             "string",
             "null"

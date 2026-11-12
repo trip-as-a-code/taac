@@ -67,6 +67,7 @@ import {
   type Deadline,
   type DeadlineFile,
   type Reader,
+  ticked,
 } from './reminders'
 import { commentsRoute, MAX_THREADS, newComment, newId, validAnchor, validBody, type CommentsRoute } from './comments'
 import {
@@ -404,8 +405,10 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     for (const slug of manifest.slugs) {
       const file = await deadlinesOf(slug)
       if (!file?.deadlines.length) continue
+      const ticks = await store.ticks(slug)
       for (const login of Object.keys(manifest.trips[slug]?.roles ?? {})) {
-        const theirs = file.deadlines.filter((d) => d.logins.includes(login))
+        // A task ticked done on the site no longer reminds.
+        const theirs = file.deadlines.filter((d) => d.logins.includes(login) && !ticked(d, login, ticks))
         if (!theirs.length) continue
         const reader = await readerOf(login, file.timezone)
         if (!reader.known) continue
@@ -706,7 +709,14 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
             ...discussionEvents(slug, await store.threads(slug), login),
             ...changeEvents(slug, await changesOf(slug, manifest.defaultLocale), login),
             ...(deadlines
-              ? deadlineEvents(slug, deadlines, login, now, await readerOf(login, deadlines.timezone))
+              ? deadlineEvents(
+                  slug,
+                  deadlines,
+                  login,
+                  now,
+                  await readerOf(login, deadlines.timezone),
+                  await store.ticks(slug),
+                )
               : []),
           ]
         }),
