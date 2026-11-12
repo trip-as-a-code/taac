@@ -62,7 +62,7 @@ const example = [
       )}
       data-done-template={t('tasks.done')}
       data-ticked-by={t('packing.tickedBy')}
-      data-ticked-for={t('packing.tickedFor')}
+      data-done-for={t('tasks.doneFor')}
       data-done-by={t('tasks.doneBy')}
       data-not-yet={t('tasks.notYet')}
     >
@@ -234,15 +234,17 @@ const example = [
         row.querySelector('[data-task-status]')!.textContent =
           isDone && last ? d.doneTemplate!.replace('{date}', day(last.at)) : statusText.get(row)!
         const by = row.querySelector<HTMLElement>('[data-task-by]')!
+        // Only what is done, and by whom when someone did it for another;
+        // the buttons already show who hasn't.
         by.textContent = ticks
-          .filter((x) => x.by)
+          .filter((x) => x.by && x.packed)
           .map((x) =>
             x.m === SHARED
               ? d.tickedBy!.replace('{by}', ticker(x.by!))
               : // Their own: just that it's done; for someone else: who ticked it.
                 memberOf[x.by!.toLowerCase()] === x.m
-                ? (x.packed ? d.doneBy! : d.notYet!).replace('{name}', names[x.m] ?? x.m)
-                : d.tickedFor!.replace('{name}', names[x.m] ?? x.m).replace('{by}', ticker(x.by!)),
+                ? d.doneBy!.replace('{name}', names[x.m] ?? x.m)
+                : d.doneFor!.replace('{name}', names[x.m] ?? x.m).replace('{by}', ticker(x.by!)),
           )
           .join(' · ')
         by.hidden = !by.textContent

@@ -222,6 +222,7 @@ export const ru: Messages = {
   'tasks.open': 'Не сделано',
   'tasks.inFile': 'Отмечено в файлах поездки',
   'tasks.doneBy': '{name}: сделано',
+  'tasks.doneFor': '{name}: сделано, отметка от {by}',
   'tasks.notYet': '{name}: ещё нет',
   'tasks.required': 'Обязательно',
   'tasks.requiredHint': 'Без этого поездка не состоится',
