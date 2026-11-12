@@ -223,6 +223,7 @@ export const ru: Messages = {
   'tasks.inFile': 'Отмечено в файлах поездки',
   'tasks.doneBy': '{name}: сделано',
   'tasks.doneFor': '{name}: сделано, отметка от {by}',
+  'tasks.undoneFor': '{name}: не сделано, отметку снял(а) {by}',
   'tasks.notYet': '{name}: ещё нет',
   'tasks.required': 'Обязательно',
   'tasks.requiredHint': 'Без этого поездка не состоится',

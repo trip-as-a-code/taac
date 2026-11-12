@@ -25,7 +25,10 @@ describe('packing ticks', () => {
     merge(ticks, [{ item: 'adapter', member: 'a', packed: true, at: 1 }], 100, 'sam')
     expect(ticks['adapter|a']).toEqual({ packed: true, at: 1, by: 'sam' })
     merge(ticks, [{ item: 'adapter', member: 'a', packed: false, at: 2, by: 'forged' }], 100, 'alex')
-    expect(ticks['adapter|a']).toEqual({ packed: false, at: 2, by: 'alex' })
+    // An untick remembers whose tick it took back.
+    expect(ticks['adapter|a']).toEqual({ packed: false, at: 2, by: 'alex', undid: 'sam' })
+    merge(ticks, [{ item: 'adapter', member: 'a', packed: false, at: 3 }], 100, 'alex')
+    expect(ticks['adapter|a']).toEqual({ packed: false, at: 3, by: 'alex' })
   })
 
   it('ignores malformed and far-future changes', () => {

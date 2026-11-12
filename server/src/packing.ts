@@ -8,12 +8,14 @@ export interface Tick {
   at: number
   /** The GitHub login that set it, from the session; absent on a public site or for older ticks. */
   by?: string
+  /** On an untick: who had made the tick it took back. */
+  undid?: string
 }
 
 /** `item|member` → tick. */
 export type Ticks = Record<string, Tick>
 
-export interface Change extends Omit<Tick, 'by'> {
+export interface Change extends Omit<Tick, 'by' | 'undid'> {
   item: string
   member: string
 }
@@ -41,8 +43,10 @@ export function merge(ticks: Ticks, changes: unknown, now: number, by: string | 
   for (const c of validChanges(changes, now)) {
     const key = `${c.item}|${c.member}`
     if (!(key in ticks) && Object.keys(ticks).length >= MAX_TICKS) continue
-    if ((ticks[key]?.at ?? -1) >= c.at) continue
-    ticks[key] = { packed: c.packed, at: c.at, ...(by ? { by } : {}) }
+    const was = ticks[key]
+    if ((was?.at ?? -1) >= c.at) continue
+    const undid = !c.packed && was?.packed ? was.by : undefined
+    ticks[key] = { packed: c.packed, at: c.at, ...(by ? { by } : {}), ...(undid ? { undid } : {}) }
     applied++
   }
   return applied

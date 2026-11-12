@@ -8,12 +8,14 @@ export interface Tick {
   at: number
   /** Who set it: their GitHub login, stamped by the server. */
   by?: string
+  /** On an untick: who had made the tick it took back. */
+  undid?: string
 }
 
 /** `item|member` → tick. */
 export type Ticks = Record<string, Tick>
 
-interface Change extends Omit<Tick, 'by'> {
+interface Change extends Omit<Tick, 'by' | 'undid'> {
   item: string
   member: string
 }
@@ -71,7 +73,15 @@ export class PackingStore {
   login: string | null = null
 
   private record(item: string, member: string, packed: boolean, at: number) {
-    this.ticks[`${item}|${member}`] = { packed, at, ...(this.login ? { by: this.login } : {}) }
+    const was = this.ticks[`${item}|${member}`]
+    // An untick remembers whose tick it took back, as the server does.
+    const undid = !packed && was?.packed ? was.by : undefined
+    this.ticks[`${item}|${member}`] = {
+      packed,
+      at,
+      ...(this.login ? { by: this.login } : {}),
+      ...(undid ? { undid } : {}),
+    }
     this.pending = [...this.pending.filter((c) => c.item !== item || c.member !== member), { item, member, packed, at }]
   }
 

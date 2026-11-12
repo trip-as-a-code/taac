@@ -211,6 +211,7 @@ export const en = {
   'tasks.inFile': 'Done in the trip files',
   'tasks.doneBy': '{name}: done',
   'tasks.doneFor': '{name}: done, ticked by {by}',
+  'tasks.undoneFor': '{name}: not done, unticked by {by}',
   'tasks.notYet': '{name}: not yet',
   'tasks.required': 'Required',
   'tasks.requiredHint': 'The trip can’t go ahead without it',

@@ -88,11 +88,17 @@ export async function openStore(connectionString: string): Promise<Store> {
         packed: boolean
         at: string
         by_login: string | null
-      }>('select item, member, packed, at, by_login from packing_ticks where trip = $1', [trip])
+        undid_login: string | null
+      }>('select item, member, packed, at, by_login, undid_login from packing_ticks where trip = $1', [trip])
       return Object.fromEntries(
         rows.map((r) => [
           `${r.item}|${r.member}`,
-          { packed: r.packed, at: Number(r.at), ...(r.by_login ? { by: r.by_login } : {}) },
+          {
+            packed: r.packed,
+            at: Number(r.at),
+            ...(r.by_login ? { by: r.by_login } : {}),
+            ...(r.undid_login ? { undid: r.undid_login } : {}),
+          },
         ]),
       )
     },
@@ -113,7 +119,8 @@ export async function openStore(connectionString: string): Promise<Store> {
              select $1, $2, $3, $4, $5, $7 where $6 or exists (
                select 1 from packing_ticks where trip = $1 and item = $2 and member = $3)
              on conflict (trip, item, member) do update
-               set packed = excluded.packed, at = excluded.at, by_login = excluded.by_login
+               set packed = excluded.packed, at = excluded.at, by_login = excluded.by_login,
+                 undid_login = case when packing_ticks.packed and not excluded.packed then packing_ticks.by_login end
                where packing_ticks.at < excluded.at
              returning (xmax = 0) as inserted`,
             [trip, c.item, c.member, c.packed, c.at, count < MAX_TICKS, by],
@@ -255,8 +262,8 @@ export async function openStore(connectionString: string): Promise<Store> {
           moved +=
             (
               await client.query(
-                `insert into packing_ticks (trip, item, member, packed, at, by_login)
-                 select trip, $3, member, packed, at, by_login from packing_ticks where trip = $1 and item = $2
+                `insert into packing_ticks (trip, item, member, packed, at, by_login, undid_login)
+                 select trip, $3, member, packed, at, by_login, undid_login from packing_ticks where trip = $1 and item = $2
                  on conflict do nothing`,
                 [trip, was, now],
               )
