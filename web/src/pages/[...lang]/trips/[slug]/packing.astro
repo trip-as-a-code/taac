@@ -37,6 +37,9 @@ const whose = (members: string[]) => {
       data-logins={JSON.stringify(
         Object.fromEntries(trip.members.filter((m) => m.github).map((m) => [m.github!.toLowerCase(), m.name])),
       )}
+      data-member-of={JSON.stringify(
+        Object.fromEntries(trip.members.filter((m) => m.github).map((m) => [m.github!.toLowerCase(), m.id])),
+      )}
       data-packed={t('packing.packedBy')}
       data-unpacked={t('packing.notPackedBy')}
       data-ticked-by={t('packing.tickedBy')}
@@ -173,8 +176,8 @@ const whose = (members: string[]) => {
 
   /**
    * One shared list. With one person in the lens the boxes tick their
-   * things; otherwise a box ticks the only packer, and shared things tick per
-   * person on their avatars.
+   * things; otherwise a box ticks yours (signed in, as one of its packers),
+   * else the only packer's, and anyone's on their avatar.
    */
   function setup() {
     stop?.()
@@ -182,6 +185,7 @@ const whose = (members: string[]) => {
     if (!root) return
     const names = JSON.parse(root.dataset.names ?? '{}') as Record<string, string>
     const logins = JSON.parse(root.dataset.logins ?? '{}') as Record<string, string>
+    const memberOf = JSON.parse(root.dataset.memberOf ?? '{}') as Record<string, string>
     // The member a GitHub login belongs to, else `@username`.
     const ticker = (login: string) => logins[login] ?? `@${login}`
     const rows = [...root.querySelectorAll<HTMLElement>('[data-packing-row]')]
@@ -191,11 +195,15 @@ const whose = (members: string[]) => {
       const people = getLens().people
       return people.length === 1 ? people[0] : undefined
     }
-    // Whose tick a row's box is: the selected person's, or the only packer's.
+    // Whose tick a row's box is: the selected person's, else the signed-in
+    // member's if it's theirs to pack, else the only packer's.
     const owner = (row: HTMLElement) => {
       const packers = packersOf(row)
       const one = person()
-      return one ? (packers.includes(one) ? one : undefined) : packers.length === 1 ? packers[0] : undefined
+      if (one) return packers.includes(one) ? one : undefined
+      const me = store.login ? memberOf[store.login.toLowerCase()] : undefined
+      if (me && packers.includes(me)) return me
+      return packers.length === 1 ? packers[0] : undefined
     }
 
     function render() {
