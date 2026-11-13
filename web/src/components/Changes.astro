@@ -15,7 +15,8 @@ interface Props {
 
 const { trip, i18n } = Astro.props
 const { t, date, money, path } = i18n
-const sets = changes[trip.slug] ?? []
+// Sets kept only for their renames (`moves`) have nothing to show.
+const sets = (changes[trip.slug] ?? []).filter((set) => set.events.length > 0)
 const SHOWN = 6
 // Each author's circle, as everywhere else: the member's, else the GitHub account's.
 const byLogin = new Map(trip.members.filter((m) => m.github).map((m) => [m.github!.toLowerCase(), m]))
