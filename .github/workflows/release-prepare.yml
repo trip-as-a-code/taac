@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b
       - name: Batch changelog and bump versions
         id: bump
         env:
