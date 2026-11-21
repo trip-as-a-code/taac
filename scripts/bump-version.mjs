@@ -17,10 +17,10 @@ if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
 
 function replaceOnce(path, pattern, replacement) {
   const before = readFileSync(path, 'utf8')
-  const after = before.replace(pattern, replacement)
-  if (before === after) {
+  if (!pattern.test(before)) {
     throw new Error(`Expected pattern ${pattern} not found in ${path}`)
   }
+  const after = before.replace(pattern, replacement)
   writeFileSync(path, after)
 }
 
