@@ -1,0 +1,70 @@
+name: Prepare Release
+
+# Batches changie fragments, bumps Cargo/npm/Helm versions, and opens a Release PR.
+# Merging the PR (labeled `release`) triggers release-tag.yml -> release.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver bump (auto, patch, minor, major) or explicit version (e.g. 0.1.0)"
+        required: true
+        default: auto
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7
+      - name: Batch changelog and bump versions
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          changie batch "$BUMP"
+          changie merge
+          version="$(changie latest | sed 's/^v//')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          node scripts/bump-version.mjs "$version"
+          cargo update --workspace
+          npm install --package-lock-only --no-audit --no-fund
+      - name: Open Release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          branch="release/v${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add -A
+          git commit -m "chore(release): v${VERSION}"
+          git push --force-with-lease origin "$branch"
+
+          gh label create release --description "Release pull request" --color 0e8a16 --force
+          gh label create "no changelog" --description "Skip changelog check" --color cfd3d7 --force
+
+          body_file=".changes/v${VERSION}.md"
+          if [ ! -f "$body_file" ]; then
+            body_file=".changes/${VERSION}.md"
+          fi
+
+          if gh pr view "$branch" >/dev/null 2>&1; then
+            gh pr edit "$branch" --title "chore(release): v${VERSION}" --body-file "$body_file"
+          else
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore(release): v${VERSION}" \
+              --body-file "$body_file" \
+              --label release \
+              --label "no changelog"
+          fi

@@ -2,8 +2,14 @@ import { defineConfig } from 'astro/config'
 
 import { taac } from './src/integrations/taac'
 
+const extraAllowedHosts = (process.env.TAAC_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map((host) => host.trim())
+  .filter(Boolean)
+const allowedHosts = ['localhost', ...extraAllowedHosts]
+
 export default defineConfig({
-  // Static output only: the worker in front adds access control at the edge.
+  // Static output only: the server in front adds access control at the edge.
   output: 'static',
   trailingSlash: 'ignore',
   i18n: {
@@ -19,8 +25,8 @@ export default defineConfig({
     worker: { format: 'es' },
     // Pre-bundle the map up front, so a dev server never serves a stale copy.
     optimizeDeps: { include: ['maplibre-gl'] },
-    // Dev/preview run behind Coder's per-port subdomain proxy too.
-    server: { allowedHosts: ['localhost', 'localhost'] },
-    preview: { allowedHosts: ['localhost', 'localhost'] },
+    // Additional dev/preview hosts can be whitelisted via TAAC_ALLOWED_HOSTS (comma-separated).
+    server: { allowedHosts },
+    preview: { allowedHosts },
   },
 })

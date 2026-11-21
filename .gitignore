@@ -1,0 +1,21 @@
+# Build output
+target/
+dist/
+packages/core/pkg/
+web/.astro/
+web/dist/
+server/dist/
+
+# Dependencies
+node_modules/
+
+# Local secrets
+.env
+secrets.yaml
+*.secret.yaml
+
+# Tooling caches
+.task/
+
+# OS
+.DS_Store

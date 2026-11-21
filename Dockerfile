@@ -44,6 +44,7 @@ COPY web web
 COPY server server
 COPY examples examples
 COPY deploy/taac-site /usr/local/bin/taac-site
+COPY deploy/taac-dev /usr/local/bin/taac-dev
 RUN npm run build -w @taac/server \
  && taac-site /taac/examples/demo/site.yaml /srv/site
 

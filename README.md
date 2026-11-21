@@ -180,12 +180,16 @@ YAML to paste.
 
 ## CLI
 
+Install a prebuilt binary from [GitHub Releases](https://github.com/trip-as-a-code/taac/releases) (e.g. with
+[mise](https://mise.jdx.dev/): `mise use github:trip-as-a-code/taac`), or build from source (`cargo install taac-cli`
+once published on crates.io):
+
 ```sh
-cargo run -p taac-cli -- validate site.yaml            # or a trip file / directory
-cargo run -p taac-cli -- build site.yaml --out dist    # ICS, GeoJSON, Beancount, Markdown per trip
-cargo run -p taac-cli -- build site.yaml --reveal      # …with confidential values, for yourself only
-cargo run -p taac-cli -- export site.yaml              # the JSON the website renders
-cargo run -p taac-cli -- schema --out schema           # regenerate the JSON Schemas
+taac validate site.yaml            # or a trip file / directory
+taac build site.yaml --out dist    # ICS, GeoJSON, Beancount, Markdown per trip
+taac build site.yaml --reveal      # …with confidential values, for yourself only
+taac export site.yaml              # the JSON the website renders
+taac schema --out .taac/schema     # generate the JSON Schemas locally
 ```
 
 ## Deploy your own
@@ -198,10 +202,18 @@ taac ships two images: `ghcr.io/trip-as-a-code/taac` (the server, serving the de
    `fetch-depth: 0`, and no `.git` in `.dockerignore`): the overview's "Recent changes" and the "changed since your
    last visit" dots replay the last 30 commits that touched each trip. The token only names commit authors in a
    private repository.
-3. Run it anywhere:
+3. Preview locally without installing Rust or Node:
+   ```sh
+   docker run --rm -it -p 4321:4321 -v "$PWD:/site:ro" ghcr.io/trip-as-a-code/taac-builder:latest taac-dev /site/site.yaml
+   ```
+4. Run it anywhere:
    - Docker: [`deploy/compose.yaml`](deploy/compose.yaml) with Postgres (`TAAC_IMAGE=my-trips docker compose up`).
-   - Kubernetes: the Helm chart in [`deploy/helm/taac`](deploy/helm/taac) (Ingress or Gateway API, an existing
-     Secret, optionally a CloudNativePG cluster).
+   - Kubernetes: the Helm chart at `oci://ghcr.io/trip-as-a-code/charts/taac` (source in
+     [`deploy/helm/taac`](deploy/helm/taac), supporting Ingress or Gateway API, an existing Secret, and optionally a
+     CloudNativePG cluster).
+5. Reuse CI workflows from your trip repository:
+   - `trip-as-a-code/taac/.github/workflows/reusable-validate.yml@v0.1.0` — validate `site.yaml` on pull requests.
+   - `trip-as-a-code/taac/.github/workflows/reusable-site-image.yml@v0.1.0` — build and push your site image to GHCR.
 
 The server listens on `:8080` behind a TLS-terminating proxy that sets `X-Forwarded-Proto`. Its environment:
 
@@ -239,7 +251,7 @@ not plan. A new deploy is offered to open tabs when they regain focus.
 ## Development
 
 `task --list` shows everything; `task verify` mirrors CI (fmt, clippy, tests, schema freshness, eslint, astro check,
-vitest, build). Changes under `taac/` need a changelog fragment: `changie new`.
+vitest, build). User-facing changes need a changelog fragment: `changie new`.
 
 ## License
 

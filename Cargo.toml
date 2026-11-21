@@ -7,10 +7,14 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/trip-as-a-code/taac"
+homepage = "https://github.com/trip-as-a-code/taac"
+readme = "README.md"
+keywords = ["travel", "trip", "yaml", "itinerary", "cli"]
+categories = ["command-line-utilities"]
 rust-version = "1.88"
 
 [workspace.dependencies]
-taac-core = { path = "crates/taac-core" }
+taac-core = { path = "crates/taac-core", version = "0.1.0" }
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
 chrono-tz = "0.10"

@@ -1,0 +1,43 @@
+name: Validate Trip Site
+
+# Reusable workflow for trip repositories to validate site.yaml with the taac CLI.
+on:
+  workflow_call:
+    inputs:
+      site:
+        description: "Path to site.yaml (or a trip file/directory)"
+        required: false
+        default: site.yaml
+        type: string
+      taac-version:
+        description: "taac release tag (e.g. v0.1.0) or 'latest'"
+        required: false
+        default: latest
+        type: string
+    secrets:
+      taac-token:
+        description: "Optional GitHub token (only needed while trip-as-a-code/taac is private)"
+        required: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Download taac CLI
+        env:
+          GH_TOKEN: ${{ secrets.taac-token || secrets.GITHUB_TOKEN }}
+          TAAC_VERSION: ${{ inputs.taac-version }}
+        run: |
+          if [ "$TAAC_VERSION" = "latest" ]; then
+            gh release download --repo trip-as-a-code/taac --pattern "*x86_64-unknown-linux-gnu.tar.gz" --dir /tmp/taac-dl
+          else
+            gh release download "$TAAC_VERSION" --repo trip-as-a-code/taac --pattern "*x86_64-unknown-linux-gnu.tar.gz" --dir /tmp/taac-dl
+          fi
+          tar -xzf /tmp/taac-dl/taac-*.tar.gz -C /tmp/taac-dl --strip-components=1
+          install -m 0755 /tmp/taac-dl/taac /usr/local/bin/taac
+      - name: Validate ${{ inputs.site }}
+        run: taac validate "${{ inputs.site }}"

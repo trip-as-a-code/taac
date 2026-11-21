@@ -1,0 +1,6 @@
+#!/bin/sh
+# taac-dev <site.yaml>: runs the Astro dev server for a site file on 0.0.0.0:4321.
+set -eu
+site=$(realpath "$1")
+cd /taac
+exec env TAAC_SITE="$site" npm run dev -w @taac/web -- --host 0.0.0.0
