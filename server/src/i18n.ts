@@ -124,6 +124,9 @@ export interface PushStrings {
   due: Record<'booking' | 'payment' | 'task', string>
   /** What is past due, `{date}` being the deadline. */
   overdue: Record<'booking' | 'payment' | 'task', string>
+  /** Booking that opens `{day}` (“tomorrow”) at `{time}`, and once it has. */
+  opens: string
+  opened: string
 }
 
 const PUSH: Record<string, PushStrings> = {
@@ -141,6 +144,8 @@ const PUSH: Record<string, PushStrings> = {
       payment: 'Charged {date}? Add the amount',
       task: 'Task overdue since {date}',
     },
+    opens: 'Booking opens {day} at {time}',
+    opened: 'Booking opened at {time}',
   },
   ru: {
     thread: '{name}: новое обсуждение',
@@ -156,6 +161,8 @@ const PUSH: Record<string, PushStrings> = {
       payment: 'Списано {date}? Укажите сумму',
       task: 'Задача просрочена с {date}',
     },
+    opens: 'Бронирование откроется {day} в {time}',
+    opened: 'Бронирование открылось в {time}',
   },
 }
 

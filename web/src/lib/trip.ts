@@ -411,6 +411,7 @@ export function passItem(pass: Pass, until: string): RowItem {
       ? 'booked'
       : 'notRequired'
   const deadline = pass.shares.flatMap((s) => (s.status === 'required' && s.deadline ? [s.deadline] : [])).sort()[0]
+  const opens = pass.shares.flatMap((s) => (s.status === 'required' && s.opens ? [s.opens] : [])).sort()[0]
   const split = pass.shares.length > 1
   return {
     id: pass.id,
@@ -421,11 +422,12 @@ export function passItem(pass: Pass, until: string): RowItem {
     members: pass.members,
     party: pass.party,
     transport: pass.provider ? { carrier: pass.provider } : undefined,
-    booking: { status, deadline, hasReference: false },
+    booking: { status, deadline, opens, hasReference: false },
     bookings: split
       ? pass.shares.map((s) => ({
           status: s.status,
           deadline: s.deadline,
+          opens: s.opens,
           hasReference: false,
           members: s.members,
           costs: s.costs,

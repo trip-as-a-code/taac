@@ -7,7 +7,7 @@ use rust_decimal::Decimal;
 
 use crate::diagnostics::Diagnostic;
 use crate::loader::{EVERYONE, Site, Trip, within};
-use crate::model::{BookingStatus, Item, ItemKind, PlaceRef, Split};
+use crate::model::{BookingStatus, Item, ItemKind, Opens, PlaceRef, Split};
 
 pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
     let mut out = Vec::new();
@@ -110,6 +110,32 @@ struct Validator<'a> {
 impl Validator<'_> {
     fn error(&mut self, code: &'static str, item: Option<&str>, message: String) {
         self.push(Diagnostic::error(code, message), item);
+    }
+
+    /// Booking can open only before it is due, and before the day it's for.
+    fn opens(
+        &mut self,
+        item: Option<&str>,
+        opens: Option<Opens>,
+        deadline: Option<NaiveDate>,
+        day: Option<NaiveDate>,
+    ) {
+        let Some(opens) = opens.map(Opens::day) else {
+            return;
+        };
+        if deadline.is_some_and(|deadline| opens > deadline) {
+            self.error(
+                "booking.opens",
+                item,
+                "booking opens after its deadline".into(),
+            );
+        } else if day.is_some_and(|day| opens > day) {
+            self.error(
+                "booking.opens",
+                item,
+                "booking opens after the day it's for".into(),
+            );
+        }
     }
 
     fn warn(&mut self, code: &'static str, item: Option<&str>, message: String) {
@@ -351,6 +377,9 @@ impl Validator<'_> {
             }
             let everyone = trip.participants(item);
             for part in item.parts() {
+                if let Some(b) = &part.booking {
+                    self.opens(id, b.opens, b.deadline, Some(item.day()));
+                }
                 if let Some(who) = part.who {
                     self.who(&item.id, Some(who));
                     let outside: Vec<&str> = trip
@@ -485,6 +514,9 @@ impl Validator<'_> {
         let trip = self.trip;
         for idea in &trip.ideas {
             let id = Some(idea.id.as_str());
+            if let Some(b) = &idea.booking {
+                self.opens(id, b.opens, b.deadline, idea.day());
+            }
             if let Some(area) = idea.area.as_deref() {
                 match trip.places.get(area) {
                     None => self.error("idea.area", id, format!("unknown place `{area}`")),
@@ -1438,6 +1470,8 @@ impl Validator<'_> {
                 self.who(&pass.id, share.who.as_deref());
             }
             for share in pass.shares() {
+                let first = share.periods.iter().map(|p| p.from).min();
+                self.opens(id, share.opens, share.deadline, first);
                 if share.periods.is_empty() {
                     self.error("pass.periods", id, "needs at least one period".into());
                 }
@@ -2142,6 +2176,25 @@ ideas:
             ],
             "{d:?}"
         );
+    }
+
+    #[test]
+    fn booking_opens_before_it_is_due() {
+        let d = check_with(
+            "",
+            "  - { title: early, kind: activity, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00, who: [everyone],
+      booking: { status: required, opens: 2026-11-16T13:00:00+09:00, deadline: 2026-11-30 } }
+  - { title: late, kind: activity, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00, who: [everyone],
+      booking: { status: required, opens: 2026-12-02, deadline: 2026-12-01 } }
+  - { title: after, kind: activity, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00, who: [everyone],
+      bookings: [{ status: required, opens: 2027-01-02 }] }",
+        );
+        let at = |item: &str| {
+            d.iter()
+                .filter(|x| x.item.as_deref() == Some(item) && x.code == "booking.opens")
+                .count()
+        };
+        assert_eq!((at("early"), at("late"), at("after")), (0, 1, 1), "{d:?}");
     }
 
     #[test]

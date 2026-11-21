@@ -5,6 +5,7 @@ import {
   dayIn,
   movedDueId,
   movedKey,
+  openingWords,
   rungs,
   rungTime,
   stillTimely,
@@ -55,6 +56,28 @@ describe('reminders', () => {
     })
     expect(currentReminder(booking, at('2026-11-30T12:00:00Z'), 'Asia/Tokyo', helsinki)?.rung).toBe(-5)
     expect(currentReminder(booking, at('2026-12-21T12:00:00Z'), 'Asia/Tokyo', helsinki)).toBeNull()
+  })
+
+  it('waits for booking to open, then says so the day before and as it opens', () => {
+    // Sold from midnight in Tokyo: 17:00 the day before in Helsinki.
+    const sky = { ...booking, date: '2026-11-28', until: '2026-12-12', opens: '2026-11-28' }
+    const opening: Deadline = { ...sky, key: 'booking:item:tower:opens', ladder: 'opens', until: undefined }
+    expect(rungs(opening)).toEqual([1, 0])
+    expect(rungTime(opening, 1, 'Asia/Tokyo', helsinki)).toBe(at('2026-11-26T07:00:00Z'))
+    expect(rungTime(opening, 0, 'Asia/Tokyo', helsinki)).toBe(at('2026-11-27T15:00:00Z'))
+    expect(currentReminder(opening, at('2026-11-27T16:00:00Z'), 'Asia/Tokyo', helsinki)?.rung).toBe(0)
+    // Nothing to book yet: the booking's own rungs before it opens don't remind.
+    expect(currentReminder(sky, at('2026-11-27T12:00:00Z'), 'Asia/Tokyo', helsinki)).toBeNull()
+    expect(currentReminder(sky, at('2026-11-28T08:00:00Z'), 'Asia/Tokyo', helsinki)?.rung).toBe(0)
+    const timed = { ...sky, opens: '2026-11-16T13:00:00+09:00' }
+    expect(currentReminder(timed, at('2026-11-16T03:00:00Z'), 'Asia/Tokyo', helsinki)).toBeNull()
+    // The two-week rung came before it opened; the opening said it, and the next rung follows.
+    expect(currentReminder(timed, at('2026-11-16T05:00:00Z'), 'Asia/Tokyo', helsinki)).toBeNull()
+    expect(currentReminder(timed, at('2026-11-21T08:00:00Z'), 'Asia/Tokyo', helsinki)?.rung).toBe(7)
+    expect(openingWords(at('2026-11-27T15:00:00Z'), at('2026-11-26T07:00:00Z'), 'en', 'Europe/Helsinki')).toEqual({
+      day: 'tomorrow',
+      time: '17:00',
+    })
   })
 
   it('pushes early rungs only on their day, the urgent ones whenever', () => {

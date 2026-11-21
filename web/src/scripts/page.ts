@@ -191,6 +191,24 @@ export function renderRelativeDates(root: ParentNode = document) {
     el.textContent = (el.dataset.template ?? '{rel}').replace('{rel}', rel)
     el.dataset.days = String(days)
   }
+  renderOpenings(root)
+}
+
+/**
+ * `<time data-opens-at="2026-11-27T15:00:00.000Z" data-template="Opens {when}">`
+ * → "Opens Nov 28, 00:00" where the reader is, until it has opened.
+ */
+export function renderOpenings(root: ParentNode = document) {
+  const lang = document.documentElement.lang
+  for (const el of root.querySelectorAll<HTMLElement>('[data-opens-at]')) {
+    const at = Date.parse(el.dataset.opensAt!)
+    el.hidden = Date.now() >= at
+    const timed = el.hasAttribute('data-timed')
+      ? ({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } as const)
+      : {}
+    const when = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', ...timed }).format(at)
+    el.textContent = (el.dataset.template ?? '{when}').replace('{when}', when)
+  }
 }
 
 /** What depends on the day: shown from (`data-show-from`) or until (`data-show-until`) a date. */

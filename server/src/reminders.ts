@@ -21,8 +21,13 @@ export interface Deadline {
   logins: string[]
   /** No reminders after this day, once it no longer matters; the deadline itself if absent. */
   until?: string
-  /** `light`: an idea's booking, only if it is chosen; `payment`: money charged later. */
-  ladder: 'full' | 'light' | 'payment'
+  /** `light`: an idea's booking, only if it is chosen; `payment`: money charged later; `opens`: when booking opens. */
+  ladder: 'full' | 'light' | 'payment' | 'opens'
+  /**
+   * Can't be booked before this: a day where the trip is, or an RFC 3339 time.
+   * A booking's ladder starts then; an `opens` one says the day before and as it opens.
+   */
+  opens?: string
   /** A task ticked on the site is done: the tick's item, whether each person ticks their own, and whose member id each login is. */
   tick?: { item: string; each: boolean; members: Record<string, string> }
 }
@@ -48,8 +53,9 @@ const BEFORE: Record<Deadline['ladder'], number[]> = {
   full: [30, 14, 7, 3, 2, 1, 0],
   light: [7, 1],
   payment: [7, 3, 1, 0],
+  opens: [1, 0],
 }
-const AFTER: Record<Deadline['ladder'], number[]> = { full: [1, 3, 5, 7], light: [], payment: [1, 7] }
+const AFTER: Record<Deadline['ladder'], number[]> = { full: [1, 3, 5, 7], light: [], payment: [1, 7], opens: [] }
 
 const DAY = 86_400_000
 
@@ -128,12 +134,36 @@ export interface Reader {
  * the trip is: a day earlier when their morning comes too late.
  */
 export function rungTime(deadline: Deadline, rung: number, tripZone: string, reader: Reader): number {
+  const opens = opensAt(deadline, tripZone)
+  // As booking opens, and the reader's morning the day before, where they are.
+  if (deadline.ladder === 'opens' && opens !== undefined)
+    return rung === 0
+      ? opens
+      : zonedTime(addDays(dayIn(opens, reader.timeZone), -rung), reader.remindAt, reader.timeZone)
   let at = zonedTime(addDays(deadline.date, -rung), reader.remindAt, reader.timeZone)
   if (rung >= 0) {
     const ends = zonedTime(addDays(deadline.date, 1), '00:00', tripZone)
     while (at >= ends) at -= DAY
   }
   return at
+}
+
+/** The instant booking opens, if it waits: a day opens at midnight where the trip is. */
+export function opensAt(deadline: Deadline, tripZone: string): number | undefined {
+  const opens = deadline.opens
+  if (!opens) return undefined
+  return opens.length === 10 ? zonedTime(opens, '00:00', tripZone) : Date.parse(opens)
+}
+
+/** "tomorrow" and "17:00": the day booking opens from `now`, and its time, where the reader is. */
+export function openingWords(opens: number, now: number, lang: string, timeZone: string) {
+  const days = daysBetween(dayIn(now, timeZone), dayIn(opens, timeZone))
+  return {
+    day: new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(days, 'day'),
+    time: new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(
+      opens,
+    ),
+  }
 }
 
 export interface Reminder {
@@ -145,9 +175,11 @@ export interface Reminder {
 export function currentReminder(deadline: Deadline, now: number, tripZone: string, reader: Reader): Reminder | null {
   if (now >= zonedTime(addDays(deadline.until ?? deadline.date, 1), '00:00', reader.timeZone)) return null
   let found: Reminder | null = null
+  // Nothing to book yet before it opens: those rungs don't remind.
+  const opens = deadline.ladder === 'opens' ? undefined : opensAt(deadline, tripZone)
   for (const rung of rungs(deadline)) {
     const at = rungTime(deadline, rung, tripZone, reader)
-    if (at <= now) found = { rung, at }
+    if (at <= now && (opens === undefined || at >= opens)) found = { rung, at }
   }
   return found
 }

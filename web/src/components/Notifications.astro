@@ -38,6 +38,8 @@ const people = Object.fromEntries(
     markUnread: t('notifications.markUnread'),
     today: t('notifications.today'),
     yesterday: t('notifications.yesterday'),
+    opens: t('notifications.opens'),
+    opened: t('notifications.opened'),
     ...Object.fromEntries(
       (['booking', 'payment', 'task'] as const).flatMap((kind) => [
         [`due.${kind}`, t(`notifications.due.${kind}`)],

@@ -6,6 +6,7 @@ import Debts from '@/components/Debts.astro'
 import Icon from '@/components/Icon.astro'
 import ThreadButton from '@/components/ThreadButton.astro'
 import Money from '@/components/Money.astro'
+import Opens from '@/components/Opens.astro'
 import type { I18n } from '@/i18n'
 import { isLabelled, issuesOf, itemFacts } from '@/lib/facts'
 import { photoOf, photoSrc } from '@/lib/photos'
@@ -214,6 +215,9 @@ const offsetLabel =
                 {t(`status.${item.booking.status}`)}
               </span>
             )}
+        {item.booking.status === 'required' && item.booking.opens && (
+          <Opens trip={trip} opens={item.booking.opens} i18n={i18n} />
+        )}
         {item.booking.status === 'required' && item.booking.deadline && !dueShown && (
           <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />
         )}

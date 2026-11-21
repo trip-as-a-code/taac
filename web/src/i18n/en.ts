@@ -320,6 +320,7 @@ export const en = {
   'bookings.noDeadline': 'No deadline',
   'bookings.by': 'By {date}',
   'bookings.due': 'Due {rel}',
+  'bookings.opens': 'Opens {when}',
   'bookings.overdue': 'Overdue · was due {rel}',
   'bookings.none': 'Nothing on this trip needs booking.',
 
@@ -521,6 +522,8 @@ export const en = {
   'notifications.overdue.booking': 'Booking overdue since {date}',
   'notifications.overdue.payment': 'Charged {date}? Add the amount',
   'notifications.overdue.task': 'Task overdue since {date}',
+  'notifications.opens': 'Booking opens {day} at {time}',
+  'notifications.opened': 'Booking opened at {time}',
   'settings.kindsNote':
     'For your account: in the bell and in browser notifications, in the language you chose at the top.',
 

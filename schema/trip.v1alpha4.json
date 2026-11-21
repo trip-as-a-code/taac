@@ -692,6 +692,17 @@
           ],
           "format": "date"
         },
+        "opens": {
+          "description": "Can't be booked before this: a date, or RFC 3339 with the offset of\nwhere it is sold when sales open at a set time.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opens"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "provider": {
           "type": [
             "string",
@@ -736,6 +747,19 @@
         }
       ]
     },
+    "Opens": {
+      "description": "When booking opens: from the start of a day where it is sold, or from a\nset time.",
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
     "Secret": {
       "description": "A confidential value, resolved by name from `.env`, `secrets.yaml` or the\nenvironment. Only local builds run with `--reveal` ever see it.",
       "type": "object",
@@ -774,6 +798,17 @@
             "null"
           ],
           "format": "date"
+        },
+        "opens": {
+          "description": "Can't be booked before this: a date, or RFC 3339 with the offset of\nwhere it is sold when sales open at a set time.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opens"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "provider": {
           "type": [
@@ -1514,6 +1549,17 @@
             "null"
           ],
           "format": "date"
+        },
+        "opens": {
+          "description": "Can't be booked before this: a date, or RFC 3339 with the offset of\nwhere it is sold when sales open at a set time.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opens"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "reference": {
           "description": "Confirmation number. Never published.",

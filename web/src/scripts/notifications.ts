@@ -25,6 +25,8 @@ interface Notification {
   /** What is due: its date, and days from it of the latest reminder (negative once past). */
   due?: string
   rung?: number
+  /** When booking opens, for a reminder that it does (epoch ms). */
+  opens?: number
 }
 
 interface Person {
@@ -143,8 +145,21 @@ function daysUntil(date: string): number {
   return Math.round((Date.parse(`${date}T00:00:00Z`) - today) / 86_400_000)
 }
 
-/** "Booking due tomorrow", "Task overdue since Oct 31". */
+/** "Booking due tomorrow", "Task overdue since Oct 31", "Booking opens tomorrow at 17:00". */
 function duePhrase(n: Notification, ctx: Context): string {
+  if (n.opens !== undefined) {
+    const opens = new Date(n.opens)
+    const day = new Intl.RelativeTimeFormat(ctx.lang, { numeric: 'auto' }).format(
+      daysUntil(
+        `${opens.getFullYear()}-${String(opens.getMonth() + 1).padStart(2, '0')}-${String(opens.getDate()).padStart(2, '0')}`,
+      ),
+      'day',
+    )
+    const time = new Intl.DateTimeFormat(ctx.lang, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(
+      opens,
+    )
+    return ctx.strings[Date.now() < n.opens ? 'opens' : 'opened']!.replace('{day}', day).replace('{time}', time)
+  }
   const days = daysUntil(n.due!)
   const date = new Intl.DateTimeFormat(ctx.lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
     Date.parse(n.due!),
@@ -158,7 +173,7 @@ function dueParts(n: Notification, ctx: Context, title: string | undefined, trip
   const days = daysUntil(n.due!)
   const avatar = document.createElement('span')
   avatar.className = 'avatar due'
-  avatar.dataset.due = days < 0 ? 'past' : days <= 3 ? 'soon' : 'later'
+  avatar.dataset.due = n.opens !== undefined ? 'soon' : days < 0 ? 'past' : days <= 3 ? 'soon' : 'later'
   avatar.append(ctx.root.querySelector<HTMLTemplateElement>('[data-due-icon]')!.content.cloneNode(true))
   const what = document.createElement('span')
   what.className = 'subhead title'

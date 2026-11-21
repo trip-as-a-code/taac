@@ -151,6 +151,18 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
           el.textContent = (el.dataset.template ?? '{rel}').replace('{rel}', rel)
           el.dataset.days = String(days)
         }
+        // Booking that opens later: in the reader's time, until it has.
+        for (const el of document.querySelectorAll('[data-opens-at]')) {
+          const at = Date.parse(el.dataset.opensAt)
+          el.hidden = Date.now() >= at
+          const timed = el.hasAttribute('data-timed') ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}
+          const when = new Intl.DateTimeFormat(document.documentElement.lang, {
+            day: 'numeric',
+            month: 'short',
+            ...timed,
+          }).format(at)
+          el.textContent = (el.dataset.template ?? '{when}').replace('{when}', when)
+        }
       })()
     </script>
     <PhotoViewer lang={lang} />

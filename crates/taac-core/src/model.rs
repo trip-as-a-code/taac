@@ -770,6 +770,10 @@ pub struct PassBooking {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
     pub deadline: Option<NaiveDate>,
+    /// Can't be booked before this: a date, or RFC 3339 with the offset of
+    /// where it is sold when sales open at a set time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opens: Option<Opens>,
     /// Confirmation number. Never published.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<Secret>,
@@ -786,6 +790,7 @@ pub struct PassShare<'a> {
     pub costs: &'a [Cost],
     pub status: BookingStatus,
     pub deadline: Option<NaiveDate>,
+    pub opens: Option<Opens>,
 }
 
 impl Pass {
@@ -800,6 +805,7 @@ impl Pass {
                     .as_ref()
                     .map_or(BookingStatus::NotRequired, |b| b.status),
                 deadline: self.booking.as_ref().and_then(|b| b.deadline),
+                opens: self.booking.as_ref().and_then(|b| b.opens),
             }];
         }
         self.bookings
@@ -814,6 +820,7 @@ impl Pass {
                 costs: &b.costs,
                 status: b.status.unwrap_or(BookingStatus::NotRequired),
                 deadline: b.deadline,
+                opens: b.opens,
             })
             .collect()
     }
@@ -847,6 +854,10 @@ pub struct Booking {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
     pub deadline: Option<NaiveDate>,
+    /// Can't be booked before this: a date, or RFC 3339 with the offset of
+    /// where it is sold when sales open at a set time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opens: Option<Opens>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -854,6 +865,25 @@ pub struct Booking {
     /// Confirmation number / PNR. Never published.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<Secret>,
+}
+
+/// When booking opens: from the start of a day where it is sold, or from a
+/// set time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Opens {
+    Day(#[schemars(with = "String", extend("format" = "date"))] NaiveDate),
+    At(#[schemars(with = "String", extend("format" = "date-time"))] DateTime<FixedOffset>),
+}
+
+impl Opens {
+    /// The day it opens, where it is sold.
+    pub fn day(self) -> NaiveDate {
+        match self {
+            Self::Day(day) => day,
+            Self::At(at) => at.date_naive(),
+        }
+    }
 }
 
 /// One of several reservations behind a plan.
@@ -869,6 +899,10 @@ pub struct Reservation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
     pub deadline: Option<NaiveDate>,
+    /// Can't be booked before this: a date, or RFC 3339 with the offset of
+    /// where it is sold when sales open at a set time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opens: Option<Opens>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -886,6 +920,7 @@ impl Reservation {
         Booking {
             status: self.status,
             deadline: self.deadline,
+            opens: self.opens,
             provider: self.provider.clone(),
             url: self.url.clone(),
             reference: self.reference.clone(),
@@ -917,6 +952,11 @@ pub fn summarize(reservations: &[Reservation]) -> Option<Booking> {
             .filter(|r| r.status == BookingStatus::Required)
             .filter_map(|r| r.deadline)
             .min(),
+        opens: reservations
+            .iter()
+            .filter(|r| r.status == BookingStatus::Required)
+            .filter_map(|r| r.opens)
+            .min_by_key(|o| o.day()),
         provider: first.provider.clone(),
         url: reservations
             .iter()

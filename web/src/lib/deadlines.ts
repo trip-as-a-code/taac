@@ -13,7 +13,9 @@ export interface Deadline {
   date: string
   logins: string[]
   until?: string
-  ladder: 'full' | 'light' | 'payment'
+  ladder: 'full' | 'light' | 'payment' | 'opens'
+  /** Can't be booked before this: a day where the trip is, or an RFC 3339 time. */
+  opens?: string
   /** A task ticked on the site is done: the tick's item, whether each person ticks their own, and whose member id each login is. */
   tick?: { item: string; each: boolean; members: Record<string, string> }
 }
@@ -52,6 +54,21 @@ export function deadlines(trip: TripExport): Deadline[] {
         )
     })
 
+  // A booking still to make that can't be made yet: its ladder waits for it to
+  // open, and another says the day before and as it opens.
+  const booking = (
+    d: Omit<Deadline, 'logins' | 'kind' | 'ladder'> & { ladder?: Deadline['ladder'] },
+    members: string[],
+    opens?: string,
+  ) => {
+    if (opens)
+      add(
+        { key: `${d.key}:opens`, kind: 'booking', anchor: d.anchor, date: opens.slice(0, 10), opens, ladder: 'opens' },
+        members,
+      )
+    if (d.date) add({ ladder: 'full', ...d, kind: 'booking', ...(opens ? { opens } : {}) }, members)
+  }
+
   for (const task of trip.tasks) {
     const date = task.done ? undefined : (task.due ?? (task.required ? trip.startDate : undefined))
     if (!date) continue
@@ -76,16 +93,14 @@ export function deadlines(trip: TripExport): Deadline[] {
     const until = item.local.date
     if (item.bookings?.length)
       item.bookings.forEach((b, index) => {
-        if (b.status === 'required' && b.deadline)
-          add(
-            { key: `booking:${anchor}:${index}`, kind: 'booking', anchor, date: b.deadline, until, ladder: 'full' },
-            b.members,
-          )
+        if (b.status === 'required')
+          booking({ key: `booking:${anchor}:${index}`, anchor, date: b.deadline ?? '', until }, b.members, b.opens)
       })
-    else if (item.booking.status === 'required' && item.booking.deadline)
-      add(
-        { key: `booking:${anchor}`, kind: 'booking', anchor, date: item.booking.deadline, until, ladder: 'full' },
+    else if (item.booking.status === 'required')
+      booking(
+        { key: `booking:${anchor}`, anchor, date: item.booking.deadline ?? '', until },
         item.members,
+        item.booking.opens,
       )
     payments(anchor, item.costs)
   }
@@ -93,10 +108,11 @@ export function deadlines(trip: TripExport): Deadline[] {
     const anchor = `pass:${pass.id}`
     pass.shares.forEach((share, index) => {
       const until = share.periods.map((p) => p.from).sort()[0]
-      if (share.status === 'required' && share.deadline)
-        add(
-          { key: `booking:${anchor}:${index}`, kind: 'booking', anchor, date: share.deadline, until, ladder: 'full' },
+      if (share.status === 'required')
+        booking(
+          { key: `booking:${anchor}:${index}`, anchor, date: share.deadline ?? '', until },
           share.members,
+          share.opens,
         )
       payments(anchor, share.costs, `${anchor}:${index}`)
     })
@@ -104,16 +120,38 @@ export function deadlines(trip: TripExport): Deadline[] {
   // An idea whose choice plans settled is not going to be booked.
   const settled = new Set(trip.choices.filter((c) => c.settledBy.length >= c.pick).map((c) => c.id))
   for (const idea of trip.ideas)
-    if (idea.booking?.status === 'required' && idea.booking.deadline && !(idea.choice && settled.has(idea.choice)))
-      add(
+    if (idea.booking?.status === 'required' && !(idea.choice && settled.has(idea.choice)))
+      booking(
         {
           key: `booking:idea:${idea.id}`,
-          kind: 'booking',
           anchor: `idea:${idea.id}`,
-          date: idea.booking.deadline,
+          date: idea.booking.deadline ?? '',
           ladder: 'light',
         },
         idea.members,
+        idea.booking.opens,
       )
   return out
+}
+
+/** The instant booking opens: a day opens at midnight where the trip is. */
+export function opensAt(opens: string, timeZone: string): Date {
+  if (opens.length !== 10) return new Date(opens)
+  const wall = Date.parse(`${opens}T00:00:00Z`)
+  const shown = (at: number) =>
+    Date.parse(
+      new Intl.DateTimeFormat('sv-SE', {
+        timeZone,
+        hourCycle: 'h23',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+        .format(at)
+        .replace(' ', 'T') + ':00Z',
+    )
+  const guess = wall - (shown(wall) - wall)
+  return new Date(wall - (shown(guess) - guess))
 }

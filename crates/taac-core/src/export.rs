@@ -11,8 +11,8 @@ use crate::diagnostics::Diagnostic;
 use crate::generators;
 use crate::loader::{Site, Trip};
 use crate::model::{
-    Booking, BookingStatus, Cost, Cover, DayPart, Group, IdeaDuration, ItemKind, Member, Place,
-    Priority, Source, SourceRepo, Text, Transport,
+    Booking, BookingStatus, Cost, Cover, DayPart, Group, IdeaDuration, ItemKind, Member, Opens,
+    Place, Priority, Source, SourceRepo, Text, Transport,
 };
 
 #[derive(Debug, Serialize)]
@@ -253,6 +253,9 @@ pub struct BookingExport {
     pub status: BookingStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deadline: Option<NaiveDate>,
+    /// Not bookable before this: a date where it is sold, or an RFC 3339 time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opens: Option<Opens>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -374,6 +377,8 @@ pub struct PassShareExport {
     pub status: crate::model::BookingStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deadline: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opens: Option<Opens>,
     /// Also budget lines with `item` = the pass's id.
     pub costs: Vec<CostExport>,
 }
@@ -575,6 +580,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     BookingExport {
                         status: BookingStatus::NotRequired,
                         deadline: None,
+                        opens: None,
                         provider: None,
                         url: None,
                         has_reference: false,
@@ -816,6 +822,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                                 periods: share.periods.to_vec(),
                                 status: share.status,
                                 deadline: share.deadline,
+                                opens: share.opens,
                                 costs: cost_exports(trip, share.costs, &people),
                             }
                         })
@@ -986,6 +993,7 @@ fn booking_export(b: &Booking) -> BookingExport {
     BookingExport {
         status: b.status,
         deadline: b.deadline,
+        opens: b.opens,
         provider: b.provider.clone(),
         url: b.url.clone(),
         has_reference: b.reference.is_some(),

@@ -58,6 +58,8 @@ import {
 } from './notifications'
 import {
   currentReminder,
+  openingWords,
+  opensAt,
   dayIn,
   DEFAULT_REMIND_AT,
   rungTime,
@@ -376,15 +378,26 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     lang: string,
     now: number,
     reader: Reader,
+    tripZone: string,
   ): Promise<PushMessage> {
     const trip = await describeTrip(slug, lang)
     const strings = pushStrings(lang)
+    const target = trip?.targets[d.anchor]
+    const opens = d.ladder === 'opens' ? opensAt(d, tripZone) : undefined
+    if (opens !== undefined) {
+      const { day, time } = openingWords(opens, now, lang, reader.timeZone)
+      return {
+        title: target?.title ?? trip?.title ?? slug,
+        body: (now < opens ? strings.opens : strings.opened).replace('{day}', day).replace('{time}', time),
+        url: target?.href ?? `/trips/${slug}/`,
+        tag: `due:${slug}:${d.key}`,
+      }
+    }
     const days = Math.round((Date.parse(d.date) - Date.parse(dayIn(now, reader.timeZone))) / 86_400_000)
     const date = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(
       Date.parse(d.date),
     )
     const rel = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(days, 'day')
-    const target = trip?.targets[d.anchor]
     return {
       title: target?.title ?? trip?.title ?? slug,
       body: (days < 0 ? strings.overdue : strings.due)[d.kind].replace('{rel}', rel).replace('{date}', date),
@@ -433,7 +446,7 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
         const lang = await store.userLang(login)
         for (const sub of await store.subscriptionsFor([login]))
           for (const d of due) {
-            const result = await push.send(sub, await dueMessage(slug, d, lang ?? sub.lang, now, reader))
+            const result = await push.send(sub, await dueMessage(slug, d, lang ?? sub.lang, now, reader, file.timezone))
             if (result === 'gone') {
               await store.removeSubscription(sub.endpoint)
               break

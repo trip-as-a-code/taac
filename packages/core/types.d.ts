@@ -143,6 +143,8 @@ export interface Cost {
 export interface Booking {
   status: BookingStatus
   deadline?: ISODate
+  /** Not bookable before this: a day where it is sold, or an RFC 3339 time. */
+  opens?: ISODate | string
   provider?: string
   url?: string
   hasReference: boolean
@@ -266,6 +268,7 @@ export interface PassShare {
   periods: { from: ISODate; to: ISODate }[]
   status: BookingStatus
   deadline?: ISODate
+  opens?: ISODate | string
   /** Also budget lines with `item` = the pass's id. */
   costs: Cost[]
 }

@@ -1,0 +1,40 @@
+---
+// "Opens Nov 27, 17:00": until booking opens, in the reader's own time once
+// the page runs; gone once it has.
+import type { TripExport } from '@taac/core'
+import type { I18n } from '@/i18n'
+import { opensAt } from '@/lib/deadlines'
+
+interface Props {
+  trip: TripExport
+  opens: string
+  i18n: I18n
+}
+
+const { trip, opens, i18n } = Astro.props
+const at = opensAt(opens, trip.timezone)
+const when = new Intl.DateTimeFormat(i18n.lang, {
+  day: 'numeric',
+  month: 'short',
+  ...(opens.length === 10 ? {} : { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+  timeZone: trip.timezone,
+}).format(at)
+const template = i18n.t('bookings.opens')
+---
+
+<time
+  class="footnote opens"
+  datetime={at.toISOString()}
+  data-opens-at={at.toISOString()}
+  data-template={template}
+  data-timed={opens.length === 10 ? undefined : ''}
+>
+  {template.replace('{when}', when)}
+</time>
+
+<style>
+  .opens {
+    color: var(--indigo);
+    font-weight: 500;
+  }
+</style>

@@ -9,7 +9,7 @@
  */
 
 import type { Thread } from './comments'
-import { currentReminder, ticked, type DeadlineFile, type Reader } from './reminders'
+import { currentReminder, opensAt, ticked, type DeadlineFile, type Reader } from './reminders'
 
 export interface NotificationStore {
   /** Epoch milliseconds read up to, or 0. */
@@ -46,6 +46,8 @@ export interface Notification {
   due?: string
   /** Days from the deadline of its latest reminder: before it (positive) or after (negative). */
   rung?: number
+  /** When booking opens, for a reminder that it does (epoch ms). */
+  opens?: number
 }
 
 export const NOTIFICATION_LIMIT = 50
@@ -141,6 +143,7 @@ export function deadlineEvents(
         at: reminder.at,
         due: d.date,
         rung: reminder.rung,
+        ...(d.ladder === 'opens' ? { opens: opensAt(d, file.timezone) } : {}),
       },
     ]
   })

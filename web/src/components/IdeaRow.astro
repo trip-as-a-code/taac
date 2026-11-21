@@ -5,6 +5,7 @@ import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import ThreadButton from '@/components/ThreadButton.astro'
 import Money from '@/components/Money.astro'
+import Opens from '@/components/Opens.astro'
 import type { I18n } from '@/i18n'
 import { ideaFacts, isLabelled, issuesOf } from '@/lib/facts'
 import { sourceHref, sourceLabel } from '@/lib/source'
@@ -90,6 +91,9 @@ const hasDetails = Boolean(
           <span class="badge" data-tone={statusTone.required}>
             {t('status.required')}
           </span>
+        )}
+        {!notChosen && idea.booking?.status === 'required' && idea.booking.opens && (
+          <Opens trip={trip} opens={idea.booking.opens} i18n={i18n} />
         )}
         {!notChosen && idea.booking?.status === 'required' && idea.booking.deadline && (
           <time class="footnote deadline" data-relative={idea.booking.deadline} data-template={t('bookings.due')} />

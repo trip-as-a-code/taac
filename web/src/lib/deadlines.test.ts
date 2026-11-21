@@ -1,7 +1,7 @@
 import type { TripExport } from '@taac/core'
 import { describe, expect, it } from 'vitest'
 
-import { deadlines } from './deadlines'
+import { deadlines, opensAt } from './deadlines'
 
 const cost = (extra: object) => ({
   amount: 10,
@@ -151,5 +151,46 @@ describe('deadlines', () => {
         logins: ['alice', 'bob'],
       },
     ])
+  })
+
+  it('waits for booking to open, and says when it does', () => {
+    const sky = {
+      ...trip,
+      tasks: [],
+      passes: [],
+      ideas: [],
+      items: [
+        {
+          id: 'sky',
+          local: { date: '2026-12-12' },
+          members: ['a'],
+          booking: { status: 'required', deadline: '2026-11-28', opens: '2026-11-28', hasReference: false },
+          costs: [],
+        },
+      ],
+    } as unknown as TripExport
+    expect(deadlines(sky)).toEqual([
+      {
+        key: 'booking:item:sky:opens',
+        kind: 'booking',
+        anchor: 'item:sky',
+        date: '2026-11-28',
+        opens: '2026-11-28',
+        ladder: 'opens',
+        logins: ['alice'],
+      },
+      {
+        key: 'booking:item:sky',
+        kind: 'booking',
+        anchor: 'item:sky',
+        date: '2026-11-28',
+        until: '2026-12-12',
+        ladder: 'full',
+        opens: '2026-11-28',
+        logins: ['alice'],
+      },
+    ])
+    expect(opensAt('2026-11-28', 'Asia/Tokyo').toISOString()).toBe('2026-11-27T15:00:00.000Z')
+    expect(opensAt('2026-11-16T13:00:00+09:00', 'Asia/Tokyo').toISOString()).toBe('2026-11-16T04:00:00.000Z')
   })
 })
