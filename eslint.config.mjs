@@ -4,7 +4,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['**/dist', '**/.astro', '**/node_modules', 'packages/core/pkg', 'target'] },
+  { ignores: ['**/dist', '**/.astro', '**/node_modules', '.trunk', 'packages/core/pkg', 'target'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...astro.configs.recommended,

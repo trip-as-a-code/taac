@@ -5,17 +5,17 @@ on:
   workflow_call:
     inputs:
       taac-version:
-        description: "taac container image tag (e.g. 0.1.0, latest, main)"
+        description: taac container image tag (e.g. 0.1.0, latest, main)
         required: false
         default: latest
         type: string
       dockerfile:
-        description: "Path to Dockerfile"
+        description: Path to Dockerfile
         required: false
         default: Dockerfile
         type: string
       tag:
-        description: "Branch/channel tag to publish alongside the commit SHA"
+        description: Branch/channel tag to publish alongside the commit SHA
         required: false
         default: main
         type: string

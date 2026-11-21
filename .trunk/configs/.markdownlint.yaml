@@ -1,0 +1,4 @@
+# Prose-friendly markdownlint defaults.
+MD013:
+  line_length: 120
+MD033: false

@@ -203,9 +203,11 @@ taac ships two images: `ghcr.io/trip-as-a-code/taac` (the server, serving the de
    last visit" dots replay the last 30 commits that touched each trip. The token only names commit authors in a
    private repository.
 3. Preview locally without installing Rust or Node:
+
    ```sh
    docker run --rm -it -p 4321:4321 -v "$PWD:/site:ro" ghcr.io/trip-as-a-code/taac-builder:latest taac-dev /site/site.yaml
    ```
+
 4. Run it anywhere:
    - Docker: [`deploy/compose.yaml`](deploy/compose.yaml) with Postgres (`TAAC_IMAGE=my-trips docker compose up`).
    - Kubernetes: the Helm chart at `oci://ghcr.io/trip-as-a-code/charts/taac` (source in

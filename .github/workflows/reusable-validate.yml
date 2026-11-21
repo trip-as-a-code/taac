@@ -5,18 +5,18 @@ on:
   workflow_call:
     inputs:
       site:
-        description: "Path to site.yaml (or a trip file/directory)"
+        description: Path to site.yaml (or a trip file/directory)
         required: false
         default: site.yaml
         type: string
       taac-version:
-        description: "taac release tag (e.g. v0.1.0) or 'latest'"
+        description: taac release tag (e.g. v0.1.0) or 'latest'
         required: false
         default: latest
         type: string
     secrets:
       taac-token:
-        description: "Optional GitHub token (only needed while trip-as-a-code/taac is private)"
+        description: Optional GitHub token (only needed while trip-as-a-code/taac is private)
         required: false
 
 jobs:

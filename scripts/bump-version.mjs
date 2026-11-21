@@ -25,24 +25,11 @@ function replaceOnce(path, pattern, replacement) {
 }
 
 // 1. Workspace Cargo.toml (workspace.package.version + taac-core workspace dependency)
-replaceOnce(
-  'Cargo.toml',
-  /^(\[workspace\.package\]\nversion = ")[^"]+(")/m,
-  `$1${version}$2`,
-)
-replaceOnce(
-  'Cargo.toml',
-  /^(taac-core = \{ path = "crates\/taac-core", version = ")[^"]+(" \})/m,
-  `$1${version}$2`,
-)
+replaceOnce('Cargo.toml', /^(\[workspace\.package\]\nversion = ")[^"]+(")/m, `$1${version}$2`)
+replaceOnce('Cargo.toml', /^(taac-core = \{ path = "crates\/taac-core", version = ")[^"]+(" \})/m, `$1${version}$2`)
 
 // 2. npm workspace package.json files
-for (const file of [
-  'package.json',
-  'packages/core/package.json',
-  'web/package.json',
-  'server/package.json',
-]) {
+for (const file of ['package.json', 'packages/core/package.json', 'web/package.json', 'server/package.json']) {
   const pkg = JSON.parse(readFileSync(file, 'utf8'))
   pkg.version = version
   if (pkg.dependencies?.['@taac/core']) {
@@ -52,15 +39,7 @@ for (const file of [
 }
 
 // 3. Helm chart version & appVersion
-replaceOnce(
-  'deploy/helm/taac/Chart.yaml',
-  /^(version: ).+$/m,
-  `$1${version}`,
-)
-replaceOnce(
-  'deploy/helm/taac/Chart.yaml',
-  /^(appVersion: ).+$/m,
-  `$1${version}`,
-)
+replaceOnce('deploy/helm/taac/Chart.yaml', /^(version: ).+$/m, `$1${version}`)
+replaceOnce('deploy/helm/taac/Chart.yaml', /^(appVersion: ).+$/m, `$1${version}`)
 
 console.log(`Updated manifests to version ${version}`)
