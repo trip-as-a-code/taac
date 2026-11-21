@@ -30,6 +30,9 @@
     "typescript-eslint": "8.73.0",
     "vitest": "5.1.0"
   },
+  "overrides": {
+    "@xmldom/xmldom": "^0.9.8"
+  },
   "allowScripts": {
     "esbuild": true
   }

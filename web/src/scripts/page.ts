@@ -13,6 +13,7 @@ import { me } from '@/scripts/session'
 import { setupShare } from '@/scripts/share'
 import { setupPhotos } from '@/scripts/photo'
 import { setupTooltips } from '@/scripts/tooltip'
+import { lockAllVaults, setupVault } from '@/scripts/vault'
 
 const LANG_COOKIE = 'taac_lang'
 let once = false
@@ -38,6 +39,7 @@ export function setupPage() {
   fitAll()
   setupAvatars()
   void applySession()
+  void setupVault()
   void setupShare()
   void setupComments()
   void setupNotifications()
@@ -153,6 +155,7 @@ async function followAccountLanguage() {
 
 function forgetOfflineCopiesOnLogout() {
   document.querySelector('form[action="/api/logout"]')?.addEventListener('submit', () => {
+    lockAllVaults()
     if ('caches' in window) void caches.delete('taac-v1')
   })
 }

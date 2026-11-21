@@ -540,6 +540,25 @@ export const en = {
 
   'filter.area': '{name} and around',
 
+  'vault.button': 'Secrets',
+  'vault.title': 'Encrypted secrets',
+  'vault.lead': 'Decrypted strictly in this browser. Passwords and decrypted values never leave your device.',
+  'vault.select': 'Vault',
+  'vault.shared': 'Shared trip secrets',
+  'vault.personal': '{owner}’s personal vault',
+  'vault.password': 'Master password',
+  'vault.remember': 'Remember on this device',
+  'vault.unlock': 'Unlock',
+  'vault.lock': 'Lock all',
+  'vault.locked': 'Locked',
+  'vault.unlocked': 'Unlocked',
+  'vault.wrongPassword': 'Wrong password or unavailable vault.',
+  'vault.unlockHint': 'Unlock to view',
+  'vault.attachment': 'Attachment',
+  'vault.copy': 'Copy',
+  'share.includeSecrets': 'Include shared secrets in link',
+  'share.unlockSecretsFirst': 'Unlock the shared vault first to include its key in the link.',
+
   'a11y.skip': 'Skip to content',
   'a11y.openMenu': 'Open menu',
 }

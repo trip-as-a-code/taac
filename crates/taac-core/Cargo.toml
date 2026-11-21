@@ -10,9 +10,14 @@ keywords.workspace = true
 categories = ["data-structures", "parsing"]
 rust-version.workspace = true
 
+[features]
+default = []
+kdbx = ["dep:keepass"]
+
 [dependencies]
 indexmap.workspace = true
 jiff.workspace = true
+keepass = { workspace = true, optional = true }
 rust_decimal.workspace = true
 schemars.workspace = true
 serde.workspace = true

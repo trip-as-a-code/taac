@@ -25,6 +25,7 @@ pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
             ));
         }
         out.extend(validate_trip(trip));
+        out.extend(validate_vault_refs(site, trip));
         // Signing in with GitHub is how a member gets to their own trip.
         if site.access == crate::model::SiteAccess::Github {
             for member in trip.members.iter().filter(|m| m.github.is_none()) {
@@ -66,6 +67,52 @@ pub fn validate_trip(trip: &Trip) -> Vec<Diagnostic> {
     v.packing();
     v.spending();
     v.out
+}
+
+fn validate_vault_refs(site: &Site, trip: &Trip) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for usage in crate::secrets::collect_secret_refs(trip) {
+        if let Some(vault_id) = &usage.vault {
+            let valid = (vault_id == "shared" && trip.vault.is_some())
+                || site.vaults.contains_key(vault_id);
+            if !valid {
+                out.push(
+                    Diagnostic::error(
+                        "vault.unknown",
+                        format!(
+                            "secret `{}` references unknown vault `{vault_id}`",
+                            usage.secret
+                        ),
+                    )
+                    .in_trip(&trip.slug)
+                    .at_item(&usage.item_title),
+                );
+            }
+        }
+    }
+    for item in &trip.itinerary {
+        let attachments = item
+            .booking
+            .iter()
+            .flat_map(|b| b.attachments.iter())
+            .chain(item.bookings.iter().flat_map(|r| r.attachments.iter()));
+        for att in attachments {
+            if att.all && att.attachment.is_some() {
+                out.push(
+                    Diagnostic::error(
+                        "secret.attachment",
+                        format!(
+                            "attachment on `{}` cannot set both `attachment` and `all: true`",
+                            att.secret
+                        ),
+                    )
+                    .in_trip(&trip.slug)
+                    .at_item(&item.title),
+                );
+            }
+        }
+    }
+    out
 }
 
 /// A night `member` would sleep in both lodgings.
@@ -2292,7 +2339,7 @@ ideas:
             let files: Files = [("trip.yaml".to_owned(), trip(status))].into();
             let (site, diagnostics) = load_standalone_trip(&files, "trip.yaml");
             assert!(diagnostics.is_empty(), "{diagnostics:?}");
-            crate::export::export_trip(&site.unwrap().trips[0], vec![]).choices[0]
+            crate::export::export_trip(&site.unwrap().trips[0], vec![], false).choices[0]
                 .settled_by
                 .len()
         };

@@ -3,6 +3,7 @@
 
 import { closeOnBackdrop } from '@/scripts/sheet'
 import { me } from '@/scripts/session'
+import { getSharedVaultShareFragment } from '@/scripts/vault'
 
 interface Link {
   id: string
@@ -68,13 +69,26 @@ export async function setupShare() {
     }
   }
 
+  const includeSecrets = root.querySelector<HTMLInputElement>('[data-share-secrets]')
+
   async function copy(link: Link, button: HTMLButtonElement) {
+    let url = link.url
+    if (includeSecrets?.checked) {
+      const frag = getSharedVaultShareFragment(slug)
+      if (!frag) {
+        error.textContent = d.unlockSecretsFirst ?? ''
+        error.hidden = false
+        return
+      }
+      error.hidden = true
+      url += frag
+    }
     try {
-      await navigator.clipboard.writeText(link.url)
+      await navigator.clipboard.writeText(url)
       button.textContent = d.copied!
       setTimeout(() => (button.textContent = d.copyLabel!), 1500)
     } catch {
-      prompt('', link.url)
+      prompt('', url)
     }
   }
 

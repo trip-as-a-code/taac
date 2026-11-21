@@ -39,10 +39,48 @@ export interface Rates {
   rates: Record<string, number>
 }
 
+export interface PersonalVaultExport {
+  id: string
+  owner: string
+  ownerLogin?: string
+  /** Path relative to `site.yaml` (used by the web build to copy/serve the `.kdbx`). */
+  path: string
+  /** Public URL path where the `.kdbx` is served (`/vaults/<id>.kdbx`). */
+  url: string
+}
+
+export interface TripVaultExport {
+  /** Path relative to `site.yaml` (used by the web build to copy/serve the `.kdbx`). */
+  path: string
+  /** Public URL path where the `.kdbx` is served (`/trips/<slug>/vault.kdbx`). */
+  url: string
+  share: boolean
+  viewers: boolean
+}
+
+export interface SecretRefExport {
+  secret: string
+  field?: string
+  vault?: string
+}
+
+export interface SecretAttachmentExport {
+  secret: string
+  attachment?: string
+  all?: boolean
+  vault?: string
+}
+
 export interface SiteExport {
   apiVersion: 'taac/v1alpha4'
   /** `github`: signing in with GitHub is required (see each trip's `public` and `logins`). */
-  site: { title: Text; description?: Text; access: 'public' | 'github'; source?: SourceRepo }
+  site: {
+    title: Text
+    description?: Text
+    access: 'public' | 'github'
+    source?: SourceRepo
+    vaults?: PersonalVaultExport[]
+  }
   trips: TripExport[]
   diagnostics: Diagnostic[]
 }
@@ -150,6 +188,8 @@ export interface Booking {
   provider?: string
   url?: string
   hasReference: boolean
+  reference?: SecretRefExport
+  attachments?: SecretAttachmentExport[]
 }
 
 export interface Idea {
@@ -219,7 +259,14 @@ export interface Item {
   bookings?: (Booking & { members: string[]; costs: Cost[] })[]
   /** Every cost, its reservations' included. */
   costs: Cost[]
-  contacts: { name: string; role?: string; hasPhone: boolean; hasEmail: boolean }[]
+  contacts: {
+    name: string
+    role?: string
+    hasPhone: boolean
+    hasEmail: boolean
+    phone?: SecretRefExport
+    email?: SecretRefExport
+  }[]
   notes?: string
   url?: string
   tags: string[]
@@ -400,6 +447,7 @@ export interface TripExport {
     }[]
   }[]
   overlays: { name: string; data: { type: string; features?: unknown[] } }[]
+  vault?: TripVaultExport
   artifacts: {
     ics: string
     geojson: string

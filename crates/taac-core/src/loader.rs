@@ -12,8 +12,8 @@ use jiff::civil::Date;
 
 use crate::model::{
     Base, Blocker, Choice, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
-    Pass, Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Spending, Task,
-    TripFile, TripKind, TripMetadata,
+    Pass, PersonalVault, Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo,
+    Spending, Task, TripFile, TripKind, TripMetadata, TripVault,
 };
 
 pub type Files = BTreeMap<String, String>;
@@ -23,6 +23,8 @@ pub struct Site {
     pub metadata: SiteMetadata,
     pub access: crate::model::SiteAccess,
     pub source: Option<SourceRepo>,
+    /// Personal `KeePass` vaults declared on `site.yaml`, with `path` resolved relative to `site.yaml`.
+    pub vaults: IndexMap<String, PersonalVault>,
     pub trips: Vec<Trip>,
 }
 
@@ -49,6 +51,8 @@ pub struct Trip {
     /// Budgets for buying on the spot.
     pub spending: Vec<Spending>,
     pub overlays: Vec<LoadedOverlay>,
+    /// Shared `KeePass` vault for this trip, with `path` resolved relative to the site root.
+    pub vault: Option<TripVault>,
     /// On a `github` site: open to everyone.
     pub public: bool,
 }
@@ -328,10 +332,20 @@ pub fn load_site(files: &Files, site_path: &str) -> (Option<Site>, Vec<Diagnosti
         }
     }
 
+    let vaults = site_file
+        .vaults
+        .into_iter()
+        .map(|(id, mut v)| {
+            v.path = join(site_dir, &v.path);
+            (id, v)
+        })
+        .collect();
+
     let site = Site {
         metadata: site_file.metadata,
         access: site_file.access,
         source: site_file.source,
+        vaults,
         trips,
     };
     (Some(site), diagnostics)
@@ -347,6 +361,7 @@ pub fn load_standalone_trip(files: &Files, path: &str) -> (Option<Site>, Vec<Dia
         },
         access: crate::model::SiteAccess::Public,
         source: None,
+        vaults: IndexMap::new(),
         trips: vec![trip],
     });
     (site, diagnostics)
@@ -441,6 +456,10 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         packing: Vec::new(),
         spending: Vec::new(),
         overlays: Vec::new(),
+        vault: root.vault.clone().map(|mut v| {
+            v.path = join(&dir, &v.path);
+            v
+        }),
         public: false,
     };
 
@@ -461,11 +480,13 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         for (i, base) in doc.bases.iter_mut().enumerate() {
             base.source = at(&lines.bases, i);
         }
-        if doc.kind == TripKind::TripPart && (doc.metadata.is_some() || doc.currency.is_some()) {
+        if doc.kind == TripKind::TripPart
+            && (doc.metadata.is_some() || doc.currency.is_some() || doc.vault.is_some())
+        {
             diagnostics.push(
                 Diagnostic::error(
                     "trip.part",
-                    "`kind: TripPart` cannot set `metadata` or `currency`",
+                    "`kind: TripPart` cannot set `metadata`, `currency` or `vault`",
                 )
                 .in_file(file.clone())
                 .in_trip(&slug),

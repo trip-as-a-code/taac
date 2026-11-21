@@ -561,6 +561,25 @@ export const ru: Messages = {
 
   'filter.area': '{name} и окрестности',
 
+  'vault.button': 'Секреты',
+  'vault.title': 'Зашифрованные секреты',
+  'vault.lead': 'Расшифровка происходит строго в этом браузере. Пароли и данные никогда не отправляются на сервер.',
+  'vault.select': 'Хранилище',
+  'vault.shared': 'Общие секреты поездки',
+  'vault.personal': 'Личная база: {owner}',
+  'vault.password': 'Мастер-пароль',
+  'vault.remember': 'Запомнить на этом устройстве',
+  'vault.unlock': 'Разблокировать',
+  'vault.lock': 'Заблокировать все',
+  'vault.locked': 'Заблокировано',
+  'vault.unlocked': 'Открыто',
+  'vault.wrongPassword': 'Неверный пароль или хранилище недоступно.',
+  'vault.unlockHint': 'Открыть',
+  'vault.attachment': 'Вложение',
+  'vault.copy': 'Скопировать',
+  'share.includeSecrets': 'Включить общие секреты в ссылку',
+  'share.unlockSecretsFirst': 'Сначала разблокируйте общую базу поездки, чтобы добавить ключ в ссылку.',
+
   'a11y.skip': 'Перейти к содержимому',
   'a11y.openMenu': 'Открыть меню',
 }

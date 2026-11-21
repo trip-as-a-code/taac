@@ -17,8 +17,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+rpassword.workspace = true
 serde_json.workspace = true
-taac-core.workspace = true
+taac-core = { workspace = true, features = ["kdbx"] }
 
 [lints]
 workspace = true

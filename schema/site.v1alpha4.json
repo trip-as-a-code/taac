@@ -34,6 +34,13 @@
           "type": "null"
         }
       ]
+    },
+    "vaults": {
+      "description": "Personal `KeePass` (`.kdbx`) vaults, keyed by vault id (e.g. `alex`).",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/PersonalVault"
+      }
     }
   },
   "additionalProperties": false,
@@ -144,6 +151,33 @@
       "additionalProperties": false,
       "required": [
         "repo"
+      ]
+    },
+    "PersonalVault": {
+      "description": "A member's personal `KeePass` (`.kdbx`) vault declared on `site.yaml`.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Path to the `.kdbx` file, relative to `site.yaml`.",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Member name (matched case-insensitively against trip members).",
+          "type": "string"
+        },
+        "github": {
+          "description": "Optional explicit GitHub username if not derivable from trip members.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "owner"
       ]
     }
   }

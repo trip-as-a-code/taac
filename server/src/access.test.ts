@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calendarSlug,
   decide,
+  decideVault,
   isPublicPath,
   localizedText,
   normalise,
@@ -90,5 +91,52 @@ describe('manifest', () => {
     expect(localizedText(titled.title, 'ru')).toBe('Поездки')
     expect(localizedText(titled.title, 'de')).toBe('Trips')
     expect(localizedText(normalise({ title: 'Plain' }).title, 'ru')).toBe('Plain')
+  })
+
+  it('enforces defense-in-depth access rules for personal and shared .kdbx vaults', () => {
+    const manifest = normalise({
+      auth: 'github',
+      vaults: {
+        alex: { ownerLogin: 'Alex' },
+      },
+      trips: {
+        lisbon: {
+          title: 'Lisbon',
+          public: false,
+          logins: ['alex', 'robin'],
+          roles: { alex: 'member', robin: 'viewer' },
+          vault: { share: true, viewers: false },
+        },
+        tokyo: {
+          title: 'Tokyo',
+          public: false,
+          logins: ['alex', 'robin'],
+          roles: { alex: 'member', robin: 'viewer' },
+          vault: { share: false, viewers: true },
+        },
+      },
+      slugs: ['lisbon', 'tokyo'],
+      locales: ['en', 'ru'],
+      defaultLocale: 'en',
+    })
+
+    // Personal vault: only owner when signed in; never via share link or other members.
+    expect(decideVault('/vaults/alex.kdbx', 'alex', null, manifest)).toBe('open')
+    expect(decideVault('/vaults/alex.kdbx', 'robin', null, manifest)).toBe('forbidden')
+    expect(decideVault('/vaults/alex.kdbx', null, 'lisbon', manifest)).toBe('sign-in')
+    expect(decideVault('/vaults/unknown.kdbx', 'alex', null, manifest)).toBe('forbidden')
+
+    // Shared trip vault with share: true, viewers: false.
+    expect(decideVault('/trips/lisbon/vault.kdbx', 'alex', null, manifest)).toBe('open')
+    expect(decideVault('/trips/lisbon/vault.kdbx', 'robin', null, manifest)).toBe('forbidden')
+    expect(decideVault('/trips/lisbon/vault.kdbx', null, 'lisbon', manifest)).toBe('open')
+    expect(decideVault('/trips/lisbon/vault.kdbx', null, 'tokyo', manifest)).toBe('sign-in')
+
+    // Shared trip vault with share: false, viewers: true.
+    expect(decideVault('/trips/tokyo/vault.kdbx', 'robin', null, manifest)).toBe('open')
+    expect(decideVault('/trips/tokyo/vault.kdbx', null, 'tokyo', manifest)).toBe('forbidden')
+
+    // Non-vault paths return null.
+    expect(decideVault('/trips/lisbon/itinerary/', 'alex', null, manifest)).toBeNull()
   })
 })

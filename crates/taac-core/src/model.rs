@@ -74,6 +74,37 @@ pub struct TripFile {
     pub spending: Vec<Spending>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub map: Option<MapConfig>,
+    /// Shared `KeePass` (`.kdbx`) vault for this trip's confidential values and attachments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vault: Option<TripVault>,
+}
+
+/// A trip's shared `KeePass` (`.kdbx`) vault, decrypted strictly in the browser.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TripVault {
+    /// Path to the `.kdbx` file, relative to the trip directory.
+    pub path: String,
+    /// Allow embedding the decryption key in `#k=` share links (default: false).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub share: bool,
+    /// Allow `role: viewer` members to access the shared vault (default: false).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub viewers: bool,
+}
+
+/// A member's personal `KeePass` (`.kdbx`) vault declared on `site.yaml`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PersonalVault {
+    /// Path to the `.kdbx` file, relative to `site.yaml`.
+    pub path: String,
+    /// Member name (matched case-insensitively against trip members).
+    pub owner: String,
+    /// Optional explicit GitHub username if not derivable from trip members.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(regex(pattern = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"))]
+    pub github: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
@@ -869,9 +900,12 @@ pub struct Booking {
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// Confirmation number / PNR. Never published.
+    /// Confirmation number / PNR. Never published in plaintext.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<Secret>,
+    /// Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<SecretAttachment>,
 }
 
 /// When booking opens: from the start of a day where it is sold, or from a
@@ -931,9 +965,12 @@ pub struct Reservation {
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// Confirmation number / PNR. Never published.
+    /// Confirmation number / PNR. Never published in plaintext.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<Secret>,
+    /// Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<SecretAttachment>,
     /// What this reservation cost; `who` defaults to the reservation's.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub costs: Vec<Cost>,
@@ -949,6 +986,7 @@ impl Reservation {
             provider: self.provider.clone(),
             url: self.url.clone(),
             reference: self.reference.clone(),
+            attachments: self.attachments.clone(),
         }
     }
 }
@@ -993,6 +1031,10 @@ pub fn summarize(reservations: &[Reservation]) -> Option<Booking> {
             .and_then(|r| r.url.clone())
             .or_else(|| first.url.clone()),
         reference: reservations.iter().find_map(|r| r.reference.clone()),
+        attachments: reservations
+            .iter()
+            .flat_map(|r| r.attachments.iter().cloned())
+            .collect(),
     })
 }
 
@@ -1019,13 +1061,36 @@ impl BookingStatus {
     }
 }
 
-/// A confidential value, resolved by name from `.env`, `secrets.yaml` or the
-/// environment. Only local builds run with `--reveal` ever see it.
+/// A confidential value, resolved by name from a `KeePass` vault, `.env`,
+/// `secrets.yaml` or the environment. Plaintext never reaches published builds.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Secret {
     #[schemars(regex(pattern = r"^[A-Z][A-Z0-9_]*$"))]
     pub secret: String,
+    /// Optional `KeePass` field name inside the entry (defaults to Password / Value).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    /// Explicit vault id (e.g. a personal vault from `site.yaml`, or `shared`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vault: Option<String>,
+}
+
+/// Reference to one or all binary attachments stored on a `KeePass` entry.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SecretAttachment {
+    #[schemars(regex(pattern = r"^[A-Z][A-Z0-9_]*$"))]
+    pub secret: String,
+    /// Specific attachment filename inside the `KeePass` entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<String>,
+    /// Expose every binary attachment stored on the entry.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub all: bool,
+    /// Explicit vault id (e.g. a personal vault from `site.yaml`, or `shared`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vault: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -1432,6 +1497,9 @@ pub struct SiteFile {
     /// Where the trip files live, so the site can link each entry to its line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<SourceRepo>,
+    /// Personal `KeePass` (`.kdbx`) vaults, keyed by vault id (e.g. `alex`).
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub vaults: IndexMap<String, PersonalVault>,
 }
 
 /// A repository browsable on the web (GitHub, Gitea, Forgejo, GitLab:
