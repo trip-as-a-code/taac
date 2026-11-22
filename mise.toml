@@ -9,4 +9,4 @@ helm = "4.3.0"
 # must match the wasm-bindgen crate pinned in Cargo.toml
 "github:wasm-bindgen/wasm-bindgen" = { version = "0.2.129", bin = "wasm-bindgen" }
 # must match the astro package pinned in web/package.json
-"npm:astro" = "7.4.0"
+"npm:astro" = "7.4.11"
