@@ -1,0 +1,3 @@
+kind: Added
+body: 'Initial release of taac: trips declared in YAML, validated, and compiled into a website, calendars, maps and ledgers.'
+time: 2026-11-22T21:00:00.000000+02:00

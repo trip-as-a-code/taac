@@ -1,0 +1,3 @@
+kind: Added
+body: 'A versioned trip and site schema (`taac/v1alpha4`, with JSON Schemas for editors) and the `taac` CLI to validate, build, export and generate schemas, with validation that catches broken references, overlapping plans, gaps in getting around and loose ends in bookings and money.'
+time: 2026-11-22T21:00:01.000000+02:00
