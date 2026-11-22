@@ -11,7 +11,7 @@
   <a href="https://github.com/trip-as-a-code/taac/issues">
     <img src="https://img.shields.io/github/issues/trip-as-a-code/taac.svg?style=for-the-badge" alt="Issues" height="28">
   </a>
-  <a href="https://github.com/trip-as-a-code/taac/blob/main/LICENSE">
+  <a href="https://github.com/trip-as-a-code/taac/blob/main/LICENSE.md">
     <img src="https://img.shields.io/github/license/trip-as-a-code/taac.svg?style=for-the-badge" alt="License" height="28">
   </a>
   <br>
@@ -134,7 +134,7 @@ instead of opening an issue.
 
 ## License
 
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+Distributed under the MIT License. See [`LICENSE.md`](LICENSE.md) for more information.
 
 <!-- markdownlint-disable -->
 <p align="right"><a href="#top">(back to top)</a></p>
