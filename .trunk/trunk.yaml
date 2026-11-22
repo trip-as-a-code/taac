@@ -56,11 +56,12 @@ lint:
         - ALL
       paths:
         - examples/**/overlays/**
-    # The PR template opens with H2s.
+    # The PR template opens with H2s, the issue templates with front matter.
     - linters:
         - markdownlint
       paths:
         - .github/PULL_REQUEST_TEMPLATE.md
+        - .github/ISSUE_TEMPLATE/**
 actions:
   definitions:
     # The full CI mirror runs before anything leaves the machine; CI's job
