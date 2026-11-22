@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: ❓ Ask a question
+    url: https://github.com/trip-as-a-code/taac/discussions/new?category=q-a
+    about: Questions go to Discussions, where answers stay findable.
+  - name: 🔒 Report a vulnerability
+    url: https://github.com/trip-as-a-code/taac/security/advisories/new
+    about: Privately, through a security advisory, never in a public issue.
