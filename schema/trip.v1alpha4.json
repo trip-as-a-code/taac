@@ -145,15 +145,8 @@
     "TripMetadata": {
       "type": "object",
       "properties": {
-        "slug": {
-          "description": "URL slug; defaults to the trip's file or directory name.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^[a-z0-9][a-z0-9-]*$"
-        },
         "title": {
+          "description": "Also names the trip in its URL: lowercase, words joined by dashes\n(`Lisbon Long Weekend` → `lisbon-long-weekend`), so renaming the trip\nmoves it.",
           "type": "string"
         },
         "summary": {

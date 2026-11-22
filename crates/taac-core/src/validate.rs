@@ -18,7 +18,10 @@ pub fn validate_site(site: &Site) -> Vec<Diagnostic> {
         if !slugs.insert(trip.slug.as_str()) {
             out.push(Diagnostic::error(
                 "trip.slug",
-                format!("two trips share the slug `{}`", trip.slug),
+                format!(
+                    "two trips' titles make the same URL `{}`: give one a title of its own",
+                    trip.slug
+                ),
             ));
         }
         out.extend(validate_trip(trip));
