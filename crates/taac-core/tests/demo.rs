@@ -23,7 +23,7 @@ fn demo_exports_without_diagnostics() {
     let export = taac_core::export(&demo(), "site.yaml").expect("no errors");
     assert!(export.diagnostics.is_empty());
     let trip = &export.trips[0];
-    assert_eq!(trip.slug, "lisbon");
+    assert_eq!(trip.slug, "lisbon-long-weekend");
     assert!(trip.diagnostics.is_empty(), "{:?}", trip.diagnostics);
     assert_eq!(trip.days.len(), 4);
     // Every combination of the demo's three people: singles, any-of pairs,

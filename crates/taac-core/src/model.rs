@@ -85,10 +85,9 @@ pub enum TripKind {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TripMetadata {
-    /// URL slug; defaults to the trip's file or directory name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(regex(pattern = r"^[a-z0-9][a-z0-9-]*$"))]
-    pub slug: Option<String>,
+    /// Also names the trip in its URL: lowercase, words joined by dashes
+    /// (`Lisbon Long Weekend` → `lisbon-long-weekend`), so renaming the trip
+    /// moves it.
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,

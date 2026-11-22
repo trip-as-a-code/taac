@@ -419,7 +419,7 @@ fn load_trip(files: &Files, path: &str, diagnostics: &mut Vec<Diagnostic>) -> Op
         return None;
     };
 
-    let slug = metadata.slug.clone().unwrap_or_else(|| default_slug(path));
+    let slug = slug(&metadata.title);
     let mut trip = Trip {
         slug: slug.clone(),
         dir: dir.clone(),
@@ -889,20 +889,6 @@ fn is_yaml(path: &str) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"))
 }
 
-fn default_slug(path: &str) -> String {
-    let name = path.rsplit('/').next().unwrap_or(path);
-    let name = name
-        .strip_suffix(".yaml")
-        .or_else(|| name.strip_suffix(".yml"))
-        .unwrap_or(name);
-    let name = if name == "trip" {
-        path.rsplit('/').nth(1).unwrap_or("trip")
-    } else {
-        name
-    };
-    name.to_ascii_lowercase()
-}
-
 pub fn parent(path: &str) -> &str {
     path.rfind('/').map_or("", |i| &path[..i])
 }
@@ -983,7 +969,8 @@ places:
         let (site, diagnostics) = load_standalone_trip(&fs, "trips/lisbon");
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         let trip = &site.unwrap().trips[0];
-        assert_eq!(trip.slug, "lisbon");
+        // From the title, not the directory.
+        assert_eq!(trip.slug, "test");
         assert_eq!(trip.places.len(), 2);
         assert_eq!(trip.itinerary[0].id, "first");
         let places = trip.item_places(&trip.itinerary[0]);
@@ -1041,6 +1028,49 @@ groups: [{ name: Duo, members: [a, B] }]
         assert_eq!(trip.party(&["a", "b"]).id, "duo");
         assert_eq!(trip.party(&["a", "b", "c"]).id, "everyone");
         assert_eq!(trip.party(&["a", "c"]).id, "a+c");
+    }
+
+    #[test]
+    fn a_trip_is_named_by_its_title() {
+        let site_yaml = r"
+apiVersion: taac/v1alpha4
+kind: Site
+metadata: { title: S }
+trips: [{ path: a.yaml }, { path: b.yaml }, { path: c.yaml }]
+";
+        let trip = |title: &str| {
+            format!(
+                "apiVersion: taac/v1alpha4\nkind: Trip\nmetadata: {{ title: '{title}', timezone: UTC }}\nmembers: [{{ name: A }}]\n"
+            )
+        };
+        let (a, b, c) = (
+            trip("Lisbon Long Weekend"),
+            trip("Поездка к морю"),
+            trip("lisbon: long weekend!"),
+        );
+        let fs = files(&[
+            ("site.yaml", site_yaml),
+            ("a.yaml", &a),
+            ("b.yaml", &b),
+            ("c.yaml", &c),
+        ]);
+        let (site, _) = load_site(&fs, "site.yaml");
+        let site = site.unwrap();
+        let slugs: Vec<_> = site.trips.iter().map(|t| t.slug.as_str()).collect();
+        assert_eq!(
+            slugs,
+            [
+                "lisbon-long-weekend",
+                "поездка-к-морю",
+                "lisbon-long-weekend"
+            ]
+        );
+        // Two titles that make the same URL are one too many.
+        let codes: Vec<_> = crate::validate::validate_site(&site)
+            .into_iter()
+            .filter(|d| d.code == "trip.slug")
+            .collect();
+        assert_eq!(codes.len(), 1, "{codes:?}");
     }
 
     #[test]

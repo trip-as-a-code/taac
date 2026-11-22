@@ -150,7 +150,8 @@ packing:
 
 Nothing needs an id. People, groups, places and blockers are referred to by name (case doesn't matter); plans, ideas and
 bases are identified by their titles. Links to a plan (the copy-link button on each card) follow its title, so renaming
-a plan changes its link.
+a plan changes its link. The same goes for the trip: its URL comes from its title (`Lisbon Long Weekend` →
+`/trips/lisbon-long-weekend/`), so two trips on a site need titles of their own.
 
 Without `bases`, they are derived from lodging. A trip can also be a directory: one `kind: Trip` file plus any number
 of `kind: TripPart` files (bases, places, itinerary chunks, ideas, packing) merged into it — fewer merge conflicts
