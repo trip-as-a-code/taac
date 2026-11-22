@@ -52,7 +52,7 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
     for item in &trip.itinerary {
         let date = item.day();
         if current != Some(date) {
-            let _ = writeln!(out, "### {}\n", date.format("%a %-d %b %Y"));
+            let _ = writeln!(out, "### {}\n", date.strftime("%a %-d %b %Y"));
             let here: Vec<String> = bases
                 .iter()
                 .filter(|b| !b.derived && b.from <= date && date <= b.to)
@@ -65,11 +65,11 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
         }
         let time = item.start.map_or_else(
             || item.part.map_or("—", |p| p.as_str()).to_owned(),
-            |s| s.format("%H:%M").to_string(),
+            crate::datetime::OffsetDateTime::format_hm,
         );
         let until = item
             .end
-            .map(|e| format!("–{}", e.format("%H:%M")))
+            .map(|e| format!("–{}", e.format_hm()))
             .unwrap_or_default();
         let who: Vec<String> = trip.participants(item).into_iter().map(name).collect();
         let _ = writeln!(

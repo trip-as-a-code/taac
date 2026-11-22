@@ -2,8 +2,9 @@
 //! Everything is compared in UTC; each blocker keeps its own time zone, so
 //! "09:00–17:00 Helsinki" stays right while the trip is in Tokyo.
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
-use chrono_tz::Tz;
+use jiff::Timestamp;
+use jiff::civil::{Date, Time};
+use jiff::tz::TimeZone;
 
 use crate::loader::Trip;
 use crate::model::{Blocker, DayPart, Item, ItemKind};
@@ -13,9 +14,9 @@ use crate::model::{Blocker, DayPart, Item, ItemKind};
 pub struct Occurrence<'a> {
     pub blocker: &'a Blocker,
     /// The date in the blocker's own zone.
-    pub date: NaiveDate,
-    pub start: DateTime<Utc>,
-    pub end: DateTime<Utc>,
+    pub date: Date,
+    pub start: Timestamp,
+    pub end: Timestamp,
     pub whole_day: bool,
 }
 
@@ -27,28 +28,34 @@ pub struct Conflict<'a> {
     pub overridden: bool,
 }
 
-pub fn zone(trip: &Trip, blocker: &Blocker) -> Option<Tz> {
-    blocker
+pub fn zone(trip: &Trip, blocker: &Blocker) -> Option<TimeZone> {
+    let name = blocker
         .time
         .as_ref()
         .and_then(|t| t.timezone.as_deref())
-        .unwrap_or(&trip.metadata.timezone)
-        .parse()
-        .ok()
+        .unwrap_or(&trip.metadata.timezone);
+    TimeZone::get(name).ok()
 }
 
-pub fn parse_time(value: &str) -> Option<NaiveTime> {
+pub fn parse_time(value: &str) -> Option<Time> {
     if value == "24:00" {
-        return Some(NaiveTime::MIN);
+        return Some(Time::MIN);
     }
-    NaiveTime::parse_from_str(value, "%H:%M").ok()
+    let (h, m) = value.split_once(':')?;
+    if h.len() != 2 || m.len() != 2 {
+        return None;
+    }
+    let hour: i8 = h.parse().ok()?;
+    let minute: i8 = m.parse().ok()?;
+    Time::new(hour, minute, 0, 0).ok()
 }
 
-fn at(tz: Tz, date: NaiveDate, time: NaiveTime) -> Option<DateTime<Utc>> {
+fn at(tz: &TimeZone, date: Date, time: Time) -> Option<Timestamp> {
     // A gap (DST spring-forward) takes the earliest valid instant.
-    tz.from_local_datetime(&date.and_time(time))
-        .earliest()
-        .map(|t| t.with_timezone(&Utc))
+    tz.to_ambiguous_zoned(date.to_datetime(time))
+        .compatible()
+        .ok()
+        .map(|z| z.timestamp())
 }
 
 pub fn occurrences<'a>(trip: &Trip, blocker: &'a Blocker) -> Vec<Occurrence<'a>> {
@@ -67,15 +74,15 @@ pub fn occurrences<'a>(trip: &Trip, blocker: &'a Blocker) -> Vec<Occurrence<'a>>
                 let (start, end, whole_day) = match window {
                     Some((start, end)) => {
                         let end_date = if end <= start {
-                            date + Duration::days(1)
+                            date.tomorrow().unwrap_or(date)
                         } else {
                             date
                         };
-                        (at(tz, date, start), at(tz, end_date, end), false)
+                        (at(&tz, date, start), at(&tz, end_date, end), false)
                     }
                     None => (
-                        at(tz, date, NaiveTime::MIN),
-                        at(tz, date + Duration::days(1), NaiveTime::MIN),
+                        at(&tz, date, Time::MIN),
+                        at(&tz, date.tomorrow().unwrap_or(date), Time::MIN),
                         true,
                     ),
                 };
@@ -89,7 +96,10 @@ pub fn occurrences<'a>(trip: &Trip, blocker: &'a Blocker) -> Vec<Occurrence<'a>>
                     });
                 }
             }
-            date += Duration::days(1);
+            let Ok(next) = date.tomorrow() else {
+                break;
+            };
+            date = next;
         }
     }
     out
@@ -97,20 +107,20 @@ pub fn occurrences<'a>(trip: &Trip, blocker: &'a Blocker) -> Vec<Occurrence<'a>>
 
 /// When a plan happens, in UTC. `date`-only plans count from their part of
 /// the day (in the trip's zone); without a part they can move, so never clash.
-pub fn item_span(trip: &Trip, item: &Item) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+pub fn item_span(trip: &Trip, item: &Item) -> Option<(Timestamp, Timestamp)> {
     if let Some((start, end)) = item.span() {
-        return Some((start.with_timezone(&Utc), end.with_timezone(&Utc)));
+        return Some((start.timestamp(), end.timestamp()));
     }
     let (from, to) = match item.part? {
         DayPart::Morning => (8, 12),
         DayPart::Afternoon => (12, 18),
         DayPart::Evening => (18, 23),
     };
-    let tz: Tz = trip.metadata.timezone.parse().ok()?;
+    let tz = TimeZone::get(&trip.metadata.timezone).ok()?;
     let date = item.date?;
     Some((
-        at(tz, date, NaiveTime::from_hms_opt(from, 0, 0)?)?,
-        at(tz, date, NaiveTime::from_hms_opt(to, 0, 0)?)?,
+        at(&tz, date, Time::new(from, 0, 0, 0).ok()?)?,
+        at(&tz, date, Time::new(to, 0, 0, 0).ok()?)?,
     ))
 }
 

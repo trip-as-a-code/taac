@@ -1,12 +1,14 @@
 //! The JSON the web frontend renders. Confidential values never reach it:
 //! secrets are reduced to "has one" flags.
 
-use chrono::{DateTime, Duration, FixedOffset, NaiveDate};
 use indexmap::IndexMap;
+use jiff::civil::Date;
+use jiff::tz::TimeZone;
 use rust_decimal::Decimal;
 use serde::Serialize;
 
 use crate::budget::{self, Budget};
+use crate::datetime::OffsetDateTime;
 use crate::diagnostics::Diagnostic;
 use crate::generators;
 use crate::loader::{Site, Trip};
@@ -59,9 +61,9 @@ pub struct TripExport {
     /// (each member's `role` says what they may do).
     pub logins: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_date: Option<NaiveDate>,
+    pub start_date: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_date: Option<NaiveDate>,
+    pub end_date: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<CurrencyExport>,
     pub members: Vec<Member>,
@@ -100,8 +102,8 @@ pub struct BaseExport {
     pub id: String,
     pub title: String,
     pub place: String,
-    pub from: NaiveDate,
-    pub to: NaiveDate,
+    pub from: Date,
+    pub to: Date,
     pub nights: i64,
     pub members: Vec<String>,
     /// Id into [`TripExport::parties`].
@@ -191,9 +193,9 @@ pub struct ItemExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<Source>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub start: Option<DateTime<FixedOffset>>,
+    pub start: Option<OffsetDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end: Option<DateTime<FixedOffset>>,
+    pub end: Option<OffsetDateTime>,
     /// Wall-clock fields in the item's own offset, for display without a
     /// time-zone database in the browser.
     pub local: LocalTimes,
@@ -231,7 +233,7 @@ pub struct ItemExport {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalTimes {
-    pub date: NaiveDate,
+    pub date: Date,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -240,7 +242,7 @@ pub struct LocalTimes {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub part: Option<DayPart>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_date: Option<NaiveDate>,
+    pub end_date: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_time: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -252,7 +254,7 @@ pub struct LocalTimes {
 pub struct BookingExport {
     pub status: BookingStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deadline: Option<NaiveDate>,
+    pub deadline: Option<Date>,
     /// Not bookable before this: a date where it is sold, or an RFC 3339 time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opens: Option<Opens>,
@@ -300,7 +302,7 @@ pub struct CostExport {
     pub estimate: bool,
     /// Charged later, on this date.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub due: Option<NaiveDate>,
+    pub due: Option<Date>,
     /// Nobody owes anybody for it (unpaid, `each`, or paid back).
     pub settled: bool,
 }
@@ -326,9 +328,9 @@ pub struct TaskExport {
     pub required: bool,
     pub each: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub due: Option<NaiveDate>,
+    pub due: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub done: Option<NaiveDate>,
+    pub done: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
@@ -376,7 +378,7 @@ pub struct PassShareExport {
     pub periods: Vec<crate::model::Period>,
     pub status: crate::model::BookingStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deadline: Option<NaiveDate>,
+    pub deadline: Option<Date>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opens: Option<Opens>,
     /// Also budget lines with `item` = the pass's id.
@@ -386,7 +388,7 @@ pub struct PassShareExport {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DayExport {
-    pub date: NaiveDate,
+    pub date: Date,
     /// Items starting this day, in order.
     pub items: Vec<String>,
     /// Who sleeps where tonight.
@@ -740,7 +742,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 place: b.place_id.clone(),
                 from: b.from,
                 to: b.to,
-                nights: (b.to - b.from).num_days() + 1,
+                nights: b.to.since(b.from).map_or(0, |s| i64::from(s.get_days())) + 1,
                 members: b.members.clone(),
                 party: party_of(trip, &b.members),
                 notes: b.notes.clone(),
@@ -905,32 +907,32 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
 }
 
 /// Blocker occurrences that start on `date` in the trip's zone.
-fn day_blockers(trip: &Trip, date: NaiveDate) -> Vec<DayBlocker> {
-    let Ok(tz) = trip.metadata.timezone.parse::<chrono_tz::Tz>() else {
+fn day_blockers(trip: &Trip, date: Date) -> Vec<DayBlocker> {
+    let Ok(tz) = TimeZone::get(&trip.metadata.timezone) else {
         return Vec::new();
     };
     trip.blockers
         .iter()
         .flat_map(|b| crate::blockers::occurrences(trip, b))
-        .filter(|o| o.start.with_timezone(&tz).date_naive() == date)
+        .filter(|o| o.start.to_zoned(tz.clone()).date() == date)
         .map(|o| {
             let members: Vec<String> = trip
                 .who(o.blocker.who.as_deref())
                 .into_iter()
                 .map(str::to_owned)
                 .collect();
-            let start = o.start.with_timezone(&tz);
-            let end = o.end.with_timezone(&tz);
+            let start = o.start.to_zoned(tz.clone());
+            let end = o.end.to_zoned(tz.clone());
             DayBlocker {
                 id: o.blocker.id.clone(),
                 party: party_of(trip, &members),
                 members,
                 whole_day: o.whole_day,
-                start: start.format("%H:%M").to_string(),
-                end: if end.date_naive() > date && end.format("%H:%M").to_string() == "00:00" {
+                start: start.strftime("%H:%M").to_string(),
+                end: if end.date() > date && end.strftime("%H:%M").to_string() == "00:00" {
                     "24:00".to_owned()
                 } else {
-                    end.format("%H:%M").to_string()
+                    end.strftime("%H:%M").to_string()
                 },
             }
         })
@@ -973,19 +975,19 @@ fn parties(trip: &Trip, bases: &[crate::loader::ResolvedBase]) -> Vec<PartyExpor
 }
 
 fn local_times(
-    date: NaiveDate,
-    start: Option<DateTime<FixedOffset>>,
-    end: Option<DateTime<FixedOffset>>,
+    date: Date,
+    start: Option<OffsetDateTime>,
+    end: Option<OffsetDateTime>,
     part: Option<DayPart>,
 ) -> LocalTimes {
     LocalTimes {
         date,
-        time: start.map(|s| s.format("%H:%M").to_string()),
-        offset: start.map(|s| s.format("%:z").to_string()),
+        time: start.map(OffsetDateTime::format_hm),
+        offset: start.map(OffsetDateTime::format_offset),
         part,
-        end_date: end.map(|e| e.date_naive()),
-        end_time: end.map(|e| e.format("%H:%M").to_string()),
-        end_offset: end.map(|e| e.format("%:z").to_string()),
+        end_date: end.map(OffsetDateTime::date),
+        end_time: end.map(OffsetDateTime::format_hm),
+        end_offset: end.map(OffsetDateTime::format_offset),
     }
 }
 
@@ -1033,7 +1035,7 @@ fn cost_exports(trip: &Trip, costs: &[Cost], participants: &[&str]) -> Vec<CostE
 }
 
 /// First and last wall-clock date touched by any item or base.
-pub fn date_range(trip: &Trip) -> (Option<NaiveDate>, Option<NaiveDate>) {
+pub fn date_range(trip: &Trip) -> (Option<Date>, Option<Date>) {
     let bases = trip.bases();
     let start = trip
         .itinerary
@@ -1044,7 +1046,7 @@ pub fn date_range(trip: &Trip) -> (Option<NaiveDate>, Option<NaiveDate>) {
     let end = trip
         .itinerary
         .iter()
-        .map(|i| i.span().map_or(i.day(), |(_, end)| end.date_naive()))
+        .map(|i| i.span().map_or(i.day(), |(_, end)| end.date()))
         .chain(bases.iter().map(|b| b.to))
         .max();
     (start, end)
@@ -1053,8 +1055,8 @@ pub fn date_range(trip: &Trip) -> (Option<NaiveDate>, Option<NaiveDate>) {
 fn days(
     trip: &Trip,
     bases: &[crate::loader::ResolvedBase],
-    start: Option<NaiveDate>,
-    end: Option<NaiveDate>,
+    start: Option<Date>,
+    end: Option<Date>,
 ) -> Vec<DayExport> {
     let (Some(start), Some(end)) = (start, end) else {
         return Vec::new();
@@ -1099,7 +1101,10 @@ fn days(
                 })
                 .collect(),
         });
-        date += Duration::days(1);
+        let Ok(next) = date.tomorrow() else {
+            break;
+        };
+        date = next;
     }
     out
 }

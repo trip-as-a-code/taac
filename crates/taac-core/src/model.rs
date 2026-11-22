@@ -1,11 +1,13 @@
 //! The `taac/v1alpha4` document model. Every type here is both the serde
 //! representation of the YAML and the source of the published JSON Schema.
 
-use chrono::{DateTime, FixedOffset, NaiveDate};
 use indexmap::IndexMap;
+use jiff::civil::Date;
 use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::datetime::OffsetDateTime;
 
 pub const API_VERSION: &str = "taac/v1alpha4";
 
@@ -246,10 +248,10 @@ pub struct Base {
     pub place: String,
     /// First night here.
     #[schemars(with = "String", extend("format" = "date"))]
-    pub from: NaiveDate,
+    pub from: Date,
     /// Last night here (inclusive).
     #[schemars(with = "String", extend("format" = "date"))]
-    pub to: NaiveDate,
+    pub to: Date,
     /// Names of members and/or groups, or `everyone`; omitted means everyone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub who: Option<Vec<String>>,
@@ -279,13 +281,13 @@ pub struct Idea {
     /// or `date` with an optional `part`. All optional, for any kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date-time"))]
-    pub start: Option<DateTime<FixedOffset>>,
+    pub start: Option<OffsetDateTime>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date-time"))]
-    pub end: Option<DateTime<FixedOffset>>,
+    pub end: Option<OffsetDateTime>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub date: Option<NaiveDate>,
+    pub date: Option<Date>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<DayPart>,
     /// The choice (in `choices`) this is one of the alternatives for: they are
@@ -331,8 +333,8 @@ fn default_idea_kind() -> ItemKind {
 
 impl Idea {
     /// The day it is proposed for, if any.
-    pub fn day(&self) -> Option<NaiveDate> {
-        self.start.map(|s| s.date_naive()).or(self.date)
+    pub fn day(&self) -> Option<Date> {
+        self.start.map(OffsetDateTime::date).or(self.date)
     }
 }
 
@@ -430,11 +432,11 @@ pub struct Task {
     /// Get it done by this date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub due: Option<NaiveDate>,
+    pub due: Option<Date>,
     /// When it got done; omitted means still open, to be ticked on the site.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub done: Option<NaiveDate>,
+    pub done: Option<Date>,
     /// Markdown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -444,9 +446,9 @@ pub struct Task {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Period {
     #[schemars(with = "String", extend("format" = "date"))]
-    pub from: NaiveDate,
+    pub from: Date,
     #[schemars(with = "String", extend("format" = "date"))]
-    pub to: NaiveDate,
+    pub to: Date,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -476,17 +478,17 @@ pub enum Weekday {
 }
 
 impl Weekday {
-    pub fn matches(self, day: chrono::Weekday) -> bool {
-        use chrono::Weekday as W;
+    pub fn matches(self, day: jiff::civil::Weekday) -> bool {
+        use jiff::civil::Weekday as W;
         matches!(
             (self, day),
-            (Self::Mon, W::Mon)
-                | (Self::Tue, W::Tue)
-                | (Self::Wed, W::Wed)
-                | (Self::Thu, W::Thu)
-                | (Self::Fri, W::Fri)
-                | (Self::Sat, W::Sat)
-                | (Self::Sun, W::Sun)
+            (Self::Mon, W::Monday)
+                | (Self::Tue, W::Tuesday)
+                | (Self::Wed, W::Wednesday)
+                | (Self::Thu, W::Thursday)
+                | (Self::Fri, W::Friday)
+                | (Self::Sat, W::Saturday)
+                | (Self::Sun, W::Sunday)
         )
     }
 }
@@ -516,14 +518,14 @@ pub struct Item {
     /// `date` for plans without a fixed time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date-time"))]
-    pub start: Option<DateTime<FixedOffset>>,
+    pub start: Option<OffsetDateTime>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date-time"))]
-    pub end: Option<DateTime<FixedOffset>>,
+    pub end: Option<OffsetDateTime>,
     /// A day without a time; not for lodging or transport.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub date: Option<NaiveDate>,
+    pub date: Option<Date>,
     /// Rough time of day for a `date`-only item.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<DayPart>,
@@ -612,18 +614,20 @@ impl Item {
     }
 
     /// The wall-clock day it happens on (in its own offset).
-    pub fn day(&self) -> NaiveDate {
+    pub fn day(&self) -> Date {
         self.start
-            .map(|s| s.date_naive())
+            .map(OffsetDateTime::date)
             .or(self.date)
             .unwrap_or_default()
     }
 
     /// Orders items within and across days: day, then wall-clock minute.
-    pub fn sort_key(&self) -> (NaiveDate, u32) {
-        use chrono::Timelike;
+    pub fn sort_key(&self) -> (Date, u32) {
         let minute = match (self.start, self.part) {
-            (Some(start), _) => start.hour() * 60 + start.minute(),
+            (Some(start), _) => {
+                let t = start.time();
+                u32::from(t.hour().cast_unsigned()) * 60 + u32::from(t.minute().cast_unsigned())
+            }
             (None, Some(part)) => part.minute(),
             (None, None) => 12 * 60,
         };
@@ -631,7 +635,7 @@ impl Item {
     }
 
     /// Both ends when the item has real times.
-    pub fn span(&self) -> Option<(DateTime<FixedOffset>, DateTime<FixedOffset>)> {
+    pub fn span(&self) -> Option<(OffsetDateTime, OffsetDateTime)> {
         self.start.map(|start| (start, self.end.unwrap_or(start)))
     }
 }
@@ -769,7 +773,7 @@ pub struct PassBooking {
     /// Book by this date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub deadline: Option<NaiveDate>,
+    pub deadline: Option<Date>,
     /// Can't be booked before this: a date, or RFC 3339 with the offset of
     /// where it is sold when sales open at a set time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -789,7 +793,7 @@ pub struct PassShare<'a> {
     pub periods: &'a [Period],
     pub costs: &'a [Cost],
     pub status: BookingStatus,
-    pub deadline: Option<NaiveDate>,
+    pub deadline: Option<Date>,
     pub opens: Option<Opens>,
 }
 
@@ -853,7 +857,7 @@ pub struct Booking {
     /// Book by this date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub deadline: Option<NaiveDate>,
+    pub deadline: Option<Date>,
     /// Can't be booked before this: a date, or RFC 3339 with the offset of
     /// where it is sold when sales open at a set time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -872,16 +876,16 @@ pub struct Booking {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(untagged)]
 pub enum Opens {
-    Day(#[schemars(with = "String", extend("format" = "date"))] NaiveDate),
-    At(#[schemars(with = "String", extend("format" = "date-time"))] DateTime<FixedOffset>),
+    Day(#[schemars(with = "String", extend("format" = "date"))] Date),
+    At(#[schemars(with = "String", extend("format" = "date-time"))] OffsetDateTime),
 }
 
 impl Opens {
     /// The day it opens, where it is sold.
-    pub fn day(self) -> NaiveDate {
+    pub fn day(self) -> Date {
         match self {
             Self::Day(day) => day,
-            Self::At(at) => at.date_naive(),
+            Self::At(at) => at.date(),
         }
     }
 }
@@ -898,7 +902,7 @@ pub struct Reservation {
     /// Book by this date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub deadline: Option<NaiveDate>,
+    pub deadline: Option<Date>,
     /// Can't be booked before this: a date, or RFC 3339 with the offset of
     /// where it is sold when sales open at a set time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1029,7 +1033,7 @@ pub struct Cost {
     /// in the payer's currency is an estimate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>", extend("format" = "date"))]
-    pub due: Option<NaiveDate>,
+    pub due: Option<Date>,
     /// Who paid: a member, a list of members and/or groups sharing the
     /// payment equally, or `each` — everyone paid their own share. Omitted
     /// means nobody has paid yet: it counts as planned spend and nobody

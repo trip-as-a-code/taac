@@ -77,7 +77,7 @@ pub struct CostLine {
     /// Charged on this date, not confirmed yet (`due` without `charged`):
     /// unpaid, so nothing is owed, until the charge is confirmed.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub due: Option<chrono::NaiveDate>,
+    pub due: Option<jiff::civil::Date>,
     /// Set aside, by kind (`groceries`, …, `unallocated` for what's left):
     /// a spending budget's part, not an expense.
     #[serde(skip_serializing_if = "Option::is_none")]
