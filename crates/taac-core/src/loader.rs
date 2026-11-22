@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 
 use crate::diagnostics::Diagnostic;
-use chrono::NaiveDate;
+use jiff::civil::Date;
 
 use crate::model::{
     Base, Blocker, Choice, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
@@ -70,8 +70,8 @@ pub struct ResolvedBase {
     pub title: String,
     pub place_id: String,
     pub place: Place,
-    pub from: NaiveDate,
-    pub to: NaiveDate,
+    pub from: Date,
+    pub to: Date,
     pub members: Vec<String>,
     pub notes: Option<String>,
     pub derived: bool,
@@ -236,14 +236,14 @@ impl Trip {
             .filter_map(|item| {
                 let (start, end) = item.span()?;
                 let (place_id, place) = self.item_places(item).into_iter().next()?;
-                let to = end.date_naive().pred_opt()?;
+                let to = end.date().yesterday().ok()?;
                 Some(ResolvedBase {
                     id: item.id.clone(),
                     title: place.name.clone(),
                     place_id,
                     place: place.clone(),
-                    from: start.date_naive(),
-                    to: to.max(start.date_naive()),
+                    from: start.date(),
+                    to: to.max(start.date()),
                     members: self
                         .participants(item)
                         .into_iter()
@@ -259,17 +259,11 @@ impl Trip {
     /// Whether `member` sleeps at this lodging on the night of `date`: inside
     /// its dates, and — when bases are declared — inside that night's base area.
     /// A flat kept on while travelling elsewhere doesn't count.
-    pub fn sleeps_at(
-        &self,
-        bases: &[ResolvedBase],
-        item: &Item,
-        member: &str,
-        date: NaiveDate,
-    ) -> bool {
+    pub fn sleeps_at(&self, bases: &[ResolvedBase], item: &Item, member: &str, date: Date) -> bool {
         let Some((start, end)) = item.span() else {
             return false;
         };
-        if !(start.date_naive() <= date && date < end.date_naive()) {
+        if !(start.date() <= date && date < end.date()) {
             return false;
         }
         if self.declared_bases.is_empty() {

@@ -2,9 +2,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{DateTime, FixedOffset, NaiveDate};
+use jiff::civil::Date;
+use jiff::tz::TimeZone;
 use rust_decimal::Decimal;
 
+use crate::datetime::{OffsetDateTime, format_offset};
 use crate::diagnostics::Diagnostic;
 use crate::loader::{EVERYONE, Site, Trip, within};
 use crate::model::{BookingStatus, Item, ItemKind, Opens, PlaceRef, Split};
@@ -74,12 +76,12 @@ fn shared_night(
     let (Some((start, end)), Some(_)) = (a.span(), b.span()) else {
         return false;
     };
-    let mut night = start.date_naive();
-    while night < end.date_naive() {
+    let mut night = start.date();
+    while night < end.date() {
         if trip.sleeps_at(bases, a, member, night) && trip.sleeps_at(bases, b, member, night) {
             return true;
         }
-        night = night.succ_opt().unwrap_or(end.date_naive());
+        night = night.tomorrow().ok().unwrap_or(end.date());
     }
     false
 }
@@ -100,7 +102,7 @@ enum Leg {
 type Jump<'a> = (Leg, Option<&'a str>, &'a str, String, String);
 
 /// `(item, is_lodging, start, end)`
-type Span<'a> = (&'a str, bool, DateTime<FixedOffset>, DateTime<FixedOffset>);
+type Span<'a> = (&'a str, bool, OffsetDateTime, OffsetDateTime);
 
 struct Validator<'a> {
     trip: &'a Trip,
@@ -117,8 +119,8 @@ impl Validator<'_> {
         &mut self,
         item: Option<&str>,
         opens: Option<Opens>,
-        deadline: Option<NaiveDate>,
-        day: Option<NaiveDate>,
+        deadline: Option<Date>,
+        day: Option<Date>,
     ) {
         let Some(opens) = opens.map(Opens::day) else {
             return;
@@ -160,7 +162,7 @@ impl Validator<'_> {
 
     fn metadata(&mut self) {
         let tz = &self.trip.metadata.timezone;
-        if tz.parse::<chrono_tz::Tz>().is_err() {
+        if TimeZone::get(tz).is_err() {
             self.error("timezone", None, format!("unknown IANA time zone `{tz}`"));
         }
     }
@@ -626,7 +628,7 @@ impl Validator<'_> {
                 if let Some(tz) = time
                     .timezone
                     .as_deref()
-                    .filter(|tz| tz.parse::<chrono_tz::Tz>().is_err())
+                    .filter(|tz| TimeZone::get(tz).is_err())
                 {
                     self.error(
                         "blocker.timezone",
@@ -684,8 +686,8 @@ impl Validator<'_> {
         let bases = trip.bases();
         // Each member's time on the trip, from the bases and journeys that
         // name them; a plan for everyone says nothing about who is there.
-        let mut presence: HashMap<&str, (NaiveDate, NaiveDate)> = HashMap::new();
-        let mut extend = |member: &str, from: NaiveDate, to: NaiveDate| {
+        let mut presence: HashMap<&str, (Date, Date)> = HashMap::new();
+        let mut extend = |member: &str, from: Date, to: Date| {
             let Some(member) = trip.member(member) else {
                 return;
             };
@@ -695,12 +697,16 @@ impl Validator<'_> {
         };
         for base in &bases {
             for member in &base.members {
-                extend(member, base.from, base.to.succ_opt().unwrap_or(base.to));
+                extend(
+                    member,
+                    base.from,
+                    base.to.tomorrow().ok().unwrap_or(base.to),
+                );
             }
         }
         for item in trip.itinerary.iter().filter(|i| i.who.is_some()) {
             if item.kind.is_transport() || item.kind == ItemKind::Lodging {
-                let end = item.span().map_or(item.day(), |(_, end)| end.date_naive());
+                let end = item.span().map_or(item.day(), |(_, end)| end.date());
                 for member in trip.participants(item) {
                     extend(member, item.day(), end);
                 }
@@ -719,7 +725,7 @@ impl Validator<'_> {
         for item in &trip.itinerary {
             let id = Some(item.id.as_str());
             let day = item.day();
-            let end = item.span().map_or(day, |(_, end)| end.date_naive());
+            let end = item.span().map_or(day, |(_, end)| end.date());
             let absent: Vec<&str> = trip
                 .participants(item)
                 .into_iter()
@@ -871,7 +877,7 @@ impl Validator<'_> {
 
     /// Moves between bases nothing takes people on; returns, per member id,
     /// the days each one spans so plan-level jumps there aren't said twice.
-    fn base_gaps(&mut self) -> Vec<(String, NaiveDate, NaiveDate)> {
+    fn base_gaps(&mut self) -> Vec<(String, Date, Date)> {
         let trip = self.trip;
         let mut covered = Vec::new();
         if trip.declared_bases.is_empty() {
@@ -921,13 +927,14 @@ impl Validator<'_> {
         for ((ai, bi), who) in gaps {
             let (a, b) = (&bases[ai], &bases[bi]);
             // The trip's UTC offset that day, so the snippet pastes as valid times.
-            let offset = trip
-                .metadata
-                .timezone
-                .parse::<chrono_tz::Tz>()
+            let offset = TimeZone::get(&trip.metadata.timezone)
                 .ok()
-                .and_then(|tz| b.from.and_hms_opt(8, 0, 0)?.and_local_timezone(tz).single())
-                .map_or_else(|| "+00:00".to_owned(), |t| t.format("%:z").to_string());
+                .and_then(|tz| {
+                    tz.to_ambiguous_zoned(b.from.at(8, 0, 0, 0))
+                        .compatible()
+                        .ok()
+                })
+                .map_or_else(|| "+00:00".to_owned(), |t| format_offset(t.offset()));
             self.warn(
                 "route.gap",
                 None,
@@ -965,7 +972,7 @@ impl Validator<'_> {
     /// one ending outside the area where the next starts, with no journey
     /// between, leaves them stranded; so does a plan that isn't a journey
     /// crossing from one area into another.
-    fn jumps(&mut self, covered: &[(String, NaiveDate, NaiveDate)]) {
+    fn jumps(&mut self, covered: &[(String, Date, Date)]) {
         let trip = self.trip;
         let mut jumps: Vec<(Jump, Vec<&str>)> = Vec::new();
         let bases = trip.bases();
@@ -1007,7 +1014,7 @@ impl Validator<'_> {
                 .copied()
                 .filter(|i| i.kind == ItemKind::Lodging)
                 .collect();
-            let said = |day: NaiveDate| {
+            let said = |day: Date| {
                 covered
                     .iter()
                     .any(|(m, from, to)| *m == member.id && (*from..=*to).contains(&day))
@@ -1028,7 +1035,7 @@ impl Validator<'_> {
                 // A new day starts from wherever the night was spent.
                 if let Some((prev, at)) = last
                     && item.day() > prev.day()
-                    && let Some(eve) = item.day().pred_opt()
+                    && let Some(eve) = item.day().yesterday().ok()
                     && let Some(night) = lodgings.iter().find(|l| {
                         l.id != prev.id
                             && l.id != item.id
@@ -1183,12 +1190,12 @@ impl Validator<'_> {
                 .min();
             let last = mine
                 .iter()
-                .map(|i| i.span().map_or(i.day(), |(_, end)| end.date_naive()))
+                .map(|i| i.span().map_or(i.day(), |(_, end)| end.date()))
                 .chain(
                     bases
                         .iter()
                         .filter(|b| b.members.contains(&member.id))
-                        .map(|b| b.to.succ_opt().unwrap_or(b.to)),
+                        .map(|b| b.to.tomorrow().ok().unwrap_or(b.to)),
                 )
                 .max();
             let (Some(first), Some(last)) = (first, last) else {
@@ -1199,7 +1206,7 @@ impl Validator<'_> {
             let first_stay = stays.clone().map(|b| b.from).min();
             let last_night = stays.map(|b| b.to).max();
             let outside = first_stay.is_some_and(|f| first < f)
-                || last_night.is_some_and(|l| l.succ_opt() < Some(last));
+                || last_night.is_some_and(|l| l.tomorrow().ok() < Some(last));
             if outside && member.home.is_none() && trip.metadata.home.is_none() {
                 homeless.push(member.id.clone());
             }
@@ -1212,14 +1219,14 @@ impl Validator<'_> {
                     || mine.iter().any(|i| {
                         i.span().is_some_and(|(start, end)| {
                             (i.kind == ItemKind::Lodging || i.kind.is_transport())
-                                && start.date_naive() <= night
-                                && night < end.date_naive()
+                                && start.date() <= night
+                                && night < end.date()
                         })
                     });
                 if !covered {
                     missing.push(night.to_string());
                 }
-                night = night.succ_opt().unwrap_or(last);
+                night = night.tomorrow().ok().unwrap_or(last);
             }
             if !missing.is_empty() {
                 self.warn(

@@ -12,9 +12,8 @@ categories = ["data-structures", "parsing"]
 rust-version.workspace = true
 
 [dependencies]
-chrono.workspace = true
-chrono-tz.workspace = true
 indexmap.workspace = true
+jiff.workspace = true
 rust_decimal.workspace = true
 schemars.workspace = true
 serde.workspace = true

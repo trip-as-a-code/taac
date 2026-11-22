@@ -20,7 +20,7 @@ pub fn generate(trip: &Trip) -> String {
             "id": item.id,
             "title": item.title,
             "kind": item.kind.as_str(),
-            "start": item.start.map_or_else(|| item.day().to_string(), |s| s.to_rfc3339()),
+            "start": item.start.map_or_else(|| item.day().to_string(), crate::datetime::OffsetDateTime::to_rfc3339),
             "status": status,
         });
         for (id, place) in &places {

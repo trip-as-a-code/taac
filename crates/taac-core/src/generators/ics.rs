@@ -2,7 +2,7 @@
 
 use std::fmt::Write;
 
-use chrono::Utc;
+use jiff::Timestamp;
 
 use crate::loader::Trip;
 use crate::model::{BookingStatus, ItemKind};
@@ -31,15 +31,18 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
             .collect();
         line("BEGIN:VEVENT".into());
         line(format!("UID:base.{}.{}@taac", base.id, trip.slug));
-        line(format!("DTSTAMP:{}", base.from.format("%Y%m%dT000000Z")));
-        line(format!("DTSTART;VALUE=DATE:{}", base.from.format("%Y%m%d")));
+        line(format!("DTSTAMP:{}", base.from.strftime("%Y%m%dT000000Z")));
+        line(format!(
+            "DTSTART;VALUE=DATE:{}",
+            base.from.strftime("%Y%m%d")
+        ));
         // All-day DTEND is exclusive: the morning after the last night.
         let end = base
             .to
-            .succ_opt()
-            .and_then(|d| d.succ_opt())
+            .tomorrow()
+            .and_then(jiff::civil::Date::tomorrow)
             .unwrap_or(base.to);
-        line(format!("DTEND;VALUE=DATE:{}", end.format("%Y%m%d")));
+        line(format!("DTEND;VALUE=DATE:{}", end.strftime("%Y%m%d")));
         line(format!("SUMMARY:📍 {}", escape(&base.title)));
         line(format!("LOCATION:{}", escape(&base.place.name)));
         line(format!("DESCRIPTION:{}", escape(&who.join(", "))));
@@ -121,16 +124,16 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
         line("BEGIN:VEVENT".into());
         line(format!("UID:{}.{}@taac", item.id, trip.slug));
         if let Some((start, end)) = item.span() {
-            line(format!("DTSTAMP:{}", stamp(start.with_timezone(&Utc))));
-            line(format!("DTSTART:{}", stamp(start.with_timezone(&Utc))));
-            line(format!("DTEND:{}", stamp(end.with_timezone(&Utc))));
+            line(format!("DTSTAMP:{}", stamp(start.timestamp())));
+            line(format!("DTSTART:{}", stamp(start.timestamp())));
+            line(format!("DTEND:{}", stamp(end.timestamp())));
         } else {
             let day = item.day();
-            line(format!("DTSTAMP:{}", day.format("%Y%m%dT000000Z")));
-            line(format!("DTSTART;VALUE=DATE:{}", day.format("%Y%m%d")));
+            line(format!("DTSTAMP:{}", day.strftime("%Y%m%dT000000Z")));
+            line(format!("DTSTART;VALUE=DATE:{}", day.strftime("%Y%m%d")));
             line(format!(
                 "DTEND;VALUE=DATE:{}",
-                day.succ_opt().unwrap_or(day).format("%Y%m%d")
+                day.tomorrow().unwrap_or(day).strftime("%Y%m%d")
             ));
         }
         line(format!("SUMMARY:{}", escape(&item.title)));
@@ -158,8 +161,8 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
     out
 }
 
-fn stamp(t: chrono::DateTime<Utc>) -> String {
-    t.format("%Y%m%dT%H%M%SZ").to_string()
+fn stamp(t: Timestamp) -> String {
+    t.strftime("%Y%m%dT%H%M%SZ").to_string()
 }
 
 fn escape(s: &str) -> String {
