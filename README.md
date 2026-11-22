@@ -1,5 +1,9 @@
 # taac — Trip as a Code
 
+<p align="center">
+  <img src="web/public/icons/icon.svg" width="96" height="96" alt="taac logo" />
+</p>
+
 Declare trips in YAML, review them in pull requests, and publish them as a website, a calendar feed, a map and a
 shared ledger. The YAML is the single source of truth; everything else is generated from it.
 
