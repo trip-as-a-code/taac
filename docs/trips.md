@@ -126,6 +126,29 @@ Booked separately by different people? Use `bookings:` instead, a list of reserv
 `status`, `reference`, `deadline` and costs. A return flight in the same booking as the outbound gets the same
 `reference` and no costs of its own.
 
+### Lotteries
+
+Some things aren't sold but drawn: a ballot for event tickets, a lottery for a restaurant table, a general sale only
+for whatever is left. Mark the booking with `lottery`:
+
+```yaml
+booking:
+  status: required # booked once you've won
+  opens: 2027-04-01T13:00:00+01:00 # entries open
+  deadline: 2027-04-14 # last day to enter
+  lottery:
+    results: 2027-04-18 # when the draw comes out
+    each: true # everyone enters for themselves
+```
+
+Until it's won, the card says when the results come out, with a button to tick that you've entered (one per person
+with `each`). Its people get a reminder every day from when entries open until they've ticked, then one on the results
+day.
+
+A second chance, such as a general sale after the draw, is an idea in the same [choice](#ideas) as the plan, with its
+own `opens`. While the draw is undecided, the choice stays open and the fallback keeps its reminders; once the plan's
+booking is `booked`, the choice is settled and the fallback goes quiet.
+
 ## Money
 
 ```yaml

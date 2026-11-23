@@ -5,6 +5,8 @@ import Avatars from '@/components/Avatars.astro'
 import Icon from '@/components/Icon.astro'
 import ThreadButton from '@/components/ThreadButton.astro'
 import Money from '@/components/Money.astro'
+import LotteryEntry from '@/components/LotteryEntry.astro'
+import { entryTickItem } from '@/lib/deadlines'
 import Opens from '@/components/Opens.astro'
 import type { I18n } from '@/i18n'
 import { ideaFacts, isLabelled, issuesOf } from '@/lib/facts'
@@ -94,6 +96,15 @@ const hasDetails = Boolean(
         )}
         {!notChosen && idea.booking?.status === 'required' && idea.booking.opens && (
           <Opens trip={trip} opens={idea.booking.opens} i18n={i18n} />
+        )}
+        {!notChosen && idea.booking?.status === 'required' && idea.booking.lottery && (
+          <LotteryEntry
+            trip={trip}
+            item={entryTickItem(`booking:idea:${idea.id}`)}
+            members={idea.members}
+            lottery={idea.booking.lottery}
+            i18n={i18n}
+          />
         )}
         {!notChosen && idea.booking?.status === 'required' && idea.booking.deadline && (
           <time class="footnote deadline" data-relative={idea.booking.deadline} data-template={t('bookings.due')} />

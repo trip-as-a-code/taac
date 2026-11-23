@@ -193,4 +193,33 @@ describe('deadlines', () => {
     expect(opensAt('2026-11-28', 'Asia/Tokyo').toISOString()).toBe('2026-11-27T15:00:00.000Z')
     expect(opensAt('2026-11-16T13:00:00+09:00', 'Asia/Tokyo').toISOString()).toBe('2026-11-16T04:00:00.000Z')
   })
+
+  it('reminds of a draw until each has entered, then on its results day', () => {
+    const draw = {
+      ...trip,
+      tasks: [],
+      passes: [],
+      ideas: [],
+      items: [
+        {
+          id: 'fair',
+          local: { date: '2026-12-29' },
+          members: ['a', 'b'],
+          booking: {
+            status: 'required',
+            deadline: '2026-11-30',
+            opens: '2026-11-16T13:00:00+09:00',
+            lottery: { results: '2026-12-04', each: true },
+            hasReference: false,
+          },
+          costs: [],
+        },
+      ],
+    } as unknown as TripExport
+    expect(deadlines(draw).map((d) => [d.key, d.ladder, d.date, d.lottery, d.tick?.item])).toEqual([
+      ['booking:item:fair:opens', 'opens', '2026-11-16', undefined, undefined],
+      ['booking:item:fair:entry', 'lottery', '2026-11-30', 'entry', 'entry-item-fair'],
+      ['booking:item:fair:results', 'results', '2026-12-04', 'results', undefined],
+    ])
+  })
 })

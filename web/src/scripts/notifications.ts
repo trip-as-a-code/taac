@@ -27,6 +27,8 @@ interface Notification {
   rung?: number
   /** When booking opens, for a reminder that it does (epoch ms). */
   opens?: number
+  /** A draw's entries closing, or its results coming out. */
+  lottery?: 'entry' | 'results'
 }
 
 interface Person {
@@ -165,7 +167,8 @@ function duePhrase(n: Notification, ctx: Context): string {
     Date.parse(n.due!),
   )
   const rel = new Intl.RelativeTimeFormat(ctx.lang, { numeric: 'auto' }).format(days, 'day')
-  return ctx.strings[`${days < 0 ? 'overdue' : 'due'}.${n.kind}`]!.replace('{rel}', rel).replace('{date}', date)
+  const key = n.lottery ? `lottery.${n.lottery}` : `${days < 0 ? 'overdue' : 'due'}.${n.kind}`
+  return ctx.strings[key]!.replace('{rel}', rel).replace('{date}', date)
 }
 
 /** A deadline: the thing, how long is left (red once past), a calendar for a face. */

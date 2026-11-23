@@ -155,11 +155,14 @@ const pageTitle = title ? `${title} · ${siteTitle}` : siteTitle
         for (const el of document.querySelectorAll('[data-opens-at]')) {
           const at = Date.parse(el.dataset.opensAt)
           el.hidden = Date.now() >= at
-          const timed = el.hasAttribute('data-timed') ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}
+          // A day without a time is that day where it's sold, as the page says already.
+          if (!el.hasAttribute('data-timed')) continue
           const when = new Intl.DateTimeFormat(document.documentElement.lang, {
             day: 'numeric',
             month: 'short',
-            ...timed,
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23',
           }).format(at)
           el.textContent = (el.dataset.template ?? '{when}').replace('{when}', when)
         }

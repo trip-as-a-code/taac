@@ -861,6 +861,10 @@ pub struct Booking {
     /// where it is sold when sales open at a set time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opens: Option<Opens>,
+    /// Won in a draw rather than bought: entries open at `opens` and close at
+    /// `deadline`, and the result comes out on `lottery.results`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lottery: Option<Lottery>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -875,8 +879,9 @@ pub struct Booking {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(untagged)]
 pub enum Opens {
-    Day(#[schemars(with = "String", extend("format" = "date"))] Date),
+    // A time first: a date also parses from one, dropping the time.
     At(#[schemars(with = "String", extend("format" = "date-time"))] OffsetDateTime),
+    Day(#[schemars(with = "String", extend("format" = "date"))] Date),
 }
 
 impl Opens {
@@ -887,6 +892,18 @@ impl Opens {
             Self::At(at) => at.date(),
         }
     }
+}
+
+/// A booking won in a draw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Lottery {
+    /// When the draw's result comes out.
+    #[schemars(with = "String", extend("format" = "date"))]
+    pub results: Date,
+    /// Everyone enters for themselves, like a task done `each`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub each: bool,
 }
 
 /// One of several reservations behind a plan.
@@ -906,6 +923,10 @@ pub struct Reservation {
     /// where it is sold when sales open at a set time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opens: Option<Opens>,
+    /// Won in a draw rather than bought: entries open at `opens` and close at
+    /// `deadline`, and the result comes out on `lottery.results`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lottery: Option<Lottery>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -924,6 +945,7 @@ impl Reservation {
             status: self.status,
             deadline: self.deadline,
             opens: self.opens,
+            lottery: self.lottery,
             provider: self.provider.clone(),
             url: self.url.clone(),
             reference: self.reference.clone(),
@@ -960,6 +982,10 @@ pub fn summarize(reservations: &[Reservation]) -> Option<Booking> {
             .filter(|r| r.status == BookingStatus::Required)
             .filter_map(|r| r.opens)
             .min_by_key(|o| o.day()),
+        lottery: reservations
+            .iter()
+            .filter(|r| r.status == BookingStatus::Required)
+            .find_map(|r| r.lottery),
         provider: first.provider.clone(),
         url: reservations
             .iter()

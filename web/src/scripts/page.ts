@@ -203,10 +203,15 @@ export function renderOpenings(root: ParentNode = document) {
   for (const el of root.querySelectorAll<HTMLElement>('[data-opens-at]')) {
     const at = Date.parse(el.dataset.opensAt!)
     el.hidden = Date.now() >= at
-    const timed = el.hasAttribute('data-timed')
-      ? ({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } as const)
-      : {}
-    const when = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short', ...timed }).format(at)
+    // A day without a time is that day where it's sold, as the page says already.
+    if (!el.hasAttribute('data-timed')) continue
+    const when = new Intl.DateTimeFormat(lang, {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(at)
     el.textContent = (el.dataset.template ?? '{when}').replace('{when}', when)
   }
 }

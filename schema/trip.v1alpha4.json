@@ -696,6 +696,17 @@
             }
           ]
         },
+        "lottery": {
+          "description": "Won in a draw rather than bought: entries open at `opens` and close at\n`deadline`, and the result comes out on `lottery.results`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Lottery"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "provider": {
           "type": [
             "string",
@@ -745,12 +756,31 @@
       "anyOf": [
         {
           "type": "string",
-          "format": "date"
+          "format": "date-time"
         },
         {
           "type": "string",
-          "format": "date-time"
+          "format": "date"
         }
+      ]
+    },
+    "Lottery": {
+      "description": "A booking won in a draw.",
+      "type": "object",
+      "properties": {
+        "results": {
+          "description": "When the draw's result comes out.",
+          "type": "string",
+          "format": "date"
+        },
+        "each": {
+          "description": "Everyone enters for themselves, like a task done `each`.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "results"
       ]
     },
     "Secret": {
@@ -797,6 +827,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Opens"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lottery": {
+          "description": "Won in a draw rather than bought: entries open at `opens` and close at\n`deadline`, and the result comes out on `lottery.results`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Lottery"
             },
             {
               "type": "null"

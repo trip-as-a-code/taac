@@ -145,6 +145,8 @@ export interface Booking {
   deadline?: ISODate
   /** Not bookable before this: a day where it is sold, or an RFC 3339 time. */
   opens?: ISODate | string
+  /** Won in a draw: entries close at `deadline`, results come out on `results`; `each` when everyone enters for themselves. */
+  lottery?: { results: ISODate; each?: boolean }
   provider?: string
   url?: string
   hasReference: boolean

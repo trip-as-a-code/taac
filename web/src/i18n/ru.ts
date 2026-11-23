@@ -338,6 +338,11 @@ export const ru: Messages = {
   'bookings.by': 'До {date}',
   'bookings.due': 'Срок {rel}',
   'bookings.opens': 'Откроется {when}',
+  'bookings.lottery': 'Лотерея · результаты {date}',
+  'bookings.entered': 'Заявка подана',
+  'bookings.enteredLabel': 'Заявка подана:',
+  'bookings.lotteryEntered': '{name}: заявка подана',
+  'bookings.lotteryNotEntered': '{name}: заявки ещё нет',
   'bookings.overdue': 'Просрочено · срок был {rel}',
   'bookings.none': 'В этой поездке ничего не нужно бронировать.',
 
@@ -545,6 +550,8 @@ export const ru: Messages = {
   'notifications.overdue.payment': 'Списано {date}? Укажите сумму',
   'notifications.overdue.task': 'Задача просрочена с {date}',
   'notifications.opens': 'Бронирование откроется {day} в {time}',
+  'notifications.lottery.entry': 'Приём заявок в лотерею закрывается {rel}',
+  'notifications.lottery.results': 'Результаты лотереи {rel}',
   'notifications.opened': 'Бронирование открылось в {time}',
   'settings.kindsNote': 'Для вашего аккаунта: в колокольчике и в уведомлениях браузера, на языке, выбранном вверху.',
 
