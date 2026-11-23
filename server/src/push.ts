@@ -4,7 +4,8 @@
  * server signs with its VAPID key pair; without one there is no push.
  */
 
-import webpush from 'web-push'
+// Named: web-push 4 is ESM only, with no default export.
+import { sendNotification } from 'web-push'
 
 export interface PushSubscription {
   endpoint: string
@@ -44,7 +45,7 @@ export interface Vapid {
 export function vapidSender(vapid: Vapid): PushSender {
   return async (subscription, message) => {
     try {
-      await webpush.sendNotification(
+      await sendNotification(
         { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
         JSON.stringify(message),
         { vapidDetails: vapid, TTL: 24 * 60 * 60, urgency: 'normal' },
