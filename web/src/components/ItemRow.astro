@@ -6,6 +6,8 @@ import Debts from '@/components/Debts.astro'
 import Icon from '@/components/Icon.astro'
 import ThreadButton from '@/components/ThreadButton.astro'
 import Money from '@/components/Money.astro'
+import LotteryEntry from '@/components/LotteryEntry.astro'
+import { entryTickItem } from '@/lib/deadlines'
 import Opens from '@/components/Opens.astro'
 import type { I18n } from '@/i18n'
 import { isLabelled, issuesOf, itemFacts } from '@/lib/facts'
@@ -184,7 +186,7 @@ const offsetLabel =
           </span>
         )}
         {item.bookings
-          ? item.bookings.map((b) => {
+          ? item.bookings.map((b, index) => {
               // Each reservation: whose it is, and where it stands.
               const id = trip.parties.find((p) => p.members.join() === b.members.join())?.id ?? b.members.join('+')
               const whose =
@@ -196,6 +198,15 @@ const offsetLabel =
                     <span>· {t(`status.${b.status}`)}</span>
                   </span>
                   {b.periods && <span class="footnote secondary">{days(b.periods)}</span>}
+                  {b.status === 'required' && b.lottery && (
+                    <LotteryEntry
+                      trip={trip}
+                      item={entryTickItem(`booking:${anchor}:${item.id}:${index}`)}
+                      members={b.members}
+                      lottery={b.lottery}
+                      i18n={i18n}
+                    />
+                  )}
                   {b.costs.map((c) => (
                     <Money
                       display={trip.currency?.base ?? 'EUR'}
@@ -217,6 +228,15 @@ const offsetLabel =
             )}
         {item.booking.status === 'required' && item.booking.opens && (
           <Opens trip={trip} opens={item.booking.opens} i18n={i18n} />
+        )}
+        {!item.bookings && item.booking.status === 'required' && item.booking.lottery && (
+          <LotteryEntry
+            trip={trip}
+            item={entryTickItem(`booking:${anchor}:${item.id}`)}
+            members={item.members}
+            lottery={item.booking.lottery}
+            i18n={i18n}
+          />
         )}
         {item.booking.status === 'required' && item.booking.deadline && !dueShown && (
           <time class="footnote deadline" data-relative={item.booking.deadline} data-template={t('bookings.due')} />

@@ -54,11 +54,14 @@ export function merge(ticks: Ticks, changes: unknown, now: number, by: string | 
 
 /**
  * The ticks' item for an anchor: a packing item by its id, a task as
- * `task-<id>` (one tick for everyone as member `_`, or one per member).
+ * `task-<id>` (one tick for everyone as member `_`, or one per member), a
+ * plan's or idea's draw as `entry-item-<id>` or `entry-idea-<id>`.
  */
 export function tickItem(anchor: string): string | null {
   if (anchor.startsWith('packing:')) return anchor.slice(8)
   if (anchor.startsWith('task:')) return `task-${anchor.slice(5)}`
+  // Entered in a plan's or an idea's draw.
+  if (anchor.startsWith('item:') || anchor.startsWith('idea:')) return `entry-${anchor.replace(':', '-')}`
   return null
 }
 

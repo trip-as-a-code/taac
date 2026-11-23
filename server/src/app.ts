@@ -400,7 +400,14 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     const rel = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(days, 'day')
     return {
       title: target?.title ?? trip?.title ?? slug,
-      body: (days < 0 ? strings.overdue : strings.due)[d.kind].replace('{rel}', rel).replace('{date}', date),
+      body: (d.lottery === 'results'
+        ? strings.lotteryResults
+        : d.lottery === 'entry'
+          ? strings.lotteryEntry
+          : (days < 0 ? strings.overdue : strings.due)[d.kind]
+      )
+        .replace('{rel}', rel)
+        .replace('{date}', date),
       url: target?.href ?? `/trips/${slug}/`,
       tag: `due:${slug}:${d.key}`,
     }

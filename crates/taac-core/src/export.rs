@@ -13,8 +13,8 @@ use crate::diagnostics::Diagnostic;
 use crate::generators;
 use crate::loader::{Site, Trip};
 use crate::model::{
-    Booking, BookingStatus, Cost, Cover, DayPart, Group, IdeaDuration, ItemKind, Member, Opens,
-    Place, Priority, Source, SourceRepo, Text, Transport,
+    Booking, BookingStatus, Cost, Cover, DayPart, Group, IdeaDuration, ItemKind, Lottery, Member,
+    Opens, Place, Priority, Source, SourceRepo, Text, Transport,
 };
 
 #[derive(Debug, Serialize)]
@@ -258,6 +258,10 @@ pub struct BookingExport {
     /// Not bookable before this: a date where it is sold, or an RFC 3339 time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opens: Option<Opens>,
+    /// Won in a draw: entries close at `deadline`, results come out on
+    /// `lottery.results`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lottery: Option<Lottery>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -583,6 +587,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                         status: BookingStatus::NotRequired,
                         deadline: None,
                         opens: None,
+                        lottery: None,
                         provider: None,
                         url: None,
                         has_reference: false,
@@ -841,10 +846,18 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 name: c.name.clone(),
                 pick: c.pick,
                 notes: c.notes.clone(),
+                // A plan still waiting on a draw hasn't decided anything yet.
                 settled_by: trip
                     .itinerary
                     .iter()
                     .filter(|i| i.choice.as_deref() == Some(&c.id))
+                    .filter(|i| {
+                        !i.parts().iter().any(|p| {
+                            p.booking.as_ref().is_some_and(|b| {
+                                b.lottery.is_some() && b.status == BookingStatus::Required
+                            })
+                        })
+                    })
                     .map(|i| i.id.clone())
                     .collect(),
             })
@@ -996,6 +1009,7 @@ fn booking_export(b: &Booking) -> BookingExport {
         status: b.status,
         deadline: b.deadline,
         opens: b.opens,
+        lottery: b.lottery,
         provider: b.provider.clone(),
         url: b.url.clone(),
         has_reference: b.reference.is_some(),

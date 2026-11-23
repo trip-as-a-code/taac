@@ -1,0 +1,143 @@
+---
+// A booking won in a draw: when its result comes out, and who has entered,
+// ticked on the site like a task. Ticking stops that person's daily reminders.
+import type { TripExport } from '@taac/core'
+import type { I18n } from '@/i18n'
+import { initials, memberName } from '@/lib/trip'
+
+interface Props {
+  trip: TripExport
+  /** The tick's item, `entry-<anchor>`, from `entryTickItem`. */
+  item: string
+  members: string[]
+  lottery: { results: string; each?: boolean }
+  i18n: I18n
+}
+
+const { trip, item, members, lottery, i18n } = Astro.props
+const { t, date } = i18n
+const people = trip.members.filter((m) => members.includes(m.id))
+const each = Boolean(lottery.each) && people.length > 1
+---
+
+<span
+  class="lottery"
+  data-entry={item}
+  data-slug={trip.slug}
+  data-members={people.map((m) => m.id).join(' ')}
+  data-each={each ? '' : undefined}
+  data-entered={t('bookings.lotteryEntered')}
+  data-not-entered={t('bookings.lotteryNotEntered')}
+>
+  <span class="footnote secondary">
+    {t('bookings.lottery', { date: date(lottery.results, { day: 'numeric', month: 'short' }) })}
+  </span>
+  {each ? (
+    <>
+      <span class="footnote secondary">{t('bookings.enteredLabel')}</span>
+      {people.map((m) => (
+        <button
+          type="button"
+          class="entrant"
+          data-entrant={m.id}
+          data-name={memberName(trip, m.id)}
+          aria-pressed="false"
+        >
+          {initials(m)}
+        </button>
+      ))}
+    </>
+  ) : (
+    <button type="button" class="entered" data-entrant="_" aria-pressed="false">
+      {t('bookings.entered')}
+    </button>
+  )}
+</span>
+
+<script>
+  import { PackingStore } from '@/scripts/packing'
+
+  const stores = new Map<string, PackingStore>()
+  // Stores outlive a page; they redraw whichever page is showing now.
+  let redraw = () => {}
+
+  function setup() {
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-entry]')]
+    if (!rows.length) return
+    const render = () => {
+      for (const row of rows) {
+        const store = stores.get(row.dataset.slug!)!
+        for (const button of row.querySelectorAll<HTMLButtonElement>('[data-entrant]')) {
+          const entered = store.packed(row.dataset.entry!, button.dataset.entrant!)
+          button.setAttribute('aria-pressed', String(entered))
+          button.disabled = !store.available || !store.writable
+          if (button.dataset.name)
+            button.title = (entered ? row.dataset.entered! : row.dataset.notEntered!).replace(
+              '{name}',
+              button.dataset.name,
+            )
+        }
+      }
+    }
+    for (const row of rows) {
+      const slug = row.dataset.slug!
+      if (!stores.has(slug)) {
+        const store = new PackingStore(slug, () => redraw())
+        stores.set(slug, store)
+        void store.sync()
+      }
+      const store = stores.get(slug)!
+      for (const button of row.querySelectorAll<HTMLButtonElement>('[data-entrant]'))
+        button.addEventListener('click', () =>
+          store.set(
+            row.dataset.entry!,
+            button.dataset.entrant!,
+            !store.packed(row.dataset.entry!, button.dataset.entrant!),
+          ),
+        )
+    }
+    redraw = render
+    render()
+  }
+
+  // On any page that lists a draw: itinerary, bookings, ideas, the overview.
+  document.addEventListener('astro:page-load', setup)
+</script>
+
+<style>
+  .lottery {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .entrant,
+  .entered {
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border: 1.5px dashed var(--separator-strong);
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--label-tertiary);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .entrant[aria-pressed='true'],
+  .entered[aria-pressed='true'] {
+    color: var(--green);
+    border-style: solid;
+    border-color: var(--green);
+  }
+
+  .entrant:disabled,
+  .entered:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+</style>

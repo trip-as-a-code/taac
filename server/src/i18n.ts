@@ -127,6 +127,9 @@ export interface PushStrings {
   /** Booking that opens `{day}` (“tomorrow”) at `{time}`, and once it has. */
   opens: string
   opened: string
+  /** A draw: entries closing `{rel}`, results coming out `{rel}`. */
+  lotteryEntry: string
+  lotteryResults: string
 }
 
 const PUSH: Record<string, PushStrings> = {
@@ -146,6 +149,8 @@ const PUSH: Record<string, PushStrings> = {
     },
     opens: 'Booking opens {day} at {time}',
     opened: 'Booking opened at {time}',
+    lotteryEntry: 'Lottery entries close {rel}',
+    lotteryResults: 'Lottery results {rel}',
   },
   ru: {
     thread: '{name}: новое обсуждение',
@@ -163,6 +168,8 @@ const PUSH: Record<string, PushStrings> = {
     },
     opens: 'Бронирование откроется {day} в {time}',
     opened: 'Бронирование открылось в {time}',
+    lotteryEntry: 'Приём заявок в лотерею закрывается {rel}',
+    lotteryResults: 'Результаты лотереи {rel}',
   },
 }
 

@@ -13,7 +13,9 @@ export interface Deadline {
   date: string
   logins: string[]
   until?: string
-  ladder: 'full' | 'light' | 'payment' | 'opens'
+  ladder: 'full' | 'light' | 'payment' | 'opens' | 'lottery' | 'results'
+  /** A draw's entries (daily until entered) or its results day. */
+  lottery?: 'entry' | 'results'
   /** Can't be booked before this: a day where the trip is, or an RFC 3339 time. */
   opens?: string
   /** A task ticked on the site is done: the tick's item, whether each person ticks their own, and whose member id each login is. */
@@ -23,6 +25,9 @@ export interface Deadline {
 /** A task's tick on the site, in the packing ticks: `task-<id>`, per member or `_` for everyone. */
 export const taskTickItem = (id: string) => `task-${id}`
 export const SHARED_TICK = '_'
+
+/** Being entered in a draw, ticked like a task: `booking:item:<id>:1` → `entry-item-<id>-1`. */
+export const entryTickItem = (key: string) => key.replace(/^booking:/, 'entry-').replaceAll(':', '-')
 
 const plusDays = (date: string, days: number) =>
   new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
@@ -60,12 +65,41 @@ export function deadlines(trip: TripExport): Deadline[] {
     d: Omit<Deadline, 'logins' | 'kind' | 'ladder'> & { ladder?: Deadline['ladder'] },
     members: string[],
     opens?: string,
+    lottery?: { results: string; each?: boolean },
   ) => {
     if (opens)
       add(
         { key: `${d.key}:opens`, kind: 'booking', anchor: d.anchor, date: opens.slice(0, 10), opens, ladder: 'opens' },
         members,
       )
+    // A draw: every day until each of its people has entered, then its results day.
+    if (lottery && d.date) {
+      add(
+        {
+          key: `${d.key}:entry`,
+          kind: 'booking',
+          anchor: d.anchor,
+          date: d.date,
+          ladder: 'lottery',
+          lottery: 'entry',
+          ...(opens ? { opens } : {}),
+          tick: { item: entryTickItem(d.key), each: Boolean(lottery.each), members: memberOf(members) },
+        },
+        members,
+      )
+      add(
+        {
+          key: `${d.key}:results`,
+          kind: 'booking',
+          anchor: d.anchor,
+          date: lottery.results,
+          ladder: 'results',
+          lottery: 'results',
+        },
+        members,
+      )
+      return
+    }
     if (d.date) add({ ladder: 'full', ...d, kind: 'booking', ...(opens ? { opens } : {}) }, members)
   }
 
@@ -94,13 +128,19 @@ export function deadlines(trip: TripExport): Deadline[] {
     if (item.bookings?.length)
       item.bookings.forEach((b, index) => {
         if (b.status === 'required')
-          booking({ key: `booking:${anchor}:${index}`, anchor, date: b.deadline ?? '', until }, b.members, b.opens)
+          booking(
+            { key: `booking:${anchor}:${index}`, anchor, date: b.deadline ?? '', until },
+            b.members,
+            b.opens,
+            b.lottery,
+          )
       })
     else if (item.booking.status === 'required')
       booking(
         { key: `booking:${anchor}`, anchor, date: item.booking.deadline ?? '', until },
         item.members,
         item.booking.opens,
+        item.booking.lottery,
       )
     payments(anchor, item.costs)
   }
@@ -130,6 +170,7 @@ export function deadlines(trip: TripExport): Deadline[] {
         },
         idea.members,
         idea.booking.opens,
+        idea.booking.lottery,
       )
   return out
 }

@@ -321,6 +321,11 @@ export const en = {
   'bookings.by': 'By {date}',
   'bookings.due': 'Due {rel}',
   'bookings.opens': 'Opens {when}',
+  'bookings.lottery': 'Lottery · results {date}',
+  'bookings.entered': 'Entered',
+  'bookings.enteredLabel': 'Entered:',
+  'bookings.lotteryEntered': '{name}: entered',
+  'bookings.lotteryNotEntered': '{name}: not entered yet',
   'bookings.overdue': 'Overdue · was due {rel}',
   'bookings.none': 'Nothing on this trip needs booking.',
 
@@ -523,6 +528,8 @@ export const en = {
   'notifications.overdue.payment': 'Charged {date}? Add the amount',
   'notifications.overdue.task': 'Task overdue since {date}',
   'notifications.opens': 'Booking opens {day} at {time}',
+  'notifications.lottery.entry': 'Lottery entries close {rel}',
+  'notifications.lottery.results': 'Lottery results {rel}',
   'notifications.opened': 'Booking opened at {time}',
   'settings.kindsNote':
     'For your account: in the bell and in browser notifications, in the language you chose at the top.',

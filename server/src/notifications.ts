@@ -48,6 +48,8 @@ export interface Notification {
   rung?: number
   /** When booking opens, for a reminder that it does (epoch ms). */
   opens?: number
+  /** A draw's entries closing, or its results coming out. */
+  lottery?: 'entry' | 'results'
 }
 
 export const NOTIFICATION_LIMIT = 50
@@ -144,6 +146,7 @@ export function deadlineEvents(
         due: d.date,
         rung: reminder.rung,
         ...(d.ladder === 'opens' ? { opens: opensAt(d, file.timezone) } : {}),
+        ...(d.lottery ? { lottery: d.lottery } : {}),
       },
     ]
   })

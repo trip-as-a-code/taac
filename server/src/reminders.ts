@@ -22,7 +22,9 @@ export interface Deadline {
   /** No reminders after this day, once it no longer matters; the deadline itself if absent. */
   until?: string
   /** `light`: an idea's booking, only if it is chosen; `payment`: money charged later; `opens`: when booking opens. */
-  ladder: 'full' | 'light' | 'payment' | 'opens'
+  ladder: 'full' | 'light' | 'payment' | 'opens' | 'lottery' | 'results'
+  /** A draw's entries (`lottery` ladder: daily until entered) or its results day. */
+  lottery?: 'entry' | 'results'
   /**
    * Can't be booked before this: a day where the trip is, or an RFC 3339 time.
    * A booking's ladder starts then; an `opens` one says the day before and as it opens.
@@ -54,8 +56,18 @@ const BEFORE: Record<Deadline['ladder'], number[]> = {
   light: [7, 1],
   payment: [7, 3, 1, 0],
   opens: [1, 0],
+  // Every day from when entries open: worked out per deadline in rungs().
+  lottery: [],
+  results: [0],
 }
-const AFTER: Record<Deadline['ladder'], number[]> = { full: [1, 3, 5, 7], light: [], payment: [1, 7], opens: [] }
+const AFTER: Record<Deadline['ladder'], number[]> = {
+  full: [1, 3, 5, 7],
+  light: [],
+  payment: [1, 7],
+  opens: [],
+  lottery: [],
+  results: [],
+}
 
 const DAY = 86_400_000
 
@@ -116,6 +128,11 @@ export const validRemindAt = (value: unknown): value is string =>
 
 /** Days before (positive) or after (negative) the deadline that remind, in order. */
 export function rungs(deadline: Deadline): number[] {
+  // A draw reminds every day from when entries open (or the last two weeks) to its last day.
+  if (deadline.ladder === 'lottery') {
+    const from = deadline.opens ? daysBetween(deadline.opens.slice(0, 10), deadline.date) : 14
+    return Array.from({ length: Math.max(0, Math.min(from, 60)) + 1 }, (_, i) => Math.min(from, 60) - i)
+  }
   const until = deadline.until ?? deadline.date
   const after = [...AFTER[deadline.ladder]]
   // Past the first week, a full ladder keeps going weekly while it still matters.

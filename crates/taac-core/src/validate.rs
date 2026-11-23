@@ -143,6 +143,26 @@ impl Validator<'_> {
         }
     }
 
+    /// A draw needs a last day to enter, and its result comes after it.
+    fn lottery(&mut self, item: Option<&str>, booking: &crate::model::Booking) {
+        let Some(lottery) = booking.lottery else {
+            return;
+        };
+        match booking.deadline {
+            None => self.error(
+                "booking.lottery",
+                item,
+                "a lottery needs a `deadline`: the last day to enter".into(),
+            ),
+            Some(deadline) if lottery.results < deadline => self.error(
+                "booking.lottery",
+                item,
+                "lottery results come out before entries close".into(),
+            ),
+            Some(_) => {}
+        }
+    }
+
     fn warn(&mut self, code: &'static str, item: Option<&str>, message: String) {
         self.push(Diagnostic::warning(code, message), item);
     }
@@ -384,6 +404,7 @@ impl Validator<'_> {
             for part in item.parts() {
                 if let Some(b) = &part.booking {
                     self.opens(id, b.opens, b.deadline, Some(item.day()));
+                    self.lottery(id, b);
                 }
                 if let Some(who) = part.who {
                     self.who(&item.id, Some(who));
@@ -521,6 +542,7 @@ impl Validator<'_> {
             let id = Some(idea.id.as_str());
             if let Some(b) = &idea.booking {
                 self.opens(id, b.opens, b.deadline, idea.day());
+                self.lottery(id, b);
             }
             if let Some(area) = idea.area.as_deref() {
                 match trip.places.get(area) {
@@ -2205,6 +2227,78 @@ ideas:
                 .count()
         };
         assert_eq!((at("early"), at("late"), at("after")), (0, 1, 1), "{d:?}");
+    }
+
+    #[test]
+    fn an_opening_keeps_its_time() {
+        use crate::model::Opens;
+        let at: Opens = serde_json::from_str("\"2026-11-20T10:00:00+09:00\"").unwrap();
+        assert!(matches!(at, Opens::At(_)), "{at:?}");
+        assert_eq!(
+            serde_json::to_string(&at).unwrap(),
+            "\"2026-11-20T10:00:00+09:00\""
+        );
+        let day: Opens = serde_json::from_str("\"2026-11-20\"").unwrap();
+        assert!(matches!(day, Opens::Day(_)), "{day:?}");
+    }
+
+    #[test]
+    fn a_lottery_closes_before_its_results() {
+        let plan = |title: &str, booking: &str| {
+            format!(
+                "  - {{ title: {title}, kind: activity, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00, who: [everyone],\n      booking: {booking} }}\n"
+            )
+        };
+        let d = check_with(
+            "",
+            &[
+                plan("drawn", "{ status: required, deadline: 2026-11-30, lottery: { results: 2026-12-04, each: true } }"),
+                plan("open-ended", "{ status: required, lottery: { results: 2026-12-04 } }"),
+                plan("early", "{ status: required, deadline: 2026-11-30, lottery: { results: 2026-11-20 } }"),
+            ]
+            .concat(),
+        );
+        let at = |item: &str| {
+            d.iter()
+                .filter(|x| x.item.as_deref() == Some(item) && x.code == "booking.lottery")
+                .count()
+        };
+        assert_eq!(
+            (at("drawn"), at("open-ended"), at("early")),
+            (0, 1, 1),
+            "{d:?}"
+        );
+    }
+
+    #[test]
+    fn a_lottery_settles_its_choice_once_won() {
+        let trip = |status: &str| {
+            format!(
+                "apiVersion: taac/v1alpha4
+kind: Trip
+metadata: {{ title: T, timezone: Asia/Tokyo }}
+members: [{{ name: A }}]
+spending: [{{ who: [everyone], amount: 0, currency: EUR }}]
+choices: [{{ name: Entry }}]
+itinerary:
+  - {{ title: drawn, kind: activity, choice: Entry, start: 2027-01-01T10:00:00+09:00, end: 2027-01-01T11:00:00+09:00,
+      who: [everyone], booking: {{ status: {status}, deadline: 2026-11-30, lottery: {{ results: 2026-12-04 }} }} }}
+ideas:
+  - {{ title: fallback, choice: Entry, who: [everyone], booking: {{ status: required, opens: 2026-12-05, deadline: 2026-12-05 }} }}
+"
+            )
+        };
+        let settled = |status: &str| {
+            let files: Files = [("trip.yaml".to_owned(), trip(status))].into();
+            let (site, diagnostics) = load_standalone_trip(&files, "trip.yaml");
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+            crate::export::export_trip(&site.unwrap().trips[0], vec![]).choices[0]
+                .settled_by
+                .len()
+        };
+        // Still waiting on the draw: the fallback stays in play.
+        assert_eq!(settled("required"), 0);
+        assert_eq!(settled("booked"), 1);
     }
 
     #[test]

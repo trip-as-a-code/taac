@@ -9,6 +9,7 @@ import {
   rungs,
   rungTime,
   stillTimely,
+  ticked,
   zonedTime,
   type Deadline,
 } from './reminders'
@@ -78,6 +79,44 @@ describe('reminders', () => {
       day: 'tomorrow',
       time: '17:00',
     })
+  })
+
+  it('reminds of a draw every day from when entries open, and once on its results day', () => {
+    const entry: Deadline = {
+      ...booking,
+      key: 'booking:item:tower:entry',
+      date: '2026-11-30',
+      opens: '2026-11-16T13:00:00+09:00',
+      ladder: 'lottery',
+      lottery: 'entry',
+      until: undefined,
+    }
+    expect(rungs(entry)).toEqual([14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
+    // Before entries open nothing; the morning after, the daily rung.
+    expect(currentReminder(entry, at('2026-11-16T03:00:00Z'), 'Asia/Tokyo', helsinki)).toBeNull()
+    expect(currentReminder(entry, at('2026-11-17T08:00:00Z'), 'Asia/Tokyo', helsinki)?.rung).toBe(13)
+    expect(currentReminder(entry, at('2026-12-01T12:00:00Z'), 'Asia/Tokyo', helsinki)).toBeNull()
+    const results: Deadline = {
+      ...booking,
+      key: 'booking:item:tower:results',
+      date: '2026-12-04',
+      ladder: 'results',
+      lottery: 'results',
+      until: undefined,
+    }
+    expect(rungs(results)).toEqual([0])
+    expect(currentReminder(results, at('2026-12-04T08:00:00Z'), 'Asia/Tokyo', helsinki)?.rung).toBe(0)
+  })
+
+  it('stops reminding of a draw for whoever has entered', () => {
+    const entry: Deadline = {
+      ...booking,
+      ladder: 'lottery',
+      tick: { item: 'entry-item-tower', each: true, members: { alex: 'a', robin: 'b' } },
+    }
+    const ticks = { 'entry-item-tower|a': { packed: true } }
+    expect(ticked(entry, 'alex', ticks)).toBe(true)
+    expect(ticked(entry, 'robin', ticks)).toBe(false)
   })
 
   it('pushes early rungs only on their day, the urgent ones whenever', () => {
