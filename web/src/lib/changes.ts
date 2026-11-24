@@ -86,19 +86,34 @@ export function diffTrips(before: TripExport, after: TripExport): ChangeEvent[] 
  * Ids made from titles change with them: for each kind of thing, one gone and
  * one new in the same change that are otherwise alike is a rename, and
  * whatever hangs on the old anchor (discussions, ticks, reminders, links)
- * belongs to the new one. Plans: same kind and day; ideas: same kind, day and
- * area; tasks: same due date, need and people; passes: same area and mode;
- * packing: same place in a category whose items stayed as many, or a renamed
+ * belongs to the new one. An idea made a plan, or a plan put back among the
+ * ideas, keeps its title and so its id, and moves first: the pairing below
+ * would otherwise hand its anchor to whatever new idea or plan looks alike.
+ * Plans: same kind and day; ideas: same kind, day and area; tasks: same due
+ * date, need and people; passes: same area and mode; packing: same place in a category whose items stayed as many, or a renamed
  * category with the same items.
  */
 export function renamesOf(before: TripExport, after: TripExport): [string, string][] {
   const moves: [string, string][] = []
+  // Ids moved between ideas and plans, kept out of the pairing on both sides.
+  const crossed = new Set<string>()
+  type Ids = { id: string }[]
+  const cross = (from: string, to: string, was: Ids, left: Ids, had: Ids, now: Ids) => {
+    const [gone, kept, there] = [was, left, had].map((xs) => new Set(xs.map((x) => x.id)))
+    for (const { id } of now)
+      if (gone!.has(id) && !kept!.has(id) && !there!.has(id)) {
+        crossed.add(`${from}:${id}`).add(`${to}:${id}`)
+        moves.push([`${from}:${id}`, `${to}:${id}`])
+      }
+  }
+  cross('idea', 'item', before.ideas, after.ideas, before.items, after.items)
+  cross('item', 'idea', before.items, after.items, before.ideas, after.ideas)
   const pair = <T extends { id: string }>(prefix: string, was: T[], now: T[], alike: (a: T, b: T) => boolean) => {
     const old = new Set(was.map((x) => x.id))
     const kept = new Set(now.map((x) => x.id))
-    const gone = was.filter((x) => !kept.has(x.id))
+    const gone = was.filter((x) => !kept.has(x.id) && !crossed.has(`${prefix}:${x.id}`))
     const taken = new Set<string>()
-    for (const fresh of now.filter((x) => !old.has(x.id))) {
+    for (const fresh of now.filter((x) => !old.has(x.id) && !crossed.has(`${prefix}:${x.id}`))) {
       const match = gone.find((x) => !taken.has(x.id) && alike(x, fresh))
       if (!match) continue
       taken.add(match.id)
