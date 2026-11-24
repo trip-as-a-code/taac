@@ -100,6 +100,24 @@ describe('renamesOf', () => {
     ])
   })
 
+  it('follows an idea made a plan, and leaves the new idea that looks like it alone', () => {
+    const before = {
+      ...trip([]),
+      ideas: [{ id: 'museum-day-2', kind: 'activity', area: 'tokyo', local: { date: '2026-12-21' } }],
+    } as unknown as TripExport
+    const after = {
+      ...trip([item('museum-day-2', { local: { date: '2026-12-21' } } as Partial<Item>)]),
+      ideas: [{ id: 'museum-day-2-tour', kind: 'activity', area: 'tokyo', local: { date: '2026-12-21' } }],
+    } as unknown as TripExport
+    const none = { tasks: [], passes: [], packing: [] }
+    expect(renamesOf({ ...before, ...none }, { ...after, ...none })).toEqual([
+      ['idea:museum-day-2', 'item:museum-day-2'],
+    ])
+    expect(renamesOf({ ...after, ...none }, { ...before, ...none })).toEqual([
+      ['item:museum-day-2', 'idea:museum-day-2'],
+    ])
+  })
+
   it('leaves things that changed in other ways, or were swapped for something else', () => {
     const before = trip([item('a', { local: { date: '2026-12-20' } } as Partial<Item>)])
     const after = trip([item('b', { local: { date: '2026-12-21' } } as Partial<Item>)])
