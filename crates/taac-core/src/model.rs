@@ -1121,7 +1121,7 @@ impl Cost {
 
     /// Names (ids once loaded) of whoever paid; empty for `each` or unpaid.
     pub fn payers(&self) -> Vec<String> {
-        self.paid_by.as_ref().map(PaidBy::ids).unwrap_or_default()
+        self.paid_by.as_ref().map_or_default(PaidBy::ids)
     }
 
     /// Someone still owes someone for it.

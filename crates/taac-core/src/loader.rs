@@ -622,7 +622,7 @@ fn resolve_names(trip: &mut Trip) {
         }
     }
     for group in &mut trip.groups {
-        group.id = group.name.as_deref().map(slug).unwrap_or_default();
+        group.id = group.name.as_deref().map_or_default(slug);
     }
     let mut people: HashMap<String, String> = HashMap::new();
     for (name, id) in trip
@@ -833,16 +833,14 @@ pub fn site_trip_paths(site_content: &str) -> Result<Vec<String>, String> {
 
 /// Overlay files a trip file references, relative to the trip directory.
 pub fn overlay_paths(trip_content: &str) -> Vec<String> {
-    parse::<TripFile>(trip_content)
-        .map(|t| {
-            t.map
-                .unwrap_or_default()
-                .overlays
-                .into_iter()
-                .map(|o| o.file)
-                .collect()
-        })
-        .unwrap_or_default()
+    parse::<TripFile>(trip_content).map_or_default(|t| {
+        t.map
+            .unwrap_or_default()
+            .overlays
+            .into_iter()
+            .map(|o| o.file)
+            .collect()
+    })
 }
 
 /// The line each list entry starts on, read in a second, lenient pass.

@@ -98,9 +98,7 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>, member: Option<&str>)
             .collect();
         description.push(participants.join(", "));
         for (who, reference) in item.references() {
-            let whose = who
-                .map(|w| format!(" ({})", names(trip, w)))
-                .unwrap_or_default();
+            let whose = who.map_or_default(|w| format!(" ({})", names(trip, w)));
             description.push(format!(
                 "Ref{whose}: {}",
                 secrets::render(reference, reveal)

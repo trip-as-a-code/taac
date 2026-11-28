@@ -1,5 +1,7 @@
+[settings]
+idiomatic_version_file_enable_tools = ["rust"]
+
 [tools]
-rust = { version = "1.99.1", components = "rustfmt,clippy", targets = "wasm32-unknown-unknown" }
 node = "22.23.4"
 task = "3.51.1"
 # trunk launcher; the linter CLI version is pinned in .trunk/trunk.yaml
