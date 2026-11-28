@@ -180,31 +180,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ needs.resolve.outputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.resolve.outputs.tag }}
-            type=semver,pattern={{major}},value=${{ needs.resolve.outputs.tag }}
-            type=raw,value=latest
       - name: Retag SHA image
         env:
-          OWNER: ${{ github.repository_owner }}
-          IMAGE: ${{ matrix.image }}
-          TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          NAME: ${{ matrix.image }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
-          source_image="ghcr.io/${OWNER,,}/${IMAGE}:$(git rev-parse HEAD)"
-          tag_args=()
-          while IFS= read -r tag; do
-            if [ -n "$tag" ]; then
-              tag_args+=(-t "$tag")
-            fi
-          done <<< "$TAGS"
-          docker buildx imagetools create "${tag_args[@]}" "$source_image"
-          digest="$(docker buildx imagetools inspect "$source_image" --format '{{.Manifest.Digest}}')"
-          echo "${IMAGE} ${digest}" >> "$GITHUB_STEP_SUMMARY"
+          image="${IMAGE,,}"
+          IFS=. read -r major minor _ <<< "$VERSION"
+          docker buildx imagetools create \
+            -t "${image}:${VERSION}" -t "${image}:${major}.${minor}" \
+            -t "${image}:${major}" -t "${image}:latest" \
+            "${image}:$(git rev-parse HEAD)"
+          echo "${NAME} $(docker buildx imagetools inspect "${image}:${VERSION}" --format '{{.Manifest.Digest}}')" >> "$GITHUB_STEP_SUMMARY"
 
   helm:
     needs: resolve

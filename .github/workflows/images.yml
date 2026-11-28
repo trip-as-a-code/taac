@@ -80,28 +80,16 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
         run: |
-          is_release="$(gh api "repos/${REPO}/commits/${SHA}/pulls" \
-            --jq 'any(.[]; .merged_at != null and any(.labels[]; .name == "release"))')"
-          if [ "$is_release" != "true" ]; then
-            echo "Commit ${SHA} is not from a merged release PR; skipping."
-            exit 0
-          fi
-
+          gh api "repos/${REPO}/commits/${SHA}/pulls" \
+            --jq 'any(.[]; .merged_at != null and any(.labels[]; .name == "release"))' | grep -qx true || exit 0
           version="$(sed -n '/^\[workspace\.package\]/,/^\[/s/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
-          if [ -z "$version" ]; then
-            echo "::error::Could not read version from Cargo.toml"
-            exit 1
-          fi
-          tag="v${version}"
+          tag="v${version:?Could not read version from Cargo.toml}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$tag" -m "Release $tag"
+          git rev-parse "$tag" >/dev/null 2>&1 || {
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              tag -a "$tag" -m "Release $tag"
             git push origin "$tag"
-          fi
+          }
 
   publish:
     needs: tag
