@@ -133,6 +133,9 @@ pub fn collect_secret_refs(trip: &Trip) -> Vec<SecretUsage> {
             if let Some(reference) = &booking.reference {
                 push_secret(&mut out, reference, &item.title, "booking.reference");
             }
+            if let Some(pin) = &booking.pin {
+                push_secret(&mut out, pin, &item.title, "booking.pin");
+            }
             for att in &booking.attachments {
                 push_att(&mut out, att, &item.title, "booking.attachments");
             }
@@ -146,6 +149,9 @@ pub fn collect_secret_refs(trip: &Trip) -> Vec<SecretUsage> {
                     &item.title,
                     &format!("{prefix}.reference"),
                 );
+            }
+            if let Some(pin) = &res.pin {
+                push_secret(&mut out, pin, &item.title, &format!("{prefix}.pin"));
             }
             for att in &res.attachments {
                 push_att(&mut out, att, &item.title, &format!("{prefix}.attachments"));

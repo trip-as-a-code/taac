@@ -919,6 +919,9 @@ pub struct Booking {
     /// Confirmation number / PNR. Never published in plaintext.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<Secret>,
+    /// Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pin: Option<Secret>,
     /// Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SecretAttachment>,
@@ -984,6 +987,9 @@ pub struct Reservation {
     /// Confirmation number / PNR. Never published in plaintext.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<Secret>,
+    /// Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pin: Option<Secret>,
     /// Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SecretAttachment>,
@@ -1002,6 +1008,7 @@ impl Reservation {
             provider: self.provider.clone(),
             url: self.url.clone(),
             reference: self.reference.clone(),
+            pin: self.pin.clone(),
             attachments: self.attachments.clone(),
         }
     }
@@ -1047,6 +1054,7 @@ pub fn summarize(reservations: &[Reservation]) -> Option<Booking> {
             .and_then(|r| r.url.clone())
             .or_else(|| first.url.clone()),
         reference: reservations.iter().find_map(|r| r.reference.clone()),
+        pin: reservations.iter().find_map(|r| r.pin.clone()),
         attachments: reservations
             .iter()
             .flat_map(|r| r.attachments.iter().cloned())

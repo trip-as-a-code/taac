@@ -295,6 +295,7 @@ export const en = {
   'filter.cost.topay': 'Still to pay',
   'item.owes': 'Who owes whom for it',
   'item.reference': 'Confirmation on file',
+  'item.pin': 'PIN on file',
   'item.contact': 'Contact',
   'item.paidBy': 'Paid by {name}',
   'item.onMap': 'On the map',

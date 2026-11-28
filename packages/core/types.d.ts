@@ -189,6 +189,8 @@ export interface Booking {
   url?: string
   hasReference: boolean
   reference?: SecretRefExport
+  hasPin?: boolean
+  pin?: SecretRefExport
   attachments?: SecretAttachmentExport[]
 }
 

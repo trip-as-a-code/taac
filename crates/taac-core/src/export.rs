@@ -320,6 +320,10 @@ pub struct BookingExport {
     pub has_reference: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reference: Option<SecretRefExport>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_pin: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pin: Option<SecretRefExport>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SecretAttachmentExport>,
 }
@@ -689,6 +693,8 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>, has_site_vaults: b
                         url: None,
                         has_reference: false,
                         reference: None,
+                        has_pin: false,
+                        pin: None,
                         attachments: Vec::new(),
                     },
                     |b| booking_export(b, has_vaults),
@@ -1143,6 +1149,10 @@ fn booking_export(b: &Booking, has_vaults: bool) -> BookingExport {
         has_reference: b.reference.is_some(),
         reference: has_vaults
             .then(|| b.reference.as_ref().map(secret_ref_export))
+            .flatten(),
+        has_pin: b.pin.is_some(),
+        pin: has_vaults
+            .then(|| b.pin.as_ref().map(secret_ref_export))
             .flatten(),
         attachments: if has_vaults {
             b.attachments.iter().map(secret_attachment_export).collect()

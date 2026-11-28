@@ -741,6 +741,17 @@
             }
           ]
         },
+        "pin": {
+          "description": "Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "attachments": {
           "description": "Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.",
           "type": "array",
@@ -922,6 +933,17 @@
         },
         "reference": {
           "description": "Confirmation number / PNR. Never published in plaintext.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pin": {
+          "description": "Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.",
           "anyOf": [
             {
               "$ref": "#/$defs/Secret"

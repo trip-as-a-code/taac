@@ -312,6 +312,7 @@ export const ru: Messages = {
   'filter.cost.topay': 'Ещё оплатить',
   'item.owes': 'Кто кому должен за это',
   'item.reference': 'Подтверждение сохранено',
+  'item.pin': 'PIN-код сохранён',
   'item.contact': 'Контакт',
   'item.paidBy': 'Платит {name}',
   'item.onMap': 'На карте',
