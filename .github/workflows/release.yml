@@ -62,7 +62,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.tag }}
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785
       - name: Install cross-compilation linker
         if: matrix.cross
         run: |
@@ -102,7 +102,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.tag }}
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
       - name: Verify and export JSON Schemas
         run: |
@@ -210,7 +210,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.tag }}
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785
       - name: Lint, package, and push OCI Helm chart
         env:
           VERSION: ${{ needs.resolve.outputs.version }}
@@ -234,7 +234,7 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.tag }}
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
       - name: Publish taac-core and taac-cli to crates.io
         env:
