@@ -74,6 +74,27 @@ jobs:
       - run: task rust:test
       - run: task schema:check
 
+  rust-msrv:
+    if: >
+      (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'skip workflows')) ||
+      github.event_name == 'merge_group' ||
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install MSRV toolchain
+        run: |
+          msrv="$(awk -F'"' '/^rust-version = /{print $2; exit}' Cargo.toml)"
+          rustup toolchain install "$msrv" --profile minimal --no-self-update
+          echo "RUSTUP_TOOLCHAIN=$msrv" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          key: msrv
+      - run: cargo check --locked --workspace
+
   web:
     if: >
       (github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'skip workflows')) ||

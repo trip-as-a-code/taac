@@ -5,12 +5,11 @@
 #   --target runtime  ghcr.io/trip-as-a-code/taac: the server, serving /srv/site (the demo until replaced)
 # An instance builds its site with the first and copies it into the second; see deploy/Dockerfile.site.
 
-ARG RUST_VERSION=1.99.1
 ARG NODE_VERSION=22.23.4
 # Must match the wasm-bindgen crate pinned in Cargo.toml.
 ARG WASM_BINDGEN_VERSION=0.2.129
 
-FROM rust:${RUST_VERSION}-slim-bookworm AS wasm
+FROM rust:1.100.0-slim-bookworm AS wasm
 ARG WASM_BINDGEN_VERSION
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN rustup target add wasm32-unknown-unknown \

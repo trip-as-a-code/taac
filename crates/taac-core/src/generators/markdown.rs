@@ -39,8 +39,7 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
                 .booking
                 .as_ref()
                 .and_then(|b| b.deadline)
-                .map(|d| format!(" — by {d}"))
-                .unwrap_or_default();
+                .map_or_default(|d| format!(" — by {d}"));
             let _ = writeln!(out, "- [ ] {}{deadline}", item.title);
         }
         out.push('\n');
@@ -67,10 +66,7 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
             || item.part.map_or("—", |p| p.as_str()).to_owned(),
             crate::datetime::OffsetDateTime::format_hm,
         );
-        let until = item
-            .end
-            .map(|e| format!("–{}", e.format_hm()))
-            .unwrap_or_default();
+        let until = item.end.map_or_default(|e| format!("–{}", e.format_hm()));
         let who: Vec<String> = trip.participants(item).into_iter().map(name).collect();
         let _ = writeln!(
             out,
@@ -87,16 +83,14 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
             let _ = writeln!(out, "  - 📍 {}", places.join(" → "));
         }
         for (who, reference) in item.references() {
-            let whose = who
-                .map(|w| {
-                    let names: Vec<&str> = trip
-                        .who(Some(w))
-                        .into_iter()
-                        .map(|id| trip.member(id).map_or(id, |m| m.name.as_str()))
-                        .collect();
-                    format!(" ({})", names.join(", "))
-                })
-                .unwrap_or_default();
+            let whose = who.map_or_default(|w| {
+                let names: Vec<&str> = trip
+                    .who(Some(w))
+                    .into_iter()
+                    .map(|id| trip.member(id).map_or(id, |m| m.name.as_str()))
+                    .collect();
+                format!(" ({})", names.join(", "))
+            });
             let _ = writeln!(out, "  - 🎫{whose} {}", secrets::render(reference, reveal));
         }
         if let Some(notes) = &item.notes {
@@ -112,8 +106,7 @@ pub fn generate(trip: &Trip, reveal: Option<&SecretStore>) -> String {
                 .area
                 .as_ref()
                 .and_then(|a| trip.places.get(a))
-                .map(|p| format!(" — {}", p.name))
-                .unwrap_or_default();
+                .map_or_default(|p| format!(" — {}", p.name));
             let must = if idea.priority == crate::model::Priority::Must {
                 " ⭐"
             } else {
