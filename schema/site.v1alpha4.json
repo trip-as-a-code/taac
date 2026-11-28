@@ -154,7 +154,7 @@
       ]
     },
     "PersonalVault": {
-      "description": "A member's personal `KeePass` (`.kdbx`) vault declared on `site.yaml`.",
+      "description": "A personal or sub-group `KeePass` (`.kdbx`) vault declared on `site.yaml`.",
       "type": "object",
       "properties": {
         "path": {
@@ -162,22 +162,30 @@
           "type": "string"
         },
         "owner": {
-          "description": "Member name (matched case-insensitively against trip members).",
-          "type": "string"
-        },
-        "github": {
-          "description": "Optional explicit GitHub username if not derivable from trip members.",
+          "description": "Single member name (matched case-insensitively against trip members).",
           "type": [
             "string",
             "null"
-          ],
-          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"
+          ]
+        },
+        "owners": {
+          "description": "Multiple member names who share this vault (e.g. a couple or sub-group).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "github": {
+          "description": "Optional explicit GitHub username(s) if not derivable from trip members.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false,
       "required": [
-        "path",
-        "owner"
+        "path"
       ]
     }
   }

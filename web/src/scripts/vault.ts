@@ -12,7 +12,7 @@ export interface VaultDescriptor {
   label: string
   url: string
   kind: 'shared' | 'personal'
-  ownerLogin?: string
+  ownerLogins?: string[]
 }
 
 interface UnlockedState {
@@ -308,7 +308,7 @@ export async function setupVault() {
   const session = await me()
   const login = session?.login?.toLowerCase() ?? null
   if (select && login) {
-    const mine = vaults.find((v) => v.kind === 'personal' && v.ownerLogin === login)
+    const mine = vaults.find((v) => v.kind === 'personal' && v.ownerLogins?.includes(login))
     if (mine) select.value = mine.id
   }
 

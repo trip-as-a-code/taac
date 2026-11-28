@@ -93,18 +93,34 @@ pub struct TripVault {
     pub viewers: bool,
 }
 
-/// A member's personal `KeePass` (`.kdbx`) vault declared on `site.yaml`.
+/// A personal or sub-group `KeePass` (`.kdbx`) vault declared on `site.yaml`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PersonalVault {
     /// Path to the `.kdbx` file, relative to `site.yaml`.
     pub path: String,
-    /// Member name (matched case-insensitively against trip members).
-    pub owner: String,
-    /// Optional explicit GitHub username if not derivable from trip members.
+    /// Single member name (matched case-insensitively against trip members).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(regex(pattern = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$"))]
-    pub github: Option<String>,
+    pub owner: Option<String>,
+    /// Multiple member names who share this vault (e.g. a couple or sub-group).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owners: Vec<String>,
+    /// Optional explicit GitHub username(s) if not derivable from trip members.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub github: Vec<String>,
+}
+
+impl PersonalVault {
+    /// All declared owner member names (`owner` plus `owners`).
+    #[must_use]
+    pub fn owner_names(&self) -> Vec<&str> {
+        let mut out = Vec::new();
+        if let Some(owner) = self.owner.as_deref() {
+            out.push(owner);
+        }
+        out.extend(self.owners.iter().map(String::as_str));
+        out
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]

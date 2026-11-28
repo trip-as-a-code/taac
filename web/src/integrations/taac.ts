@@ -153,7 +153,7 @@ export function taac(): AstroIntegration {
           // The login page localizes the site title itself.
           title: site.site.title,
           auth: site.site.access === 'github' ? 'github' : null,
-          vaults: Object.fromEntries((site.site.vaults ?? []).map((v) => [v.id, { ownerLogin: v.ownerLogin ?? null }])),
+          vaults: Object.fromEntries((site.site.vaults ?? []).map((v) => [v.id, { ownerLogins: v.ownerLogins ?? [] }])),
           trips: Object.fromEntries(
             site.trips.map((t) => [
               t.slug,

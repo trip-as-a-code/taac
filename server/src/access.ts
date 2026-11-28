@@ -16,7 +16,7 @@ export interface TripVaultAccess {
 }
 
 export interface PersonalVaultAccess {
-  ownerLogin: string | null
+  ownerLogins: string[]
 }
 
 export interface TripAccess {
@@ -87,7 +87,7 @@ export function normalise(raw: unknown): AccessManifest {
   if (value.vaults && typeof value.vaults === 'object') {
     for (const [id, v] of Object.entries(value.vaults)) {
       vaults[id] = {
-        ownerLogin: typeof v?.ownerLogin === 'string' ? v.ownerLogin.toLowerCase() : null,
+        ownerLogins: usernames(v?.ownerLogins),
       }
     }
   }
@@ -245,8 +245,8 @@ export function decideVault(
     if (manifest.auth === null) return 'open'
     if (!login) return 'sign-in'
     const id = decodeURIComponent(personal[1])
-    const owner = manifest.vaults?.[id]?.ownerLogin ?? null
-    return owner !== null && owner === login ? 'open' : 'forbidden'
+    const owners = manifest.vaults?.[id]?.ownerLogins ?? []
+    return owners.includes(login) ? 'open' : 'forbidden'
   }
   const shared = /^\/trips\/([^/]+)\/vault\.kdbx$/.exec(rest)
   if (shared?.[1]) {

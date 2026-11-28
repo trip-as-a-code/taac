@@ -42,7 +42,7 @@ export interface Rates {
 export interface PersonalVaultExport {
   id: string
   owner: string
-  ownerLogin?: string
+  ownerLogins?: string[]
   /** Path relative to `site.yaml` (used by the web build to copy/serve the `.kdbx`). */
   path: string
   /** Public URL path where the `.kdbx` is served (`/vaults/<id>.kdbx`). */

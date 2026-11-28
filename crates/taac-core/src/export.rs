@@ -47,8 +47,8 @@ pub struct SiteInfo {
 pub struct PersonalVaultExport {
     pub id: String,
     pub owner: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub owner_login: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owner_logins: Vec<String>,
     /// Path relative to `site.yaml` (used by the web build to copy/serve the `.kdbx`).
     pub path: String,
     /// Public URL path where the `.kdbx` is served (`/vaults/<id>.kdbx`).
@@ -595,17 +595,32 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
         .vaults
         .iter()
         .map(|(id, v)| {
-            let owner_login = v.github.clone().or_else(|| {
-                site.trips
+            let names = v.owner_names();
+            let mut owner_logins: Vec<String> =
+                v.github.iter().map(|l| l.to_ascii_lowercase()).collect();
+            for name in &names {
+                if let Some(login) = site
+                    .trips
                     .iter()
                     .flat_map(|t| t.members.iter())
-                    .find(|m| m.name.eq_ignore_ascii_case(&v.owner))
-                    .and_then(|m| m.github.clone())
-            });
+                    .find(|m| m.name.eq_ignore_ascii_case(name))
+                    .and_then(|m| m.github.as_deref())
+                {
+                    let lower = login.to_ascii_lowercase();
+                    if !owner_logins.contains(&lower) {
+                        owner_logins.push(lower);
+                    }
+                }
+            }
+            let owner = if names.is_empty() {
+                id.clone()
+            } else {
+                names.join(", ")
+            };
             PersonalVaultExport {
                 id: id.clone(),
-                owner: v.owner.clone(),
-                owner_login: owner_login.map(|l| l.to_ascii_lowercase()),
+                owner,
+                owner_logins,
                 path: v.path.clone(),
                 url: format!("/vaults/{id}.kdbx"),
             }

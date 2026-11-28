@@ -29,7 +29,7 @@ for (const v of site.site.vaults ?? []) {
     label: t('vault.personal', { owner: v.owner }),
     url: v.url,
     kind: 'personal',
-    ownerLogin: v.ownerLogin,
+    ownerLogins: v.ownerLogins,
   })
 }
 ---

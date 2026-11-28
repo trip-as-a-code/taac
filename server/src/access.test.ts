@@ -97,7 +97,8 @@ describe('manifest', () => {
     const manifest = normalise({
       auth: 'github',
       vaults: {
-        alex: { ownerLogin: 'Alex' },
+        alex: { ownerLogins: ['Alex'] },
+        duo: { ownerLogins: ['Sam', 'Robin'] },
       },
       trips: {
         lisbon: {
@@ -120,10 +121,13 @@ describe('manifest', () => {
       defaultLocale: 'en',
     })
 
-    // Personal vault: only owner when signed in; never via share link or other members.
+    // Personal and multi-owner sub-group vaults: only declared owners when signed in; never via share link or other members.
     expect(decideVault('/vaults/alex.kdbx', 'alex', null, manifest)).toBe('open')
     expect(decideVault('/vaults/alex.kdbx', 'robin', null, manifest)).toBe('forbidden')
     expect(decideVault('/vaults/alex.kdbx', null, 'lisbon', manifest)).toBe('sign-in')
+    expect(decideVault('/vaults/duo.kdbx', 'sam', null, manifest)).toBe('open')
+    expect(decideVault('/vaults/duo.kdbx', 'robin', null, manifest)).toBe('open')
+    expect(decideVault('/vaults/duo.kdbx', 'alex', null, manifest)).toBe('forbidden')
     expect(decideVault('/vaults/unknown.kdbx', 'alex', null, manifest)).toBe('forbidden')
 
     // Shared trip vault with share: true, viewers: false.
