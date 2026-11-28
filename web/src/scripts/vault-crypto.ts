@@ -1,8 +1,19 @@
 // Pure zero-knowledge KDBX4 decryption (kdbxweb + hash-wasm Argon2) and
 // `#k=` URL fragment helpers. Shared between the Web Worker and unit tests.
 
+import { DOMParser as XmlDomParser, XMLSerializer as XmlDomSerializer } from '@xmldom/xmldom'
 import { argon2d, argon2id } from 'hash-wasm'
 import * as kdbxweb from 'kdbxweb'
+
+// kdbxweb 2.1.1 passes xmldom 0.7's removed `errorHandler` option when
+// `globalThis.DOMParser` is absent (Web Workers and Node). Installing xmldom
+// 0.9's classes on `globalThis` makes kdbxweb use the zero-argument constructor.
+if (typeof globalThis.DOMParser === 'undefined') {
+  globalThis.DOMParser = XmlDomParser as unknown as typeof DOMParser
+}
+if (typeof globalThis.XMLSerializer === 'undefined') {
+  globalThis.XMLSerializer = XmlDomSerializer as unknown as typeof XMLSerializer
+}
 
 export const VAULT_LINK_PREFIX = 'taac:vault:'
 
