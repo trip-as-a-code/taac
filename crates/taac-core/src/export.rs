@@ -78,6 +78,14 @@ pub struct SecretRefExport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SecretCodeExport {
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret: Option<SecretRefExport>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SecretAttachmentExport {
     pub secret: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -324,6 +332,8 @@ pub struct BookingExport {
     pub has_pin: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pin: Option<SecretRefExport>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub codes: Vec<SecretCodeExport>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SecretAttachmentExport>,
 }
@@ -695,6 +705,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>, has_site_vaults: b
                         reference: None,
                         has_pin: false,
                         pin: None,
+                        codes: Vec::new(),
                         attachments: Vec::new(),
                     },
                     |b| booking_export(b, has_vaults),
@@ -1154,6 +1165,14 @@ fn booking_export(b: &Booking, has_vaults: bool) -> BookingExport {
         pin: has_vaults
             .then(|| b.pin.as_ref().map(secret_ref_export))
             .flatten(),
+        codes: b
+            .codes
+            .iter()
+            .map(|(label, s)| SecretCodeExport {
+                label: label.clone(),
+                secret: has_vaults.then(|| secret_ref_export(s)),
+            })
+            .collect(),
         attachments: if has_vaults {
             b.attachments.iter().map(secret_attachment_export).collect()
         } else {

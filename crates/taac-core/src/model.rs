@@ -922,6 +922,9 @@ pub struct Booking {
     /// Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pin: Option<Secret>,
+    /// Extra labeled encrypted codes (e.g. check-in code, door lock, lockbox, Wi-Fi).
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub codes: IndexMap<String, Secret>,
     /// Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SecretAttachment>,
@@ -990,6 +993,9 @@ pub struct Reservation {
     /// Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pin: Option<Secret>,
+    /// Extra labeled encrypted codes (e.g. check-in code, door lock, lockbox, Wi-Fi).
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub codes: IndexMap<String, Secret>,
     /// Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<SecretAttachment>,
@@ -1009,6 +1015,7 @@ impl Reservation {
             url: self.url.clone(),
             reference: self.reference.clone(),
             pin: self.pin.clone(),
+            codes: self.codes.clone(),
             attachments: self.attachments.clone(),
         }
     }
@@ -1055,6 +1062,10 @@ pub fn summarize(reservations: &[Reservation]) -> Option<Booking> {
             .or_else(|| first.url.clone()),
         reference: reservations.iter().find_map(|r| r.reference.clone()),
         pin: reservations.iter().find_map(|r| r.pin.clone()),
+        codes: reservations
+            .iter()
+            .flat_map(|r| r.codes.iter().map(|(k, v)| (k.clone(), v.clone())))
+            .collect(),
         attachments: reservations
             .iter()
             .flat_map(|r| r.attachments.iter().cloned())

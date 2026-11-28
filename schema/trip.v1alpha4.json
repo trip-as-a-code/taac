@@ -752,6 +752,13 @@
             }
           ]
         },
+        "codes": {
+          "description": "Extra labeled encrypted codes (e.g. check-in code, door lock, lockbox, Wi-Fi).",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Secret"
+          }
+        },
         "attachments": {
           "description": "Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.",
           "type": "array",
@@ -952,6 +959,13 @@
               "type": "null"
             }
           ]
+        },
+        "codes": {
+          "description": "Extra labeled encrypted codes (e.g. check-in code, door lock, lockbox, Wi-Fi).",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Secret"
+          }
         },
         "attachments": {
           "description": "Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.",

@@ -64,6 +64,11 @@ export interface SecretRefExport {
   vault?: string
 }
 
+export interface SecretCodeExport {
+  label: string
+  secret?: SecretRefExport
+}
+
 export interface SecretAttachmentExport {
   secret: string
   attachment?: string
@@ -191,6 +196,7 @@ export interface Booking {
   reference?: SecretRefExport
   hasPin?: boolean
   pin?: SecretRefExport
+  codes?: SecretCodeExport[]
   attachments?: SecretAttachmentExport[]
 }
 

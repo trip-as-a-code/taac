@@ -89,6 +89,7 @@ const hasDetails =
   item.costs.length > 0 ||
   item.booking.hasReference ||
   item.booking.hasPin ||
+  (item.booking.codes?.length ?? 0) > 0 ||
   (item.booking.attachments?.length ?? 0) > 0 ||
   Boolean(item.url) ||
   places.length > 0 ||
@@ -373,6 +374,30 @@ const offsetLabel =
               )}
             </li>
           )}
+          {(item.booking.codes ?? []).map((code) => (
+            <li
+              class="secret-row"
+              data-secret={code.secret?.secret}
+              data-secret-field={code.secret?.field}
+              data-secret-vault={code.secret?.vault}
+              data-secret-mask="••••••"
+            >
+              <Icon name="lock" size={15} />
+              <span class="secondary">{code.label}:</span>
+              {code.secret ? (
+                <>
+                  <button type="button" class="secret-trigger" data-secret-trigger>
+                    <span data-secret-value>••••••</span>
+                  </button>
+                  <button type="button" class="secret-copy" data-secret-copy hidden title={t('vault.copy')}>
+                    <Icon name="copy" size={14} />
+                  </button>
+                </>
+              ) : (
+                <span>••••••</span>
+              )}
+            </li>
+          ))}
           {(item.booking.attachments ?? []).map((att) => (
             <li
               class="secret-row"
