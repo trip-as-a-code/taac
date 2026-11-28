@@ -159,18 +159,16 @@ jobs:
   images:
     needs: resolve
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: runtime
-            image: taac
-          - target: builder
-            image: taac-builder
+        image:
+          - taac
+          - taac-builder
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -191,17 +189,43 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.resolve.outputs.tag }}
             type=semver,pattern={{major}},value=${{ needs.resolve.outputs.tag }}
             type=raw,value=latest
-            type=sha,format=long,prefix=
-      - id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
-        with:
-          context: .
-          target: ${{ matrix.target }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=taac
-      - run: echo "${{ matrix.image }} ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait for SHA image and retag
+        env:
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ matrix.image }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          source_image="ghcr.io/${OWNER,,}/${IMAGE}:${sha}"
+
+          # Wait for images.yml (triggered by push to main) to publish the SHA image.
+          max_attempts=120
+          interval=15
+          ready=false
+          for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+            if docker buildx imagetools inspect "$source_image" >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            echo "Waiting for ${source_image} (${attempt}/${max_attempts})..."
+            sleep "$interval"
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::Timed out waiting for ${source_image} (check the Images workflow for commit ${sha})"
+            exit 1
+          fi
+
+          tag_args=()
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              tag_args+=(-t "$tag")
+            fi
+          done <<< "$TAGS"
+
+          docker buildx imagetools create "${tag_args[@]}" "$source_image"
+
+          digest="$(docker buildx imagetools inspect "$source_image" --format '{{.Manifest.Digest}}')"
+          echo "${IMAGE} ${digest}" >> "$GITHUB_STEP_SUMMARY"
 
   helm:
     needs: resolve
