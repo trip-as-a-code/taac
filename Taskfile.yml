@@ -36,6 +36,37 @@ tasks:
     cmds:
       - cargo build --release -p taac-cli
 
+  plugins:
+    desc: Build Extism WebAssembly plugins into plugins/dist
+    sources:
+      - crates/taac-plugin-api/**/*.rs
+      - crates/taac-plugin-api/Cargo.toml
+      - plugins/transitous/**/*.rs
+      - plugins/transitous/Cargo.toml
+      - plugins/transitous/Cargo.lock
+    generates:
+      - plugins/dist/transitous.wasm
+    cmds:
+      - cargo build --manifest-path plugins/transitous/Cargo.toml --target wasm32-unknown-unknown --release --locked
+      - mkdir -p plugins/dist
+      - cp plugins/transitous/target/wasm32-unknown-unknown/release/taac_plugin_transitous.wasm plugins/dist/transitous.wasm
+
+  plugins:fmt:
+    desc: Check Rust formatting for plugins
+    cmds:
+      - cargo fmt --manifest-path plugins/transitous/Cargo.toml -- --check
+
+  plugins:lint:
+    desc: Lint plugins with clippy (warnings are errors)
+    cmds:
+      - cargo clippy --manifest-path plugins/transitous/Cargo.toml --all-targets --locked -- -D warnings
+      - cargo clippy --manifest-path plugins/transitous/Cargo.toml --target wasm32-unknown-unknown --locked -- -D warnings
+
+  plugins:test:
+    desc: Run plugin unit tests
+    cmds:
+      - cargo test --manifest-path plugins/transitous/Cargo.toml --locked
+
   schema:
     desc: Regenerate the JSON Schemas in schema/
     cmds:
@@ -114,6 +145,10 @@ tasks:
   verify:
     desc: The full CI mirror — format, lint, tests, schemas, type checks, build
     cmds:
+      - task: plugins
+      - task: plugins:fmt
+      - task: plugins:lint
+      - task: plugins:test
       - task: rust:fmt
       - task: rust:lint
       - task: rust:test

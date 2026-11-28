@@ -1432,6 +1432,36 @@ pub struct SiteFile {
     /// Where the trip files live, so the site can link each entry to its line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<SourceRepo>,
+    /// Extism WebAssembly plugins used by the CLI (e.g. route providers),
+    /// keyed by plugin name. Ignored by offline builds and the web frontend.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub plugins: IndexMap<String, PluginConfig>,
+}
+
+/// Configuration for an Extism WebAssembly plugin declared on `site.yaml`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginConfig {
+    /// Path to the compiled `.wasm` plugin file, relative to `site.yaml`.
+    pub path: String,
+    /// Disable the plugin without removing its configuration (default: true).
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub enabled: bool,
+    /// Hostnames the plugin is permitted to contact in the Extism sandbox.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_hosts: Vec<String>,
+    /// Key-value configuration passed to the plugin (e.g. `baseUrl`, `contact`).
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub config: IndexMap<String, String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_true(v: &bool) -> bool {
+    *v
 }
 
 /// A repository browsable on the web (GitHub, Gitea, Forgejo, GitLab:

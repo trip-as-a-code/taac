@@ -12,8 +12,8 @@ use jiff::civil::Date;
 
 use crate::model::{
     Base, Blocker, Choice, CurrencyConfig, Group, Idea, Item, ItemKind, Member, PackingCategory,
-    Pass, Place, PlaceRef, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo, Spending, Task,
-    TripFile, TripKind, TripMetadata,
+    Pass, Place, PlaceRef, PluginConfig, SiteFile, SiteKind, SiteMetadata, Source, SourceRepo,
+    Spending, Task, TripFile, TripKind, TripMetadata,
 };
 
 pub type Files = BTreeMap<String, String>;
@@ -23,6 +23,8 @@ pub struct Site {
     pub metadata: SiteMetadata,
     pub access: crate::model::SiteAccess,
     pub source: Option<SourceRepo>,
+    /// Extism CLI plugins declared on `site.yaml`, with `path` resolved relative to `site.yaml`.
+    pub plugins: IndexMap<String, PluginConfig>,
     pub trips: Vec<Trip>,
 }
 
@@ -328,10 +330,20 @@ pub fn load_site(files: &Files, site_path: &str) -> (Option<Site>, Vec<Diagnosti
         }
     }
 
+    let plugins = site_file
+        .plugins
+        .into_iter()
+        .map(|(id, mut p)| {
+            p.path = join(site_dir, &p.path);
+            (id, p)
+        })
+        .collect();
+
     let site = Site {
         metadata: site_file.metadata,
         access: site_file.access,
         source: site_file.source,
+        plugins,
         trips,
     };
     (Some(site), diagnostics)
@@ -347,6 +359,7 @@ pub fn load_standalone_trip(files: &Files, path: &str) -> (Option<Site>, Vec<Dia
         },
         access: crate::model::SiteAccess::Public,
         source: None,
+        plugins: IndexMap::new(),
         trips: vec![trip],
     });
     (site, diagnostics)

@@ -1,0 +1,3 @@
+kind: Added
+body: 'Extism WebAssembly plugin system for the CLI (`site.yaml` `plugins:` config, `taac route plan`, `taac route check`, and `taac validate --online`) with the first route-provider plugin backed by Transitous (MOTIS 2), including local caching, fair-use rate limiting, and mandatory `User-Agent` and attribution support.'
+time: 2026-11-28T11:51:00+02:00

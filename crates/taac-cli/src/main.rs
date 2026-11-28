@@ -1,6 +1,7 @@
 //! `taac`: validate trips, compile artifacts, export for the web, emit schemas.
 
 mod files;
+mod route_cmd;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,6 +34,16 @@ enum Command {
         /// Fail on warnings too.
         #[arg(long)]
         strict: bool,
+        /// Also run online checks (e.g. route verification via configured Extism plugins).
+        #[arg(long)]
+        online: bool,
+        #[command(flatten)]
+        plugin_args: route_cmd::PluginArgs,
+    },
+    /// Plan and verify routes using Extism route-provider plugins.
+    Route {
+        #[command(subcommand)]
+        action: route_cmd::RouteCommand,
     },
     /// Compile every trip into ICS, `GeoJSON`, Beancount and Markdown.
     Build {
@@ -71,10 +82,25 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode> {
     match cli.command {
-        Command::Validate { path, strict } => {
+        Command::Validate {
+            path,
+            strict,
+            online,
+            plugin_args,
+        } => {
             let (files, key) = files::collect(&path)?;
-            let (site, diagnostics) = taac_core::load(&files, &key);
+            let (site, mut diagnostics) = taac_core::load(&files, &key);
             report(&diagnostics);
+            if online && let Some(ref loaded_site) = site {
+                let base_dir = if path.is_dir() {
+                    path.clone()
+                } else {
+                    path.parent().unwrap_or(Path::new(".")).to_path_buf()
+                };
+                let online_diags =
+                    route_cmd::run_online_check(loaded_site, &base_dir, None, None, &plugin_args)?;
+                diagnostics.extend(online_diags);
+            }
             let trips = site.map_or(0, |s| s.trips.len());
             let errors = diagnostics.iter().filter(|d| d.is_error()).count();
             let warnings = diagnostics.len() - errors;
@@ -85,6 +111,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 ExitCode::SUCCESS
             })
         }
+        Command::Route { action } => route_cmd::run(action),
         Command::Build { path, out, reveal } => {
             let (files, key) = files::collect(&path)?;
             let (site, diagnostics) = taac_core::load(&files, &key);

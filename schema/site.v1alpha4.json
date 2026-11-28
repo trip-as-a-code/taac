@@ -34,6 +34,13 @@
           "type": "null"
         }
       ]
+    },
+    "plugins": {
+      "description": "Extism WebAssembly plugins used by the CLI (e.g. route providers),\nkeyed by plugin name. Ignored by offline builds and the web frontend.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/PluginConfig"
+      }
     }
   },
   "additionalProperties": false,
@@ -144,6 +151,38 @@
       "additionalProperties": false,
       "required": [
         "repo"
+      ]
+    },
+    "PluginConfig": {
+      "description": "Configuration for an Extism WebAssembly plugin declared on `site.yaml`.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Path to the compiled `.wasm` plugin file, relative to `site.yaml`.",
+          "type": "string"
+        },
+        "enabled": {
+          "description": "Disable the plugin without removing its configuration (default: true).",
+          "type": "boolean"
+        },
+        "allowedHosts": {
+          "description": "Hostnames the plugin is permitted to contact in the Extism sandbox.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "config": {
+          "description": "Key-value configuration passed to the plugin (e.g. `baseUrl`, `contact`).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
       ]
     }
   }

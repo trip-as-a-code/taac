@@ -1,6 +1,7 @@
 # Build output
 target/
 dist/
+plugins/dist/
 packages/core/pkg/
 web/.astro/
 web/dist/

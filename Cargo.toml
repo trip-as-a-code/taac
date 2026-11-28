@@ -1,6 +1,13 @@
 [workspace]
 resolver = "3"
-members = ["crates/taac-core", "crates/taac-cli", "crates/taac-wasm"]
+members = [
+    "crates/taac-core",
+    "crates/taac-cli",
+    "crates/taac-plugin-api",
+    "crates/taac-plugins",
+    "crates/taac-wasm",
+]
+exclude = ["plugins/transitous"]
 
 [workspace.package]
 version = "0.1.0"
@@ -14,8 +21,11 @@ rust-version = "1.98"
 
 [workspace.dependencies]
 taac-core = { path = "crates/taac-core", version = "0.1.0" }
+taac-plugin-api = { path = "crates/taac-plugin-api", version = "0.1.0" }
+taac-plugins = { path = "crates/taac-plugins", version = "0.1.0" }
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
+extism = "1.12"
 indexmap = { version = "2.6", features = ["serde"] }
 jiff = { version = "0.2", default-features = false, features = ["std", "serde", "tzdb-bundle-always"] }
 rust_decimal = { version = "1.36", features = ["serde-with-float"] }
