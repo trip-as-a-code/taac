@@ -1,7 +1,7 @@
 name: Prepare Release
 
 # Batches changie fragments, bumps Cargo/npm/Helm versions, and opens a Release PR.
-# Merging the PR (labeled `release`) triggers release-tag.yml -> release.yml.
+# Merging the PR (labeled `release`) triggers images.yml -> release.yml.
 on:
   workflow_dispatch:
     inputs:
