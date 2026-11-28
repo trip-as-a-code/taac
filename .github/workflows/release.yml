@@ -9,6 +9,12 @@ on:
   push:
     tags:
       - v*.*.*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (e.g. v0.1.0)
+        required: true
+        type: string
   workflow_call:
     inputs:
       tag:
@@ -153,18 +159,16 @@ jobs:
   images:
     needs: resolve
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: runtime
-            image: taac
-          - target: builder
-            image: taac-builder
+        image:
+          - taac
+          - taac-builder
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -176,27 +180,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ needs.resolve.outputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.resolve.outputs.tag }}
-            type=semver,pattern={{major}},value=${{ needs.resolve.outputs.tag }}
-            type=raw,value=latest
-            type=sha,format=long,prefix=
-      - id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
-        with:
-          context: .
-          target: ${{ matrix.target }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=taac
-          cache-to: type=gha,mode=max,scope=taac
-      - run: echo "${{ matrix.image }} ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retag SHA image
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          NAME: ${{ matrix.image }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          image="${IMAGE,,}"
+          IFS=. read -r major minor _ <<< "$VERSION"
+          docker buildx imagetools create \
+            -t "${image}:${VERSION}" -t "${image}:${major}.${minor}" \
+            -t "${image}:${major}" -t "${image}:latest" \
+            "${image}:$(git rev-parse HEAD)"
+          echo "${NAME} $(docker buildx imagetools inspect "${image}:${VERSION}" --format '{{.Manifest.Digest}}')" >> "$GITHUB_STEP_SUMMARY"
 
   helm:
     needs: resolve

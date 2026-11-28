@@ -1,7 +1,7 @@
 name: Prepare Release
 
 # Batches changie fragments, bumps Cargo/npm/Helm versions, and opens a Release PR.
-# Merging the PR (labeled `release`) triggers release-tag.yml -> release.yml.
+# Merging the PR (labeled `release`) triggers images.yml -> release.yml.
 on:
   workflow_dispatch:
     inputs:
@@ -50,7 +50,6 @@ jobs:
           git push --force-with-lease origin "$branch"
 
           gh label create release --description "Release pull request" --color 0e8a16 --force
-          gh label create "no changelog" --description "Skip changelog check" --color cfd3d7 --force
 
           body_file=".changes/v${VERSION}.md"
           if [ ! -f "$body_file" ]; then
@@ -65,6 +64,5 @@ jobs:
               --head "$branch" \
               --title "chore(release): v${VERSION}" \
               --body-file "$body_file" \
-              --label release \
-              --label "no changelog"
+              --label release
           fi
