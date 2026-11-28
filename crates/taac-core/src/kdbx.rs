@@ -149,7 +149,7 @@ pub fn set_vault_link(personal_db: &mut Database, trip_slug: &str, shared_passwo
     set_field(personal_db, &title, None, shared_password);
 }
 
-/// Summary of an entry in a vault, for `taac secret list` and `taac secret check`.
+/// Summary of an entry in a vault, for `taac secret list` and `taac secret verify`.
 #[derive(Debug, Clone)]
 pub struct EntrySummary {
     pub title: String,

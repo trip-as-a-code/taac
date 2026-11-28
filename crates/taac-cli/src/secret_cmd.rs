@@ -106,7 +106,7 @@ pub enum SecretCommand {
         shared_password_env: Option<String>,
     },
     /// Verify that every secret, field, and attachment referenced in YAML exists in the vault.
-    Check {
+    Verify {
         #[arg(default_value = "site.yaml")]
         path: PathBuf,
         #[arg(long)]
@@ -214,12 +214,12 @@ pub fn run(action: SecretCommand) -> Result<ExitCode> {
             password_env.as_deref(),
             shared_password_env.as_deref(),
         ),
-        SecretCommand::Check {
+        SecretCommand::Verify {
             path,
             vault,
             trip,
             password_env,
-        } => cmd_check(
+        } => cmd_verify(
             &path,
             vault.as_deref(),
             trip.as_deref(),
@@ -568,7 +568,7 @@ fn cmd_fill(
     Ok(ExitCode::SUCCESS)
 }
 
-fn cmd_check(
+fn cmd_verify(
     path: &Path,
     vault_id: Option<&str>,
     trip_slug: Option<&str>,
