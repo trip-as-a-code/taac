@@ -316,6 +316,21 @@ fn resolve_vault_path(
     ))
 }
 
+fn prompt_masked(prompt: &str) -> Result<String> {
+    if !io::stdin().is_terminal() {
+        eprint!("{prompt}");
+        io::stderr().flush()?;
+        let mut line = String::new();
+        io::stdin().read_line(&mut line)?;
+        return Ok(line.trim_end_matches(&['\r', '\n'][..]).to_owned());
+    }
+    inquire::Password::new(prompt.trim_end_matches(&[':', ' '][..]))
+        .with_display_mode(inquire::PasswordDisplayMode::Masked)
+        .without_confirmation()
+        .prompt()
+        .map_err(Into::into)
+}
+
 fn read_password(prompt: &str, env_var: Option<&str>, confirm: bool) -> Result<String> {
     if let Some(var) = env_var {
         let val = std::env::var(var)
@@ -325,13 +340,12 @@ fn read_password(prompt: &str, env_var: Option<&str>, confirm: bool) -> Result<S
         }
         return Ok(val);
     }
-    let pass = rpassword::prompt_password(prompt).context("reading password")?;
+    let pass = prompt_masked(prompt).context("reading password")?;
     if pass.is_empty() {
         bail!("password cannot be empty");
     }
     if confirm {
-        let second =
-            rpassword::prompt_password("Confirm password: ").context("confirming password")?;
+        let second = prompt_masked("Confirm password: ").context("confirming password")?;
         if pass != second {
             bail!("passwords do not match");
         }
@@ -385,7 +399,7 @@ fn cmd_set(
         buf.trim_end_matches(&['\r', '\n'][..]).to_owned()
     } else {
         let field_label = field.map_or_else(String::new, |f| format!(" / {f}"));
-        rpassword::prompt_password(format!("Value for {name}{field_label}: "))
+        prompt_masked(&format!("Value for {name}{field_label}: "))
             .context("reading secret value")?
     };
 
@@ -513,7 +527,7 @@ fn cmd_fill(
                     "{}{field_label} ({} · {}, empty to skip): ",
                     usage.secret, usage.item_title, usage.context
                 );
-                let val = rpassword::prompt_password(prompt).context("reading secret value")?;
+                let val = prompt_masked(&prompt).context("reading secret value")?;
                 if !val.is_empty() {
                     kdbx::set_field(&mut db, &usage.secret, field.as_deref(), &val);
                     updated += 1;
@@ -705,7 +719,7 @@ pub fn load_kdbx_secrets(
         let pw = if let Some(var) = password_env {
             std::env::var(var).ok()
         } else if interactive {
-            rpassword::prompt_password(format!(
+            prompt_masked(&format!(
                 "Password for {} vault ({}, empty to skip): ",
                 trip.slug,
                 vault_path.display()
