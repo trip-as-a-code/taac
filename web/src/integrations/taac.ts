@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -61,16 +61,38 @@ function load(): { site: SiteExport; paths: string[] } {
   return { site: result.export, paths: result.paths }
 }
 
+/** Map from public URL path (`/vaults/<id>.kdbx` or `/trips/<slug>/vault.kdbx`) to source disk path. */
+function vaultFiles(site: SiteExport): Map<string, string> {
+  const base = dirname(sitePath())
+  const out = new Map<string, string>()
+  for (const v of site.site.vaults ?? []) {
+    out.set(v.url, resolve(base, v.path))
+  }
+  for (const t of site.trips) {
+    if (t.vault) out.set(t.vault.url, resolve(base, t.vault.path))
+  }
+  return out
+}
+
 /** The data each page imports, as a virtual module so dev reloads it on change. */
 function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
   let server: ViteDevServer | undefined
   let rates: Promise<Rates | null> | undefined
   let changes: ReturnType<typeof tripChanges> | undefined
   let watched = new Set<string>()
+  let vaults = new Map<string, string>()
   return {
     name: 'taac-data',
     configureServer(s) {
       server = s
+      s.middlewares.use((req, res, next) => {
+        const pathname = req.url?.split('?')[0]
+        const file = pathname ? vaults.get(pathname) : undefined
+        if (!file || !existsSync(file)) return next()
+        res.setHeader('Content-Type', 'application/octet-stream')
+        res.setHeader('Cache-Control', 'no-store')
+        res.end(readFileSync(file))
+      })
       const reload = (file: string) => {
         if (!watched.has(resolve(file))) return
         const mod = s.moduleGraph.getModuleById(RESOLVED)
@@ -103,7 +125,8 @@ function dataPlugin(onLoad: (site: SiteExport) => void): Plugin {
       }
       if (id !== RESOLVED) return
       const { site, paths } = load()
-      watched = new Set(paths.map((p) => resolve(p)))
+      vaults = vaultFiles(site)
+      watched = new Set([...paths.map((p) => resolve(p)), ...vaults.values()])
       server?.watcher.add([...watched, dirname(sitePath())])
       onLoad(site)
       return `export default ${JSON.stringify(site)}`
@@ -130,6 +153,7 @@ export function taac(): AstroIntegration {
           // The login page localizes the site title itself.
           title: site.site.title,
           auth: site.site.access === 'github' ? 'github' : null,
+          vaults: Object.fromEntries((site.site.vaults ?? []).map((v) => [v.id, { ownerLogins: v.ownerLogins ?? [] }])),
           trips: Object.fromEntries(
             site.trips.map((t) => [
               t.slug,
@@ -140,6 +164,7 @@ export function taac(): AstroIntegration {
                 roles: Object.fromEntries(
                   t.members.flatMap((m) => (m.github ? [[m.github.toLowerCase(), m.role]] : [])),
                 ),
+                ...(t.vault ? { vault: { share: t.vault.share, viewers: t.vault.viewers } } : {}),
               },
             ]),
           ),
@@ -151,6 +176,16 @@ export function taac(): AstroIntegration {
         const out = fileURLToPath(new URL('_taac/access.json', dir))
         mkdirSync(dirname(out), { recursive: true })
         writeFileSync(out, JSON.stringify(access, null, 2))
+        // Copy configured KeePass (.kdbx) vaults into dist for static & server serving.
+        for (const [urlPath, src] of vaultFiles(site)) {
+          if (!existsSync(src)) {
+            logger.warn(`[taac] vault file not found: ${src}`)
+            continue
+          }
+          const dest = fileURLToPath(new URL(urlPath.replace(/^\//, ''), dir))
+          mkdirSync(dirname(dest), { recursive: true })
+          copyFileSync(src, dest)
+        }
         // Places' photos for the server to fetch and serve (lib/photos).
         writeFileSync(fileURLToPath(new URL('_taac/photos.json', dir)), JSON.stringify(photoIndex(site.trips), null, 2))
         const warnings = [...site.diagnostics, ...site.trips.flatMap((t) => t.diagnostics)]

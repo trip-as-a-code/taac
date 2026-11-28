@@ -14,7 +14,7 @@ use crate::generators;
 use crate::loader::{Site, Trip};
 use crate::model::{
     Booking, BookingStatus, Cost, Cover, DayPart, Group, IdeaDuration, ItemKind, Lottery, Member,
-    Opens, Place, Priority, Source, SourceRepo, Text, Transport,
+    Opens, Place, Priority, Secret, SecretAttachment, Source, SourceRepo, Text, Transport,
 };
 
 #[derive(Debug, Serialize)]
@@ -37,6 +37,63 @@ pub struct SiteInfo {
     /// Repository the trip files live in, for links to entries' lines.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<SourceRepo>,
+    /// Personal `KeePass` (`.kdbx`) vaults declared on `site.yaml`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vaults: Vec<PersonalVaultExport>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalVaultExport {
+    pub id: String,
+    pub owner: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owner_logins: Vec<String>,
+    /// Path relative to `site.yaml` (used by the web build to copy/serve the `.kdbx`).
+    pub path: String,
+    /// Public URL path where the `.kdbx` is served (`/vaults/<id>.kdbx`).
+    pub url: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TripVaultExport {
+    /// Path relative to `site.yaml` (used by the web build to copy/serve the `.kdbx`).
+    pub path: String,
+    /// Public URL path where the `.kdbx` is served (`/trips/<slug>/vault.kdbx`).
+    pub url: String,
+    pub share: bool,
+    pub viewers: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretRefExport {
+    pub secret: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vault: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretCodeExport {
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret: Option<SecretRefExport>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretAttachmentExport {
+    pub secret: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub all: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vault: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -86,6 +143,8 @@ pub struct TripExport {
     pub budget: Budget,
     pub packing: Vec<PackingCategoryExport>,
     pub overlays: Vec<OverlayExport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vault: Option<TripVaultExport>,
     pub artifacts: Artifacts,
     pub diagnostics: Vec<Diagnostic>,
 }
@@ -267,6 +326,16 @@ pub struct BookingExport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     pub has_reference: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<SecretRefExport>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_pin: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pin: Option<SecretRefExport>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub codes: Vec<SecretCodeExport>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<SecretAttachmentExport>,
 }
 
 /// One of several reservations behind a plan.
@@ -319,6 +388,10 @@ pub struct ContactExport {
     pub role: Option<String>,
     pub has_phone: bool,
     pub has_email: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<SecretRefExport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<SecretRefExport>,
 }
 
 #[derive(Debug, Serialize)]
@@ -519,6 +592,7 @@ pub struct PartyArtifacts {
 }
 
 pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
+    let has_site_vaults = !site.vaults.is_empty();
     let trips = site
         .trips
         .iter()
@@ -528,7 +602,42 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
                 .filter(|d| d.trip.as_deref() == Some(trip.slug.as_str()))
                 .cloned()
                 .collect();
-            export_trip(trip, trip_diagnostics)
+            export_trip(trip, trip_diagnostics, has_site_vaults)
+        })
+        .collect();
+    let vaults = site
+        .vaults
+        .iter()
+        .map(|(id, v)| {
+            let names = v.owner_names();
+            let mut owner_logins: Vec<String> =
+                v.github.iter().map(|l| l.to_ascii_lowercase()).collect();
+            for name in &names {
+                if let Some(login) = site
+                    .trips
+                    .iter()
+                    .flat_map(|t| t.members.iter())
+                    .find(|m| m.name.eq_ignore_ascii_case(name))
+                    .and_then(|m| m.github.as_deref())
+                {
+                    let lower = login.to_ascii_lowercase();
+                    if !owner_logins.contains(&lower) {
+                        owner_logins.push(lower);
+                    }
+                }
+            }
+            let owner = if names.is_empty() {
+                id.clone()
+            } else {
+                names.join(", ")
+            };
+            PersonalVaultExport {
+                id: id.clone(),
+                owner,
+                owner_logins,
+                path: v.path.clone(),
+                url: format!("/vaults/{id}.kdbx"),
+            }
         })
         .collect();
     SiteExport {
@@ -538,6 +647,7 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
             description: site.metadata.description.clone(),
             access: site.access,
             source: site.source.clone(),
+            vaults,
         },
         trips,
         diagnostics: diagnostics
@@ -547,7 +657,8 @@ pub fn export_site(site: &Site, diagnostics: Vec<Diagnostic>) -> SiteExport {
     }
 }
 
-pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
+pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>, has_site_vaults: bool) -> TripExport {
+    let has_vaults = has_site_vaults || trip.vault.is_some();
     let conflicts = crate::blockers::conflicts(trip);
     // Which plan carries the price for each booking reference.
     let priced: std::collections::HashMap<String, &str> = trip
@@ -591,8 +702,13 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                         provider: None,
                         url: None,
                         has_reference: false,
+                        reference: None,
+                        has_pin: false,
+                        pin: None,
+                        codes: Vec::new(),
+                        attachments: Vec::new(),
                     },
-                    booking_export,
+                    |b| booking_export(b, has_vaults),
                 ),
                 costs: item
                     .parts()
@@ -624,7 +740,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                                 .into_iter()
                                 .map(str::to_owned)
                                 .collect(),
-                            booking: booking_export(&r.booking()),
+                            booking: booking_export(&r.booking(), has_vaults),
                             costs: cost_exports(
                                 trip,
                                 &r.costs,
@@ -643,6 +759,12 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                         role: c.role.clone(),
                         has_phone: c.phone.is_some(),
                         has_email: c.email.is_some(),
+                        phone: has_vaults
+                            .then(|| c.phone.as_ref().map(secret_ref_export))
+                            .flatten(),
+                        email: has_vaults
+                            .then(|| c.email.as_ref().map(secret_ref_export))
+                            .flatten(),
                     })
                     .collect(),
                 notes: item.notes.clone(),
@@ -681,7 +803,7 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                     .map(|date| local_times(date, idea.start, idea.end, idea.part)),
                 choice: idea.choice.clone(),
                 transport: idea.transport.clone(),
-                booking: idea.booking.as_ref().map(booking_export),
+                booking: idea.booking.as_ref().map(|b| booking_export(b, has_vaults)),
                 area: idea.area.clone(),
                 places: idea_places.into_iter().map(|(id, _)| id).collect(),
                 members: trip
@@ -896,6 +1018,12 @@ pub fn export_trip(trip: &Trip, diagnostics: Vec<Diagnostic>) -> TripExport {
                 data: o.data.clone(),
             })
             .collect(),
+        vault: trip.vault.as_ref().map(|v| TripVaultExport {
+            path: v.path.clone(),
+            url: format!("/trips/{}/vault.kdbx", trip.slug),
+            share: v.share,
+            viewers: v.viewers,
+        }),
         artifacts: Artifacts {
             ics: generators::ics::generate(trip, None, None),
             geojson: generators::geojson::generate(trip),
@@ -1004,7 +1132,24 @@ fn local_times(
     }
 }
 
-fn booking_export(b: &Booking) -> BookingExport {
+fn secret_ref_export(s: &Secret) -> SecretRefExport {
+    SecretRefExport {
+        secret: s.secret.clone(),
+        field: s.field.clone(),
+        vault: s.vault.clone(),
+    }
+}
+
+fn secret_attachment_export(a: &SecretAttachment) -> SecretAttachmentExport {
+    SecretAttachmentExport {
+        secret: a.secret.clone(),
+        attachment: a.attachment.clone(),
+        all: a.all,
+        vault: a.vault.clone(),
+    }
+}
+
+fn booking_export(b: &Booking, has_vaults: bool) -> BookingExport {
     BookingExport {
         status: b.status,
         deadline: b.deadline,
@@ -1013,6 +1158,26 @@ fn booking_export(b: &Booking) -> BookingExport {
         provider: b.provider.clone(),
         url: b.url.clone(),
         has_reference: b.reference.is_some(),
+        reference: has_vaults
+            .then(|| b.reference.as_ref().map(secret_ref_export))
+            .flatten(),
+        has_pin: b.pin.is_some(),
+        pin: has_vaults
+            .then(|| b.pin.as_ref().map(secret_ref_export))
+            .flatten(),
+        codes: b
+            .codes
+            .iter()
+            .map(|(label, s)| SecretCodeExport {
+                label: label.clone(),
+                secret: has_vaults.then(|| secret_ref_export(s)),
+            })
+            .collect(),
+        attachments: if has_vaults {
+            b.attachments.iter().map(secret_attachment_export).collect()
+        } else {
+            Vec::new()
+        },
     }
 }
 

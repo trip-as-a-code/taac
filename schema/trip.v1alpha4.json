@@ -121,6 +121,17 @@
           "type": "null"
         }
       ]
+    },
+    "vault": {
+      "description": "Shared `KeePass` (`.kdbx`) vault for this trip's confidential values and attachments.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TripVault"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": false,
@@ -720,7 +731,7 @@
           ]
         },
         "reference": {
-          "description": "Confirmation number / PNR. Never published.",
+          "description": "Confirmation number / PNR. Never published in plaintext.",
           "anyOf": [
             {
               "$ref": "#/$defs/Secret"
@@ -729,6 +740,31 @@
               "type": "null"
             }
           ]
+        },
+        "pin": {
+          "description": "Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codes": {
+          "description": "Extra labeled encrypted codes (e.g. check-in code, door lock, lockbox, Wi-Fi).",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Secret"
+          }
+        },
+        "attachments": {
+          "description": "Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SecretAttachment"
+          }
         }
       },
       "additionalProperties": false,
@@ -784,12 +820,58 @@
       ]
     },
     "Secret": {
-      "description": "A confidential value, resolved by name from `.env`, `secrets.yaml` or the\nenvironment. Only local builds run with `--reveal` ever see it.",
+      "description": "A confidential value, resolved by name from a `KeePass` vault, `.env`,\n`secrets.yaml` or the environment. Plaintext never reaches published builds.",
       "type": "object",
       "properties": {
         "secret": {
           "type": "string",
           "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "field": {
+          "description": "Optional `KeePass` field name inside the entry (defaults to Password / Value).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vault": {
+          "description": "Explicit vault id (e.g. a personal vault from `site.yaml`, or `shared`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "secret"
+      ]
+    },
+    "SecretAttachment": {
+      "description": "Reference to one or all binary attachments stored on a `KeePass` entry.",
+      "type": "object",
+      "properties": {
+        "secret": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "attachment": {
+          "description": "Specific attachment filename inside the `KeePass` entry.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "all": {
+          "description": "Expose every binary attachment stored on the entry.",
+          "type": "boolean"
+        },
+        "vault": {
+          "description": "Explicit vault id (e.g. a personal vault from `site.yaml`, or `shared`).",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false,
@@ -857,7 +939,7 @@
           ]
         },
         "reference": {
-          "description": "Confirmation number / PNR. Never published.",
+          "description": "Confirmation number / PNR. Never published in plaintext.",
           "anyOf": [
             {
               "$ref": "#/$defs/Secret"
@@ -866,6 +948,31 @@
               "type": "null"
             }
           ]
+        },
+        "pin": {
+          "description": "Booking PIN / security code (e.g. Booking.com PIN). Never published in plaintext.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secret"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codes": {
+          "description": "Extra labeled encrypted codes (e.g. check-in code, door lock, lockbox, Wi-Fi).",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Secret"
+          }
+        },
+        "attachments": {
+          "description": "Encrypted attachments (e.g. PDF boarding passes, vouchers) stored in a `KeePass` vault.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SecretAttachment"
+          }
         },
         "costs": {
           "description": "What this reservation cost; `who` defaults to the reservation's.",
@@ -1843,6 +1950,28 @@
       "required": [
         "name",
         "file"
+      ]
+    },
+    "TripVault": {
+      "description": "A trip's shared `KeePass` (`.kdbx`) vault, decrypted strictly in the browser.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Path to the `.kdbx` file, relative to the trip directory.",
+          "type": "string"
+        },
+        "share": {
+          "description": "Allow embedding the decryption key in `#k=` share links (default: false).",
+          "type": "boolean"
+        },
+        "viewers": {
+          "description": "Allow `role: viewer` members to access the shared vault (default: false).",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
       ]
     }
   }

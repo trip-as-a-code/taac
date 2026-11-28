@@ -1,0 +1,3 @@
+kind: Added
+body: 'Zero-knowledge KeePass (.kdbx) encrypted secrets and binary attachments, decrypted strictly in the browser (with single-password personal-to-shared chaining and #k= share links), plus the taac secret CLI.'
+time: 2026-11-21T18:30:26.687513147+02:00

@@ -2,7 +2,7 @@
 
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
@@ -40,7 +40,10 @@ export function secureResponse(response: Response, options: HeaderOptions): Resp
   // Hashed build assets never change under the same name.
   if (options.path.startsWith('/_astro/') && response.ok) {
     headers.set('Cache-Control', `${options.siteProtected ? 'private' : 'public'}, max-age=31536000, immutable`)
-  } else if (options.underProtection && headers.get('Content-Type')?.includes('text/html')) {
+  } else if (
+    options.underProtection &&
+    (headers.get('Content-Type')?.includes('text/html') || options.path.endsWith('.kdbx'))
+  ) {
     headers.set('Cache-Control', 'private, no-cache')
   }
   return secured

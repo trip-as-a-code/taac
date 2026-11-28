@@ -1,6 +1,7 @@
 //! `taac`: validate trips, compile artifacts, export for the web, emit schemas.
 
 mod files;
+mod secret_cmd;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -40,10 +41,18 @@ enum Command {
         path: PathBuf,
         #[arg(short, long, default_value = "dist")]
         out: PathBuf,
-        /// Include confidential values from `.env`, `secrets.yaml` and the
+        /// Include confidential values from `.kdbx` vaults, `.env`, `secrets.yaml` and the
         /// environment. Never publish the result.
         #[arg(long)]
         reveal: bool,
+        /// Environment variable containing the `.kdbx` vault password (with `--reveal`).
+        #[arg(long)]
+        vault_password_env: Option<String>,
+    },
+    /// Manage `KeePass` 4 (`.kdbx`) vaults for confidential trip values and attachments.
+    Secret {
+        #[command(subcommand)]
+        action: secret_cmd::SecretCommand,
     },
     /// Print the web export (JSON) the frontend renders.
     Export {
@@ -85,14 +94,28 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 ExitCode::SUCCESS
             })
         }
-        Command::Build { path, out, reveal } => {
+        Command::Build {
+            path,
+            out,
+            reveal,
+            vault_password_env,
+        } => {
             let (files, key) = files::collect(&path)?;
             let (site, diagnostics) = taac_core::load(&files, &key);
             report(&diagnostics);
             let Some(site) = site.filter(|_| !has_errors(&diagnostics)) else {
                 bail!("fix the errors above first");
             };
-            let secrets = reveal.then(|| load_secrets(&path));
+            let secrets = reveal.then(|| {
+                let mut store = load_secrets(&path);
+                secret_cmd::load_kdbx_secrets(
+                    &site,
+                    &path,
+                    vault_password_env.as_deref(),
+                    &mut store,
+                );
+                store
+            });
             for trip in &site.trips {
                 let dir = out.join(&trip.slug);
                 fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
@@ -115,6 +138,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
+        Command::Secret { action } => secret_cmd::run(action),
         Command::Export { path, out } => {
             let (files, key) = files::collect(&path)?;
             let export = taac_core::export(&files, &key).map_err(|diagnostics| {
@@ -176,4 +200,16 @@ fn load_secrets(path: &Path) -> SecretStore {
         store.insert(key, value);
     }
     store
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory;
+
+    use super::Cli;
+
+    #[test]
+    fn cli_definition_is_valid() {
+        Cli::command().debug_assert();
+    }
 }

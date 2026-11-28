@@ -10,6 +10,15 @@ import { join } from 'node:path'
 /** One string for every language, or one per language. */
 export type Text = string | Record<string, string>
 
+export interface TripVaultAccess {
+  share: boolean
+  viewers: boolean
+}
+
+export interface PersonalVaultAccess {
+  ownerLogins: string[]
+}
+
 export interface TripAccess {
   title: string
   /** Open to everyone, signed in or not. */
@@ -18,6 +27,8 @@ export interface TripAccess {
   logins: string[]
   /** Each of those usernames' role: what they may do beyond looking. */
   roles: Record<string, Role>
+  /** Shared KeePass vault access settings, when configured. */
+  vault?: TripVaultAccess
 }
 
 /** `member`: everything; `viewer`: looks and comments. */
@@ -27,6 +38,8 @@ export interface AccessManifest {
   title: Text
   /** `github`: signing in is required for everything not public. */
   auth: 'github' | null
+  /** Site-level personal vaults by id (`/vaults/<id>.kdbx`). */
+  vaults?: Record<string, PersonalVaultAccess>
   trips: Record<string, TripAccess>
   /** Every trip on the site. */
   slugs: string[]
@@ -59,16 +72,29 @@ export function normalise(raw: unknown): AccessManifest {
   const locales = Array.isArray(value.locales) && value.locales.length ? value.locales : EMPTY_MANIFEST.locales
   const trips: Record<string, TripAccess> = {}
   for (const [slug, trip] of Object.entries(value.trips && typeof value.trips === 'object' ? value.trips : {})) {
+    const rawVault = trip?.vault
     trips[slug] = {
       title: typeof trip?.title === 'string' ? trip.title : slug,
       public: trip?.public === true,
       logins: usernames(trip?.logins),
       roles: roles(trip?.roles),
+      ...(rawVault && typeof rawVault === 'object'
+        ? { vault: { share: rawVault.share === true, viewers: rawVault.viewers === true } }
+        : {}),
+    }
+  }
+  const vaults: Record<string, PersonalVaultAccess> = {}
+  if (value.vaults && typeof value.vaults === 'object') {
+    for (const [id, v] of Object.entries(value.vaults)) {
+      vaults[id] = {
+        ownerLogins: usernames(v?.ownerLogins),
+      }
     }
   }
   return {
     title: isText(value.title) ? value.title : EMPTY_MANIFEST.title,
     auth: value.auth === 'github' ? 'github' : null,
+    ...(Object.keys(vaults).length > 0 ? { vaults } : {}),
     trips,
     slugs: Array.isArray(value.slugs) ? value.slugs.filter((s): s is string => typeof s === 'string') : [],
     locales,
@@ -199,4 +225,43 @@ export function localeRoot(locale: string | null, manifest: AccessManifest): str
 export function calendarSlug(path: string): string | null {
   const match = /^\/trips\/([^/]+)\/calendar(?:-[^/]+)?\.ics$/.exec(path)
   return match?.[1] ? decodeURIComponent(match[1]) : null
+}
+
+/**
+ * Defense-in-depth access rules for encrypted `.kdbx` vaults:
+ * - `/vaults/<id>.kdbx`: on a `github` site, only the vault owner (`ownerLogin`). Never via share links.
+ * - `/trips/<slug>/vault.kdbx`: `member`s always, `viewer`s only if `vault.viewers`, share links only if `vault.share`.
+ * Returns `null` when `path` is not a vault file.
+ */
+export function decideVault(
+  path: string,
+  login: string | null,
+  linkTrip: string | null,
+  manifest: AccessManifest,
+): Decision | null {
+  const { rest } = splitLocale(path, manifest)
+  const personal = /^\/vaults\/([^/]+)\.kdbx$/.exec(rest)
+  if (personal?.[1]) {
+    if (manifest.auth === null) return 'open'
+    if (!login) return 'sign-in'
+    const id = decodeURIComponent(personal[1])
+    const owners = manifest.vaults?.[id]?.ownerLogins ?? []
+    return owners.includes(login) ? 'open' : 'forbidden'
+  }
+  const shared = /^\/trips\/([^/]+)\/vault\.kdbx$/.exec(rest)
+  if (shared?.[1]) {
+    if (manifest.auth === null) return 'open'
+    const slug = decodeURIComponent(shared[1])
+    const trip = manifest.trips[slug]
+    if (trip?.public) return 'open'
+    if (login) {
+      const role = roleOf(slug, login, manifest)
+      if (role === 'member') return 'open'
+      if (role === 'viewer') return trip?.vault?.viewers ? 'open' : 'forbidden'
+      return 'forbidden'
+    }
+    if (linkTrip === slug) return trip?.vault?.share ? 'open' : 'forbidden'
+    return 'sign-in'
+  }
+  return null
 }

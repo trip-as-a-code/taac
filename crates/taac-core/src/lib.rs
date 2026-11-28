@@ -7,6 +7,8 @@ pub mod datetime;
 pub mod diagnostics;
 pub mod export;
 pub mod generators;
+#[cfg(feature = "kdbx")]
+pub mod kdbx;
 pub mod loader;
 pub mod model;
 pub mod schema;

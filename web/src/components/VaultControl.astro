@@ -1,0 +1,203 @@
+---
+import type { TripExport } from '@taac/core'
+
+import Icon from '@/components/Icon.astro'
+import type { I18n } from '@/i18n'
+import { site } from '@/lib/build'
+import type { VaultDescriptor } from '@/scripts/vault'
+
+interface Props {
+  trip: TripExport
+  i18n: I18n
+}
+
+const { trip, i18n } = Astro.props
+const { t } = i18n
+
+const vaults: VaultDescriptor[] = []
+if (trip.vault) {
+  vaults.push({
+    id: 'shared',
+    label: t('vault.shared'),
+    url: trip.vault.url,
+    kind: 'shared',
+  })
+}
+for (const v of site.site.vaults ?? []) {
+  vaults.push({
+    id: v.id,
+    label: t('vault.personal', { owner: v.owner }),
+    url: v.url,
+    kind: 'personal',
+    ownerLogins: v.ownerLogins,
+  })
+}
+---
+
+{vaults.length > 0 && (
+  <div
+    class="vault-control"
+    data-vault-control
+    data-trip-slug={trip.slug}
+    data-vaults={JSON.stringify(vaults)}
+    data-locked-label={t('vault.locked')}
+    data-unlocked-label={t('vault.unlocked')}
+    data-wrong-password={t('vault.wrongPassword')}
+  >
+    <button class="nav-icon-button vault-btn" type="button" data-vault-open title={t('vault.button')}>
+      <Icon name="lock" size={19} class="icon-locked" />
+      <Icon name="unlock" size={19} class="icon-unlocked" />
+      <span class="visually-hidden">{t('vault.button')}</span>
+    </button>
+
+    <dialog class="sheet" data-vault-dialog aria-labelledby="vault-title">
+      <header>
+        <h2 id="vault-title" class="headline">
+          {t('vault.title')}
+        </h2>
+        <button class="nav-icon-button" type="button" data-vault-close title={t('share.close')}>
+          <Icon name="close" size={18} />
+          <span class="visually-hidden">{t('share.close')}</span>
+        </button>
+      </header>
+      <p class="footnote secondary">{t('vault.lead')}</p>
+
+      <form data-vault-form>
+        {vaults.length > 1 && (
+          <label class="field">
+            <span class="footnote secondary">{t('vault.select')}</span>
+            <select name="vault" data-vault-select>
+              {vaults.map((v) => (
+                <option value={v.id}>{v.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label class="field">
+          <span class="footnote secondary">{t('vault.password')}</span>
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <label class="check">
+          <input name="remember" type="checkbox" />
+          <span class="footnote">{t('vault.remember')}</span>
+        </label>
+        <div class="actions">
+          <button class="button button-primary" type="submit">
+            <Icon name="unlock" size={16} />
+            {t('vault.unlock')}
+          </button>
+          <button class="button button-plain" type="button" data-vault-lock hidden>
+            <Icon name="lock" size={16} />
+            {t('vault.lock')}
+          </button>
+        </div>
+        <p class="footnote error" data-vault-error hidden />
+      </form>
+
+      <ul class="status-list footnote" data-vault-status />
+    </dialog>
+  </div>
+)}
+
+<style>
+  .vault-control {
+    display: contents;
+  }
+
+  .vault-btn :global(.icon-unlocked) {
+    display: none;
+  }
+
+  .vault-control[data-unlocked] .vault-btn {
+    color: var(--tint);
+  }
+
+  .vault-control[data-unlocked] .vault-btn :global(.icon-locked) {
+    display: none;
+  }
+
+  .vault-control[data-unlocked] .vault-btn :global(.icon-unlocked) {
+    display: block;
+  }
+
+  .sheet {
+    width: min(440px, calc(100vw - 32px));
+    max-height: min(640px, calc(100dvh - 32px));
+    padding: var(--space-5);
+    border: 0;
+    border-radius: 20px;
+    background: var(--bg-elevated);
+    color: var(--label);
+    box-shadow: var(--shadow-lg, 0 20px 60px rgb(0 0 0 / 0.35));
+  }
+
+  .sheet::backdrop {
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(2px);
+  }
+
+  .sheet header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+  }
+
+  .sheet h2 {
+    margin: 0;
+  }
+
+  form {
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-4) 0;
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+  }
+
+  select,
+  input[type='password'] {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--separator);
+    border-radius: 10px;
+    background: var(--fill);
+    color: var(--label);
+    font: inherit;
+  }
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .error {
+    margin: 0;
+    color: var(--red, #ff453a);
+  }
+
+  .status-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: var(--space-3) 0 0;
+    list-style: none;
+    border-top: 1px solid var(--separator);
+    color: var(--label-secondary);
+  }
+
+  .status-list :global(li[data-state='open']) {
+    color: var(--tint);
+  }
+</style>

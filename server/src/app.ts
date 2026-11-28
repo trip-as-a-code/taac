@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import {
   calendarSlug,
   decide,
+  decideVault,
   isProtected,
   localeRoot,
   localizedText,
@@ -926,12 +927,13 @@ export function createHandler(config: Config, manifest: AccessManifest): Handler
     }
 
     const login = await loginOf(request)
-    let decision = decide(path, login, manifest)
-    if (decision !== 'open' && (await calendarKeyValid(path, url))) decision = 'open'
-    if (decision !== 'open') {
+    const link = await linkOf(request)
+    const vaultDecision = decideVault(path, login, link?.trip ?? null, manifest)
+    let decision = vaultDecision ?? decide(path, login, manifest)
+    if (vaultDecision === null && decision !== 'open' && (await calendarKeyValid(path, url))) decision = 'open'
+    if (vaultDecision === null && decision !== 'open') {
       // A link opens its own trip and what its pages load, never another trip
       // or the list of them: the home page sends it to its trip.
-      const link = await linkOf(request)
       const slug = tripOf(path, manifest)
       if (link && slug === link.trip) decision = 'open'
       else if (link && slug === null) {

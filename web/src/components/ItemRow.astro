@@ -88,6 +88,9 @@ const hasDetails =
   item.contacts.length > 0 ||
   item.costs.length > 0 ||
   item.booking.hasReference ||
+  item.booking.hasPin ||
+  (item.booking.codes?.length ?? 0) > 0 ||
+  (item.booking.attachments?.length ?? 0) > 0 ||
   Boolean(item.url) ||
   places.length > 0 ||
   Boolean(sourceHref(item.source))
@@ -326,16 +329,123 @@ const offsetLabel =
         {item.notes && <div class="prose" lang={trip.locale} set:html={markdown(item.notes)} />}
         <ul class="facts footnote">
           {item.booking.hasReference && (
-            <li>
+            <li
+              class="secret-row"
+              data-secret={item.booking.reference?.secret}
+              data-secret-field={item.booking.reference?.field}
+              data-secret-vault={item.booking.reference?.vault}
+              data-secret-mask={t('item.reference')}
+            >
               <Icon name="ticket" size={15} />
-              {t('item.reference')}
+              {item.booking.reference ? (
+                <>
+                  <button type="button" class="secret-trigger" data-secret-trigger>
+                    <span data-secret-value>{t('item.reference')}</span>
+                  </button>
+                  <button type="button" class="secret-copy" data-secret-copy hidden title={t('vault.copy')}>
+                    <Icon name="copy" size={14} />
+                  </button>
+                </>
+              ) : (
+                t('item.reference')
+              )}
             </li>
           )}
+          {item.booking.hasPin && (
+            <li
+              class="secret-row"
+              data-secret={item.booking.pin?.secret}
+              data-secret-field={item.booking.pin?.field}
+              data-secret-vault={item.booking.pin?.vault}
+              data-secret-mask={t('item.pin')}
+            >
+              <Icon name="lock" size={15} />
+              {item.booking.pin ? (
+                <>
+                  <button type="button" class="secret-trigger" data-secret-trigger>
+                    <span data-secret-value>{t('item.pin')}</span>
+                  </button>
+                  <button type="button" class="secret-copy" data-secret-copy hidden title={t('vault.copy')}>
+                    <Icon name="copy" size={14} />
+                  </button>
+                </>
+              ) : (
+                t('item.pin')
+              )}
+            </li>
+          )}
+          {(item.booking.codes ?? []).map((code) => (
+            <li
+              class="secret-row"
+              data-secret={code.secret?.secret}
+              data-secret-field={code.secret?.field}
+              data-secret-vault={code.secret?.vault}
+              data-secret-mask="••••••"
+            >
+              <Icon name="lock" size={15} />
+              <span class="secondary">{code.label}:</span>
+              {code.secret ? (
+                <>
+                  <button type="button" class="secret-trigger" data-secret-trigger>
+                    <span data-secret-value>••••••</span>
+                  </button>
+                  <button type="button" class="secret-copy" data-secret-copy hidden title={t('vault.copy')}>
+                    <Icon name="copy" size={14} />
+                  </button>
+                </>
+              ) : (
+                <span>••••••</span>
+              )}
+            </li>
+          ))}
+          {(item.booking.attachments ?? []).map((att) => (
+            <li
+              class="secret-row"
+              data-secret-attachment={att.secret}
+              data-secret-filename={att.attachment}
+              data-secret-all={att.all ? 'true' : undefined}
+              data-secret-vault={att.vault}
+            >
+              <Icon name="paperclip" size={15} />
+              <button type="button" class="secret-trigger secret-locked-only" data-secret-trigger>
+                {att.attachment ?? t('vault.attachment')} · {t('vault.unlockHint')}
+              </button>
+              <span class="secret-attachments" data-secret-attachment-list />
+            </li>
+          ))}
           {item.contacts.map((c) => (
             <li>
               <Icon name="phone" size={15} />
               {c.name}
               {c.role && <span class="secondary">· {c.role}</span>}
+              {c.phone && (
+                <span
+                  class="secret-inline"
+                  data-secret={c.phone.secret}
+                  data-secret-field={c.phone.field}
+                  data-secret-vault={c.phone.vault}
+                  data-secret-mask="••••••"
+                >
+                  ·{' '}
+                  <button type="button" class="secret-trigger" data-secret-trigger>
+                    <span data-secret-value>••••••</span>
+                  </button>
+                </span>
+              )}
+              {c.email && (
+                <span
+                  class="secret-inline"
+                  data-secret={c.email.secret}
+                  data-secret-field={c.email.field}
+                  data-secret-vault={c.email.vault}
+                  data-secret-mask="••••••"
+                >
+                  ·{' '}
+                  <button type="button" class="secret-trigger" data-secret-trigger>
+                    <span data-secret-value>••••••</span>
+                  </button>
+                </span>
+              )}
             </li>
           ))}
           {item.costs.map((c) => (
@@ -969,5 +1079,57 @@ const offsetLabel =
     .who {
       margin-left: 0;
     }
+  }
+
+  .secret-trigger {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted var(--separator);
+    text-underline-offset: 3px;
+  }
+
+  [data-unlocked='true'] > .secret-trigger {
+    cursor: text;
+    text-decoration: none;
+    user-select: all;
+  }
+
+  [data-unlocked='true'] > .secret-locked-only {
+    display: none;
+  }
+
+  .secret-copy {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--label-secondary);
+    cursor: pointer;
+  }
+
+  .secret-copy[data-copied='true'] {
+    color: var(--tint);
+  }
+
+  .secret-attachments {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .secret-attachments :global(.vault-attachment-chip) {
+    padding: 2px 8px;
+    border: 1px solid var(--separator);
+    border-radius: 999px;
+    background: var(--fill);
+    color: var(--tint);
+    font: inherit;
+    cursor: pointer;
   }
 </style>

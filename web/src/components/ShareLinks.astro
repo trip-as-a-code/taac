@@ -32,6 +32,7 @@ const lifetimes = ['1d', '1w', '1m', 'never'] as const
   data-revoke={t('share.revoke')}
   data-confirm={t('share.confirm')}
   data-error={t('share.error')}
+  data-unlock-secrets-first={t('share.unlockSecretsFirst')}
 >
   <a class="badge" href={path('/login')} data-link-badge hidden title={t('link.signIn')}>
     <Icon name="link" size={14} />
@@ -67,6 +68,12 @@ const lifetimes = ['1d', '1w', '1m', 'never'] as const
           ))}
         </div>
       </div>
+      {trip.vault?.share && (
+        <label class="check">
+          <input name="includeSecrets" type="checkbox" data-share-secrets />
+          <span class="footnote">{t('share.includeSecrets')}</span>
+        </label>
+      )}
       <button class="button button-primary" type="submit">
         <Icon name="link" size={16} />
         {t('share.create')}
@@ -165,6 +172,13 @@ const lifetimes = ['1d', '1w', '1m', 'never'] as const
 
   form .button {
     justify-self: start;
+  }
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
   }
 
   .error {
